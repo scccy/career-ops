@@ -8902,5 +8902,572 @@
       "ok": true,
       "reason": "已包含右侧完整岗位详情"
     }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "字节跳动",
+    "title": "大数据开发工程师（国际化方向）",
+    "salary": "20-40K·16薪",
+    "city": "上海·徐汇区·漕河泾",
+    "desc": "团队介绍：负责字节跳动旗下泛抖音、国际化、创新与中台等业务的数据 BP 工作，业务版图覆盖抖音、国际化、大模型、番茄⼩说等板块。我们以数据⾼效赋能业务增长为核⼼使命，深度扎根各业务线，以数据体系建设为根基、以业务目标达成为导向，为业务方提供专业、稳定、⾼效的数据服务与架构解决方案。工作内容聚焦海量数据的治理与应用，需对产品全链路数据进行复杂且深度的分析挖掘；深度参与大数据产品的迭代优化，探索前沿数据技术在业务场景中的落地实践，在字节跳动的技术土壤中实现个人能力与业务价值的双重增长。\n1、负责字节跳动旗下国际化相关业务的海量数据全链路建设，包括但不限于国际化场景下的电商、直播、短视频等相关业务，基于分布式计算与存储底座搭建高稳定、高吞吐数据流水线，沉淀标准化数据平台工具与商业化数据产品，支撑集团规模化数据生产。\n2、深度联动各相关业务线，综合运用数据开发、多维分析、数据挖掘能力输出一站式数据解决方案，挖掘数据资产价值，持续优化整体数据流转与使用效率。\n3、落地复杂 SQL、ETL 流程开发交付，负责超大规模数据任务性能调优、故障治理与高复杂度业务需求落地，跟进并落地前沿大数据技术方案迭代。\n4、落地 AI 辅助编码提效体系，覆盖需求拆解、数据建模、开发实现、自动化测试、标准化文档全流程，协同前后端工程师共同完成对外数据服务接口交付与上线。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "在校/应届",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/da08baf3ce0b4ef90nN_0t26GFFQ.html?securityId=zTTTJEVD09sBe-31eFsBtizbfOoHLEWOV4hRqNpAk4foqnLANHiD3HYhlS9cniNBAJ4Eo2HF8LtpYUwQZmwwYY0hge6fcWkKEEdNKxN8vuXYLnW6rFozI6cWBnb-chDV8k5FAfDmrK2-Lixn5YtQjnBV368gf26cuX2EKkEWMf9kyCdBZJNsKmxWfsLHfSZvgkBA8IIuk9hyntnD6pOM1CoC0eEnCjkMQv2nBk5uLw3xzKqV1xoY0hkvFM0DblGsDuGF3l_h7gsHdFrInJg6kOuZD-hUO4ogs_gza7TNpRXuziWzbg45e3MWcNrkl1IGySb9kRRH4K95wNDeIVxbMmhZPYXHYoNzwo8Hus98Q2R1c2jsQO6G1GzpNv1x7SS7lZqQ1UnBb49B5DdzZqBBMEeZgB4B4AfaFAk~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:33.253Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "小米",
+    "title": "大数据开发工程师(A01911)",
+    "salary": "面议",
+    "city": "上海",
+    "desc": "工作职责：\n1、负责产品及业务的数据采集、校验、提取和统计的相关工作；\n2、负责产品及业务的数据分析和预测、应用数据预估和关联挖掘、应⽤内使⽤数据统计等⼯作；\n3、探索和研究有效的机器学习/深度学习模型，为公司各部门或项目提供决策支持；\n4、数据仓库设计与开发，负责离线/实时数据计算、数据指标体系与数据看板的开发。\n任职要求:\n1、数据挖掘、统计学、数学、计算机相关专业本科以上学历；\n2、熟悉主流机器学习、数据挖掘基本算法和数学模型，并有实际的项⽬经验；\n3、精通一种开发语言（Python、Scala、Java、C等），并具有快速学习其他开发语言的能力；\n4、熟悉Hadoop(HDFS/MapReduce/Hive/HBase)、Spark、Kafka的使用，熟悉Mysql等关系型数据库和NoSql技术；\n5、对数据敏感、能熟练预估数据量以及数据项之间关系，善于从数据中发现问题；\n6、具有良好的沟通协作能力，具有较强的分享意愿。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "在校/应届",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/d579ed902c4c87710nN-2ti4EFZU.html?securityId=lLo5-BtmOimg3-H1o7rFOpUzLNLQ1tgj09j-V44LiD2bXaO63l6s2YaD0T11U9BvmJ4qYPREQM3sRgm1v0REA5Q5-GUUtLQbQibeks7w0-0bOaSslnxVvpNzwWTE35Q35FAwMrlwKEx0aU-mkP_WyPFr2E-ZlUDB1EbRq1DC0qUa5FyGaFFvmLr6n4QuRI2E9FY-aVNV6kjcyr1gGx-Vr6IAV70VfdrLnK5884FC5MdjasVtQXKrfcsJGFpbIbb0sfY52jG2NnL6SUFT3roiOY_SvTNOjgwGpWhtzvlnTofiyejgkLLC0zY-MwDwovVGjvL7Wgb-lZoGE0qABIwP-QQSiCizoW0-sii5nZ8IKCkuyyPzIJG0oBkwX_U4TjL6CBkeN1CEk4nT1Qwl5PhcGTDmC_pRb-NB",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:35.335Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "携程集团",
+    "title": "大数据开发实习生",
+    "salary": "250-300元/天",
+    "city": "上海",
+    "desc": "职位描述\n1、参与携程旅行网大数据项目，承担⽇常数据处理⼯作，完成数据的抽取、清洗与加⼯；\n2、与团队紧密协作，支持数据平台的构建与优化，持续提升数据处理效率；\n3、结合业务需求，协助制定数据解决方案，为业务决策提供数据⽀持。\n任职资格\n1、对大数据技术有热情，愿意在数据开发方向持续学习与实践；\n2、具备良好的团队协作意识，能够与团队成员有效沟通，共同推进项目进展；\n3、大数据基础知识扎实，熟悉 SQL 语法，了解 Spark 基本原理；\n4、有数据仓库建设、ETL 开发经验者优先。\n加分项\n1、有 Java 开发经验；\n2、有 Flink 实时任务开发经验。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "4天/周 3个月",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/05b429986be7fbcb0nN829m8FVBU.html?securityId=NcllBNNw7NrIE-G1mU6xboIWFeZST58mV0dEDeCABzSc_ccA1IJG2EQErk01INeHmovMQ6lW-yS4g2gWQ7kkDlhzd1EPVBbviKcL9Sk2YXCq35LiN9OBBFzS8z8TAra6ezr2rjE-p9HCHTjMljfhBPXxp2C6SewfSJju26H2fdzpfyjRsGogQ8HcAHVa6WGoIW_yT_RAuRA-lyXVwyHnhEOMQ1Tebj2GaVS-sDogs76hiUiGp3iScXDxQV8zm0aZ2ZaJ2mwN6kUoIf0D1e3JHos3KuJa1VxE4VXKEXYzo7JtA-m7ikQ_WxaeiplLx-h5yj5Skff9rPTu40UH8T-nwSp8Trfsh_EMX4D-5uBBmI4VzvSmsWoX0-dLtqOsQEBTjSYghiPt4Z0dac6t2Y6oJWWeqcau0m57g5z5",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:39.402Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "天津安硕联行商贸",
+    "title": "数据开发工程师（数仓方向）",
+    "salary": "15-20K",
+    "city": "上海·浦东新区·陆家嘴",
+    "desc": "岗位职责:\n1. 负责数据仓库的分层架构设计与模型开发，涵盖贴源层、明细层、汇总层及应用层的数据体系建设。\n2. 根据业务分析需求，开展主题域数据模型设计，包括指标加工、数据清洗、转换和整合。\n3. 设计并开发维度表、事实表、宽表及汇总表等核心数据模型，保障数据的一致性与可复⽤性。\n4. 对接数据分析与管理应⽤场景，提供稳定的数据服务接口、宽表视图及分析数据集。\n5. 参与数据质量管控、性能调优、SQL优化及数据链路问题排查，确保数据准确⾼效交付。\n任职要求：\n1. 熟悉数据仓库建设理论，掌握数仓分层、主题建模、维度建模和指标体系设计方法。\n2. 精通SQL开发，具备复杂数据加工逻辑实现与查询性能优化能⼒。\n3. 熟悉主流分析型数据库或MPP架构系统，了解分布式存储与查询机制。\n4. 具备良好的数据抽象能力，能根据通用业务场景设计可扩展的数据模型。\n5. 具备较强的问题分析与沟通协作能力，能够协同完成数据口径对齐与异常定位。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/18f1e79ce7ebc0450nN-3N61EVtT.html?securityId=-7Up717Ar3FLC-D1qpEh316AaI3gFfuMLDPKyZcJvukpF92boDJ7u_cf39Is1ua6qf8OwWkvYiycnKbJwcGBTVjnLxvooDyygAJdKlSXFnlvKUTNAgqPBHpcKi0fycKMd75xqJztw9uLpBCv8L1tERpu16-ub2PvM-Fieo9kn5u8Oajc5V1yjXS933abYY4KZHvKKy_ac-PGTy-b4m8k1WUWKJ8yl-vWZsJC0dNu_0DLKrNvyKKHlVotU1MCIWbLDokjvSHytPbXNh7UNA0q224MGGuVC9Bz1UedwtXyuLihnsKbS1aNLkAkGJK6j1elNO7ufBCgAFkzMzaBFHmCHXdnHcuxtSC2H2ZjZHMHTSXMHm1sj6kK2hdjuv-SqOf9HOEaQV3Bg74W1tHoeD220jBSCKKhtkKzF3rc",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:49.623Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "拼多多集团-PDD",
+    "title": "大数据系统开发工程师",
+    "salary": "60-90K·16薪",
+    "city": "上海",
+    "desc": "岗位职责\n1、负责电商搜索&推荐服务离线大数据架构工作，研发、优化在线&离线数据流程；\n2、设计开发模型样本数据生成、用户⾏为画像、⾼性能在线⽤户画像服务等业务，开发离线高性能框架、在线高性能KV系统；\n3、维护和开发基础组件，提⾼系统的性能和扩展性，保障服务的稳定运行；\n4、深刻的理解业务，抽象和设计合理的技术架构，以适应不断变化的需求；\n任职要求\n1、计算机或相关专业，2年以上的服务端开发经验；\n2、熟悉互联网，对算法和数据结构有深刻的理解；\n3、C/C++或者Java基本功扎实，熟悉Linux开发环境和网络编程；\n4、有良好的沟通和逻辑思维能力，有足够的技术和产品好奇心，善于学习，善于分析和解决实际问题；\n5、至少有搜索、推荐、电商、大规模检索系统或者分布式系统中的一项特长；\n加分项\n1、有搜索、推荐或电商业务相关经验加分；\n2、熟悉部分分布式计算、存储系统加分，如Hadoop、Hive、MPI、Spark、Flink等流式计算、Kafka、tensoflow、HBase等系统；",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "经验不限",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/2dc7b8d29dcfde640nV43t20EFRW.html?securityId=-uzSqSniO2axY-H12h5l4qSwHFASVxigYAD56NEZRQ35FPC89IDUyy2DX9oWGSxmo7aOGAUDRXQ8-M0I1JT1dZ3uryNA9noQ1RHRa_lhYLKGqGaSgdEF7K0MkNlKrv28PiTP3E-sTWeXEVp4Igr8rNzZ7jkSloCxIuWW3U10G-Lj0xFXx0ovlIuPCBf23AAW0IQvtPG6pWLnrUr6NtCS6FdLzuH6xrA5i3PU0VRi5ldzaXL9fOfzIpd61U_neJfZeIuprnUycP-53lvWTh50m1Mrh5sRqZGYdagZXnpOQ_Epy6F9FvpLF35KJV54E4ZKKgtoEQGqwKWNzeDB4XvxJ8WlBaOt335mhVxbqzry1F9vNoG_LTWKbD45hJ2byR_vjTE6-QYvirWnEvZB4xAtB3yBqWDzm5QT3-2W",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:51.709Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "兴业数金",
+    "title": "大数据开发",
+    "salary": "24-30K",
+    "city": "上海·静安区·火车站",
+    "desc": "本岗位为兴业银行总行科技研发中心岗位，工作地⽅包含上海、成都、杭州等地\n岗位职责：\n1、参与基于 Hadoop的⼤数据平台的研发⼯作与持续优化工作。\n2、参与大数据平台的容量规划、持续交付、业务监控、应急响应，保证平台正常运⾏。\n3、利用大数据相关技术实现对数据的分析、挖掘、处理、及数据可视化等相关工作。\n岗位要求：\n1、全日制本科及以上学历，计算机或相关专业背景。\n2、对互联网产品有见解，关注前沿技术，有较强的学习能力、分析能力和动手能力。\n3、熟悉常用分布式计算和存储框架，如Hadoop/HDFS/Spark，至少熟悉以下一种大数据技术组件，Hive, Impala, Hbase, Flume, Kafka,Zookeeper、Storm、Flink。\n4、熟悉资产管理、资金业务和金融工程相关领域业务者优先。\n5、个性乐观开朗，沟通能力强，具备良好的团队协作精神，能利用自身技术能力提升团队整体研发效率。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "在校/应届",
+      "硕士"
+    ],
+    "url": "https://www.zhipin.com/job_detail/4a6ae7989e9aed950nN629-6EFFU.html?securityId=0pU881JGIDUGR-v1ilqQqUkb6s63v4TUznYm_Sa90ZesiKtLNHBm7FQkHibG01Kn23r3sn4lrTD9OO9A4y_yNarrEVvxVrzYlGEJjMhQrZpJQy5sx8jCSEqXBQ589V6bhj_fyWJB68KRdtfmg-xDTtBt0w_VUfkXqEybeM-SdJSH7xy_mv5eJhJDANVl4f2KXep2g2z-s7_-OMm1uLooMDZZuJeUuuDkS9Qzzv9GN1tNlJu9dUmNrpUEgus-UXUBocfffMBY04yANF51NcMGhsTspf6rnK6MkDa8Cg7AWnATDtL-ueFLqUm-FvOuyNbS5lTl5PhfB80jz0QzgVmFgvewj6Z1Fc1wdt4F6v-zsv5vyfLCNSNouQeqR0Otk91VpasUsQSkMO_3gPYsHoiwEDwh-j7l51Y~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:53.789Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "治粟科技",
+    "title": "大数据开发",
+    "salary": "10-15K",
+    "city": "上海·徐汇区·龙华",
+    "desc": "岗位职责：\n1、参与大数据平台的架构设计与开发，保障系统稳定性与可扩展性；\n2、负责数据采集、清洗、存储及处理流程的开发与优化；\n3、构建高效的数据计算模型，支持离线与实时数据处理需求；\n4、协同业务团队完成数据服务接口开发，推动数据应⽤落地；\n任职要求：\n1、具备扎实的编程基础，熟悉主流⼤数据技术栈；\n2、掌握分布式计算原理，了解常见数据存储与计算框架；\n3、具备良好的数据敏感度和问题分析能⼒；\n4、具备团队协作意识，能够高效沟通并推进项目实施；\n岗位福利：\n1.全额五险⼀金+补充商业保险\n2.餐补+交通补贴+加班打车报销\n3.弹性打卡，带薪年假\n4.年度体检+团建经费\n5.季度绩效奖金",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "1年以内",
+      "大专"
+    ],
+    "url": "https://www.zhipin.com/job_detail/0d4c074ccfa55fab0nFz3ty0ElBQ.html?securityId=wnMJEpVNh5uaW-L1kad16tiVKrhkr9VZCMFnbMf8M0M6FFG2JtexJmfpuWczZIrcaCdTkXFshvZR_KRqMJxFlzh4_RnYe1S316j2X7sxIsZVUp_eX5YDvL8K3k2lhilukPOG9Urj5-mHoIgf7qnG5WD8XdiR1Op-x3UKpeWGW5qqncKkNeigUXglcGz1yCx8hsafIw9fafLuncYrbuK41DXFnhZMDNFeBGTGQPJAE0jmLb0MU2zopY_5b2nqzIxOZkKtq78CUnb8JIUoUbGGYVk-I27pbzRMy6X42bsRM62MM2CyTUco9_dBAhcYFl3qsYCm1Be4igo4jmr_PCeXmK3PTYDjyIDFmC7vQ2NCszoCb9oXGZjH8sXUhxMj8sthIOTZlzVnbUKO1xSlvcgOvpITcY4F3M3Tm_Y~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:55.901Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "纬致芯创科技",
+    "title": "大数据开发工程师（大厂、双休、包三餐）",
+    "salary": "13-15K",
+    "city": "上海·杨浦区·五角场",
+    "desc": "职位描述:\n1、负责字节跳动国际⽀付的数据流和相关数据服务;\n2、⾯向超⼤规模数据问题,每天处理千亿增量的用户数据;\n3、负责流式数据的实时传递,清洗,转换,计算,并对外提供查询服务;\n4、参与数据治理工作,提升数据易⽤性及数据质量;\n5、理解并合理抽象业务需求,发挥数据价值,与业业务团队紧密合作。\n职位要求:\n1、熟悉Linux操作系统及开发环境;\n2、扎实的计算机软件基础知识:数据结构,操作系统等;\n3、熟练掌握SQL\n4、对数据敏!感,认真细致,善于从数据中发现疑点;",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "1-3年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/b9091bbec4e9865b0nN53N-8FFRT.html?securityId=cKNfIcxXNFVfj-w1lBYZO3BsUlW4acXkjFTeFo_NPVj97qGm8pXPCmuSWmoRqg7lt3RhIRmkJHHvz7yRlTBvrx-Imdz8vCI3gwO04pvROhJTZDXl7Xk23QwxOWpMxoM_ftp5-lusj3AMY7Q5nedUadky9a5W0KUDDqInc23Jlw5BcalDOpjTcplpnLUxFsI7SPbdpF5Rrp-K9-U2BpRp9g_AbXgTo4judasl--SakKvNZ1SaX-w4gE3daAJ-r2iWt-arI7IYJmJSrCSb_KB_1TCq39ZuDwBZ5Ez1lXyfGwPwWXIBDc-g1mGYMM7BgZ2DLgi3ikrtiFzmYO4LrlFStjxYEN8uKrOI4cBV7g4FFLd7Wbc2DCpBL-1eBGsLRYNou-5ufdnMFoTU3Qig9XptyaSxp2gti6HzWGk~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:26:58.002Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "上海从鲸信息技术",
+    "title": "大数据系统开发工程师",
+    "salary": "30-60K·16薪",
+    "city": "上海·长宁区·娄山关路",
+    "desc": "岗位职责：\n 1、负责电商搜索&推荐服务离线大数据架构工作，研发、优化在线&离线数据流程；\n 2、设计开发模型样本数据生成、用户⾏为画像、⾼性能在线⽤户画像服务等业务，开发离线高性能框架、在线高性能KV系统；\n 3、维护和开发基础组件，提⾼系统的性能和扩展性，保障服务的稳定运行；\n 4、深刻的理解业务，抽象和设计合理的技术架构，以适应不断变化的需求。\n任职要求：\n1、计算机或相关专业，2年以上的服务端开发经验；\n2、熟悉互联网，对算法和数据结构有深刻的理解；\n3、C/C++或者Java基本功扎实，熟悉Linux开发环境和网络编程；\n4、有良好的沟通和逻辑思维能力，有足够的技术和产品好奇心，善于学习，善于分析和解决实际问题；\n5、至少有搜索、推荐、电商、大规模检索系统或者分布式系统中的一项特长。\n加分项：\n1、有搜索、推荐或电商业务相关经验加分；\n2、熟悉部分分布式计算、存储系统加分，如Hadoop、Hive、MPI、Spark、Flink等流式计算、Kafka、tensoflow、HBase等系统。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "经验不限",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/99075159d9e7a82a0nBy3dS4EFNS.html?securityId=a6tFINSS5GQwy-C1iAEB1bZhzJH0K4KhvUuY73ZT6W9M8xvUE6SM-JYzGKvFCxpzR499Q1HIigR-9QhjBnGoPMP78onLGQxKVu2m1N98yw4s6h94ksao4H50_WqsPuVZpVrLyooKE2O-B0ECoalnYBT5CkkLQjyTLaL8sd5sp0YOfnTAXdCh3RERq1SXEbm5L1Q0uSBfK0Fg3ui3PuAaPVY0vLxh9lKdcjfV35qraU_Cod0nM-bWCn0AjPkfRAKgT4kWxzFwojlR7DHb2me7aK8D9ufSH-IYXvnMLkWmRnEAWUiuQcF7gY17KJ9i9Wk87kp1mE2L6Uo7svYkF2UtiXX4EEhQ8fUU0Gr7rPIYtlVVx_cwSHCHG0_VSEbZ_oTMHNazZfd9zMVgrhWSo0JdOlwJVECjFgCmnQ~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:04.271Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "瑞友慧智",
+    "title": "数据开发",
+    "salary": "12-17K",
+    "city": "上海·徐汇区·漕河泾",
+    "desc": "全日制统招大专或以上学信网可查\n现场面试\n定位说明：本岗位是「数据仓库开发」与「数据平台运维保障」双轨兼顾，核⼼是\"把仓库建好、把平台保稳\"，⽽⾮单纯做数据平台的产品功能/二次开发。\n一、岗位职责\n1、数据仓库开发与建模：基于 Doris / ClickHouse 等 OLAP 引擎，负责公司数据仓库的分层建模（ODS / DWD / DWS / ADS）、ETL/ELT 作业开发与维护，构建稳定、可复⽤的数据模型与指标体系，支撑 CDC、业务分析、报表等场景落地。\n2、数据集成与加工：使用 SQL / Python / Java 等，开发并维护数据采集、清洗、转换任务，对接 MySQL / PostgreSQL 等业务源与 Doris / ClickHouse 数仓，保障数据准确、及时入仓与一致性。\n3、数据平台运维与保障：负责数据平台（任务调度、作业编排、存储与计算资源）的日常运维，监控任务运行状态、资源使用与告警；快速定位并处置数据延迟、任务失败、质量异常等问题，保障平台稳定高效运行。\n4、数据质量与治理：建立数据质量校验规则与监控机制（如字段级校验、跨表核对、Doris 数据核对），参与权限管理、元数据/血缘梳理与资源治理，持续提升数据可信度与平台可维护性。\n5、技术方案落地与性能优化：针对数仓查询慢、任务资源瓶颈、数据延迟等痛点，提出并实施优化方案（SQL 调优、模型重构、调度策略调整），持续提升平台性能、稳定性与成本效率。\n6、跨团队协作：与数据分析、业务、数据产品经理协作，将业务需求转化为数仓模型与数据服务能力，推动数据资产沉淀与业务赋能。\n二、任职要求\n3 年及以上数据仓库开发或数据平台相关经验。\n2、精通 SQL，具备扎实的数据建模能力（维度建模 / 星型·雪花模型、分层架构设计），能独立负责数仓模块从设计、开发到上线的全流程。\n3、熟练使用 Doris、ClickHouse 等 OLAP 数据库，掌握其一的深度应用（表模型设计、分区/分桶、物化视图、SQL 优化）；具备 MySQL / PostgreSQL 等关系型数据库的设计与调优经验。\n4、具备数据平台运维经验：熟悉任务调度与作业编排（如 DolphinScheduler / Airflow 或平台自带调度），能独立排查任务失败、数据延迟、资源争用等问题；了解数据质量与监控告警体系搭建。\n5、掌握至少一门开发语言（Python 或 Java），能编写数据加工脚本与轻量数据服务/工具；了解 Flink / Spark 等大数据计算框架者优先。\n6、了解大数据生态（Hadoop / Hive / Spark / Flink / Kafka）与实时/离线数据处理链路；有 CDC 数据接入（如 Flink CDC / Canal）经验者优先。\n7、具备良好的逻辑思维、问题排查能力与学习能力，责任心强，能承受平台保障的时效压力；具备团队协作意识与文档沉淀习惯。\n三、优先项（加分）\n1、有数据中台、BI 平台或 Doris / ClickHouse 生产环境规模化落地经验。\n2、具备前端基础（Vue / React），能参与数据可视化页面或内部运维工具开发。\n3、熟悉数据血缘、元数据管理、指标管理平台等治理工具。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "大专"
+    ],
+    "url": "https://www.zhipin.com/job_detail/495bd3bf4efbe91703N83d20FVVR.html?securityId=e8C8LFhmfDqcQ-511eiPhXXxxUr8ahMg4wI3SEbq39viBgYbplUtjS2FPZo-wcbTbmbPFgC0D0iGQZZ_bRUNKyZTzpngDP88mDBL-5vzTIwRnEgYzQ7XvtemM4JZ076rprkOsxPSEigawoC-RY1_MiZof1_O3Eh4UiXG7IRsUN2WbdHo4LcjvQ1Ule014BSQtWL_HRd0i5f4JnRe5mbgKmbJm9X7ttzbUlPo41jwsaEPrbIGC4GYCbjibXv6CUpVm9mk0kJs3zeIP9mrUcPFiJTbh5Tig8IM7438AaPhmNCsb0f6IiZ2owvIilgjvGLKnbkQNv-nrUHL1jbwB4J6DztIa4C-sUr-sLdJwowGhRLpy5AzTwpBGMpv95iekcy5wk1LT2vTVHsXJ-HAS22cyQlV0wzoVNm5_Q~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:06.347Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "杭州炎魂网络",
+    "title": "数仓开发工程师（2027届）",
+    "salary": "12-16K·15薪",
+    "city": "杭州·滨江区·浦沿",
+    "desc": "这是我们的团队：\n我们对游戏研发和运营的各环节感兴趣。我们坚信数据和技术可以帮助我们更懂玩家，为玩家创造更有乐趣的体验。更重要的是，我们相信年轻的力量。\n职位描述：\n1、负责公司游戏业务和平台业务的数据仓库建设工作，建立并执行统⼀的数据开发规范；\n2、负责数仓建模的设计实施，ETL流程开发，以及性能优化、建⽴数据异常告警机制等⼯作；\n3、负责数据资产管理，提升数据易用性及数据质量，优化使用成本；\n4、参与公司⾃建大数据平台的建设；\n5、参与指标体系、用户画像、精细化营销平台的建设和维护。\n职位要求：\n1、具有良好的计算机技术基础和逻辑分析能力，熟悉SQL、Python、Java；\n2、具有Hive/Iceberg/Spark/Flink/OLAP等大数据组件的使用经验优先，有实际项目经验优先；\n3、具有较好的沟通理解能力，团队协作和创新能力；\n4、对业务敏感，能快速理解业务背景，具备优秀的技术与业务结合能力；\n5、具备一定的数据分析能力，具备数据敏感性和探知欲，专注数据的价值发现和转化。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "在校/应届",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/df3a2f5e794997a10nJ_2dm4GVZR.html?securityId=pOumHpk6_UZHm-l15FZeNIXZQIPjLte2z5SBzRmq3emP4ySz2m2kJWin7iz0stpFoxnNCkFwogelNJQ-ljTmsW748emqZ36D9IlEhrI9mt2_yMPCrozdzShaFg89xc_1kkMV7xOFJRGOfat6dbkAXDOzlTyhT4GcLckBWJuijZZCMaz9k9xHFDh7xHXV5Rm5_o_AURIiUfJV51J2S1oPlFyVGCmz8gbXRs2IeviPTV4N4xp1cdHZhmei7eavCggS6sh6iO2VLwEFW0Ht4KsawST3cib0tNQbzbbeGS3ket82-NweAJxLjyKFYh8fnA-bZrC5M5_UeuN3x3NG0Jxa0K3BiKaKIuj2haAlrTkpUElSq2lxLhDmyejpoqUjn2FyllCnLxZQpJNMQJToC5tgyjWNRIzF79OP",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:18.075Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "武汉市阅江科技",
+    "title": "数据开发（保险行业）",
+    "salary": "13-19K",
+    "city": "杭州·拱墅区·湖墅南路",
+    "desc": "工作职责\n1、参与数据中台数据服务能力建设，为周边系统提供数据接口、数据推送等数据能力支撑。\n2、参与数据中台数据模型建模，包括集市主题域建设、模型设计、数据矩阵设计等事项。\n3、参与数据中台数据治理⼯作，包括数据资产⽬录、数据标准、质量、安全等相关⼯作。\n任职资格\n1、具备保险方面学科知识，如果有保险项⽬开发经验更佳。\n2、具备大数据相关知识,对实时链路和Flink有一些基础了解。\n3、具备一定离线数仓工作经验,有一定的ETL编程配置能力。\n4、熟悉数据仓库建模理论，对于范式建模和维度建模理论有深入了解。对数据中台概念和数据仓库分层熟悉。\n5、熟练使用大数据生态圈组件，包括离线数据计算和实时计算相关产品。\n6、熟悉保险相关业务知识，能与业务部门对接需求。\n7、工作强度较大，需候选人具备较强的抗压能力。\n8、开发过程中需求跨平台/部门沟通，需要良好的沟通理解能力",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/6c5e354be677c04e0nd-3Ny0GFNV.html?securityId=NTxPOFJK27a2R-t160h14upi9jk8exq6qgohhdbKovTUk6xdxb1IKn07cAlQh6ijOTz7eBYHDS7BMbiiPuDx3NzcoQxYYZdSnPdI6Dg4PvXK1HiHdtgWKLn3takhL7FuFyjcHtHjL7opV1XBZHgj6PAiQVUrXNjYGANhcQ72gHMDJbbfjYcTvL0NKiwIkxC0uWfZzCDgAgnUT59Zm6-wMWeM9CGTHBZk0QbSlpiW97zQiYdqKO6cklwdBEPVS83D9Nm7ue7ZPlxpk85gZNc1cEjjz8T02PKLV11T3T1twV64CIeMcaQVfpNaNI13sBOG6lm3VQAy8tNcofGNyzWYx9vRzR33Y7N30DB__XFtcw1MPFLSmUhNoj4Ca_xqtakUvNjdldAiHSaqL5ri5pfRSFmAfQq2Tgvtu-dr",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:22.137Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "云摇",
+    "title": "数据开发工程师（离线数仓方向，应届生）",
+    "salary": "3-5K",
+    "city": "杭州·余杭区·勾庄",
+    "desc": "1. 参与离线数仓的ETL开发工作，协助完成数据清洗、基础指标计算及报表数据输出。\n2. 在导师指导下开展数据质量校验工作，编写简易的数据巡检脚本。\n3. 学习并掌握数仓分层设计规范，参与业务梳理与指标口径整理工作。\n4. 配合团队完成数据平台日常运维及⽂档编写⼯作。\n任职要求\n1. 为本科及以上学历，属于计算机、⼤数据、统计学等相关专业，为2025届或2026届毕业生。\n2. SQL基础要求：基础扎实，熟练掌握SELECT、JOIN、GROUP BY等常用语法，了解窗口函数、CTE，能够编写中等复杂度的查询语句。\n3. ⼤数据基础要求：了解Hadoop生态体系，熟悉Hive/Spark SQL基本操作，在校或实习项目中有离线数仓使用经历者可获得优先考虑。\n4. 数仓概念要求：了解维度建模、分层设计，包括ODS/DWD/DWS等，对数据仓库具备基本认知。\n5. 编程基础要求：能够使用Python完成简单数据处理，或掌握Shell脚本编写方法。\n6. 学习能力要求：工作主动性强，可快速适应团队规范，对数据倾斜、性能调优等概念具备理论认知者可获得加分。\n加分项（优先考虑）\n1. 在校期间参与过建筑信息化相关课题或竞赛，对建筑行业数据结构具备初步了解。\n2. 熟悉至少一种OLAP引擎，如Doris、ClickHouse，或调度工具DolphinScheduler。\n3. 拥有数据治理相关课程学习或项目实践经历，如数据质量、元数据管理方向。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "经验不限",
+      "学历不限"
+    ],
+    "url": "https://www.zhipin.com/job_detail/5c31d8599bce9de90nN53NW1FlRS.html?securityId=RfznIRCsVkPPJ-l1yFd2_nlRab916q8SoxsqV7d2OdAmafoqfHMW6bX9nkU-q-wib6Mf3O_wOBbmulRZ11cf8X_tvxdBo8pJ3-oz-q06Z5cxpiYIczD3AAO7kCY0-CysluPaTLFxc5arlt6TX08ANDuHYyBmKjmGozefJf2u8DJJ6ee6pZ8L_7DLfbnJLnq9ggpFMXo6jFCcAXdyj2ylG9Lr6I9ZXqPv15JhHR-krqxHwj9-Fa_vP01hS1yVWK_QCgH6_cIKutcEU9gAIRNum-FRdzJeyYNROgllGtSZlF8mqODKMP9HeO3A0expNlJXVKhe3raf_fsUe8ZZjYlfs_JCWUns-cGT9fY8sN1mQLusqsRS4tvIoVMTtbGQmcjHgrvTJYc5RfJRV1OzjOb0YB756kWVnFQBbg~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:26.271Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "数新智能",
+    "title": "大数据平台产品经理",
+    "salary": "15-30K",
+    "city": "杭州·余杭区·仓前",
+    "desc": "岗位职责：\n1、参与大数据平台等相关产品体系建设，主要包括数据汇聚、数据建模、数据加工、标签管理、质量管控、数据服务、资产管理、数据安全、算法服务、数据分析等产品功能的设计与规划，制定平台产品规划和阶段性目标。\n2、结合原始业务需求，进行需求分析分解、系统设计、文档编写、模块分解等工作，产出产品PRD和DEMO，推进并协调产品各协作方的合作与执行，推动产品的开发与实施。\n3、把握平台需求和动向，持续改进产品、提升用户体验，关注业界竞品，不断探索创新。\n4、负责产品的工程化与商业化输出，为产品的售前、交付、售后工作提供支持。\n5、了解或熟悉具体某个行业的大数据平台建设，金融、能源电力、高校、制造业、军工、政府、零售等。\n任职要求：\n1、本科及以上学历。\n2、熟练掌握AxureRP等原型工具的使用，有平台型产品的设计经验。\n3、责任心强，做事认真细致，自我驱动，团队合作和抗压能力强。\n4、具备良好的文案能力，文笔通畅，逻辑思维较强。\n5、具备良好的沟通和协调能力，能迅速理解问题关键点和用户痛点，并能简明扼要的传达产品的价值点。\n6、至少符合以下一条或多条标准：\n1）具备数据治理、数据中台类产品的设计与开发经验：如数据ETL工具、数据质量平台、数据标准平台、元数据管理平台、数据资产与服务平台、数据安全管理、标签管理平台、数据开发套件等的至少一种。\n2）具备大数据存储与计算框架的开发与使用经验：如Hadoop、Hive、Yarn、Spark、Flink、Presto（Trino）、Iceberg、Hudi等的一种或多种。\n3）熟悉数仓领域知识和设计经验：如数仓建模方法、海量数据ETL开发、SQL使用与调优等，或具备数据挖掘经验。\n5）有以下相关产品设计、开发和深度使用经验：Dataworks、Dataphin、EMR、MaxCompute、FusionInsight MRS、DAYU等的一种或多种。\n能接受短期出差~\n加分项\n有以下行业经验：大数据",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/c212c6d51a79aa3203Nz3Nu0EFZQ.html?securityId=W6TLfgm0LUhMw-w1G1kBxPSy5VhCrqUSf_MMbZVDHCJXBIoHjTYsys8pEiurwITpLQ2bkELSpTnpi2FfqCd6_D-BIZCAfSfmGSA1DTjnIzKGNGxLkmnYfppxgVCjebH6BEaHuX5kj6TqzFY3ogLlNnls6L0D4CHf_6Xt7KBo8B1xgFgtkvybGr8534rIgKsHpJjX0Z_5BPs45AGsphKL_JZIRzrkUIHCJQBsjpuWlYKoZq9-k8Kb09S7KZ-PpbGxEiE6OglaugsX8-Ys9MvFwT2C5gIh3kNagST3unlWw6bPJ8q4vkmCEqg7q6KrdsraOKv7IqEh15XU2FvAxrypvDB8RqAwiauXncaulsfio3RjkHkrcM4wQBFV1C48bwZ7KoYlAJsOl2I_dnQZ73c7CD151sQR4arwMw~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:32.442Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "领信数科",
+    "title": "数仓开发工程师",
+    "salary": "9-13K",
+    "city": "杭州·滨江区·长河",
+    "desc": "岗位职责\n1、数据接入与同步\n对接业务数据库、日志、接口、文件等各类数据源；配置数据同步任务，设计增量/全量同步策略及断点续传机制；保障源头数据完整、准时、准确入仓；解决源表变更、字段变动、数据延迟、数据丢失等问题。\n2、数仓开发与加⼯\n负责 DWD 明细层、DWS 汇总层、ADS 应⽤层代码开发；编写 SQL 脚本，完成数据清洗、数据转换、数据聚合计算；负责数仓各分层数据加⼯与数据迭代。\n3、调度与运维保障\n配置调度任务、依赖关系、运行周期及重试策略；负责日常数据跑批监控、异常数据修复、数据回溯，保障数据链路稳定运⾏。\n4、应用交付与协作\n作为现场交付核心执行角色，配合测试、对接 BI，完成数据应用落地，支撑业务使用。\n任职要求\n1、学历与专业：大专及以上学历，计算机、大数据、软件工程、数学统计等相关专业，1-3年数仓开发、大数据开发相关工作经验，有现场项目交付经验者优先。\n2、核心技术能力：熟练掌握SQL，精通Hive SQL的编写、优化、调优，熟练掌握数据清洗、转换、聚合、建模等数据加工逻辑；熟悉大数据生态组件，掌握Hadoop、Hive、Spark、Kafka、DataX等常用工具的使用与实操。\n3、数仓业务能力：熟悉标准数仓分层架构（ODS、DWD、DWS、ADS、DIM），能够独立完成明细层、汇总层、应用层的开发工作；熟练掌握各类数据源接入方式，支持MySQL、Oracle等业务数据库、日志、接口、文件等多类型数据同步。\n4、数据同步与运维能力：精通全量、增量数据同步策略配置，掌握断点续传、数据重试机制搭建；能够快速排查并解决源表变更、字段调整、数据延迟、数据丢失、跑批失败等各类数据异常问题，熟练开展数据监控、异常修复、数据回溯等日常运维工作。\n5、任务调度与协作能力：熟练使用主流调度工具，能够合理配置任务运行周期、依赖关系、重试策略，保障数据任务稳定高效运行；具备良好的跨岗位协作能力，可配合测试人员完成功能测试、回归测试，对接BI团队完成数据可视化、数据应用落地。\n6、规范与细节素养：严格遵守项目数据开发规范、命名规范、分层规范，代码整洁、逻辑清晰，具备良好的开发习惯；具备较强的问题排查能力、执行力和责任心，能适配项目迭代节奏，高效完成开发交付任务。\n7、加分项：熟悉Python/Scala开发、有实时数仓开发经验、熟悉数据质量监控体系、有政务、金融、零售行业数仓开发经验者优先。",
+    "hr_active": "",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/16f82bf09fc2e18c0nN_3tq5FldS.html?securityId=0OQe2HRCq3ZWN-J1mjmqO9TsO17300ei-1kI7SH4bJKtZnmSNqZoF8OBdz7VRw29lvyOAMbAB-mpWTIUCiGQmhjNI7EyfzjMlWbAo9OTXf5fOKLJzsB-j6x7n-Szjzjw69H7Z1up2zaYQlTngUHcbgWdv7VUN8p6ijL5bhmPkEhQWfydwQrmWRxMPyVvqA5W2n9QMlyCGCwDswPezseasPXluTNFzHjmYjB0j4twKKZX-daDCSOFFYzaDIfiu2IdKNvxf_sSTNYrOZhZYzjaQWNufjY7puPuXexAQ3-DJl1Q20WqWZYM07EFYrBHN2XSlrVqeD8Fbr0gj-p5iqyNYL2glgPqXJIn2CryLcsIJJPs66Om1K1VOMMY1WbbcD23vKtlO2S5C4UCQr7n3gyuoPKk0tfaaOcEfo0~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:34.500Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "深度求索",
+    "title": "服务端开发工程师（杭州）（toC API/数仓）",
+    "salary": "35-65K·16薪",
+    "city": "杭州·拱墅区·湖墅南路",
+    "desc": "招聘方向【实习/全职】：线上核心服务、数据仓库\n线上核心服务方向\n【岗位职责】\n负责 DeepSeek 线上服务及相关基建的各类研发⼯作，深度参与：\n1.⾯向数千万⽇活用户的大模型应⽤与 API 服务架构设计和持续迭代，性能、网络和数据库优化。\n2.内部研发效能工具与平台搭建。\n3.不断探索各种新技术，持续优化服务的可靠性、可扩展性、可观测性、可维护性。\n【岗位要求】\n1.具备扎实的计算机基础和编程能力，熟练掌握至少一门编程语言。\n2.熟练掌握常用数据结构与算法。\n3.具备良好的学习能力和开拓创新精神，有责任心，积极主动，肯钻研。\n【加分项】\n（非强制要求，也欢迎没有工程经验但基础素质扎实的同学加入）\n1.有过大型业务系统的开发经验。\n2.在大型开源软件中有深度贡献，或有优秀个人开源项目。\n3.在信息学、数学、CTF 竞赛中取得过优秀成绩。\n数据仓库方向\n【岗位职责】\n你将参与以下一种或多种方向，使用业界前沿的数据技术栈，参与下一代数据架构的建设，用最佳实践承接 DeepSeek 核心产品的数据分析需求，撬动巨大的业务价值：\n1.数据管道：负责大规模数据 Pipeline 的设计、开发和落地。\n2.离线计算：协助业务团队和数据分析团队，开发正确、高效、稳定的数据处理任务。\n3.实时计算：建设、维护流处理系统，为监控、实时分析、风控系统等业务提供可靠的数据底座。\n4.架构与稳定性建设：发现现有数据架构中的瓶颈，主导内部平台、工具的建设，提出并落地关于性能提升、链路稳定性、资源优化的解决方案。\n【岗位要求】\n1.本科及以上学历，计算机或相关专业，1～5 年数据开发/数据仓库/数仓建设工作经验。\n2.除 SQL 外，熟练掌握至少一门编程语言。\n3.有良好的代码风格和技术品味。",
+    "hr_active": "",
+    "tags": [
+      "经验不限",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/73fe2d0129a9db340nJz3t-5FVFS.html?securityId=4PaRfufQw7wcY-e1McWFQ5V9TRhP8_TKCID3KcUtzUOTW9kbujBgudN4oCPhPbVZc0ZwdmVM-VjA4w8rRHsmSHXhSgRZaQ47d12Lf9ByReDE_ggEl31KYFMtZoDDczUsdPOyv5wuR4u76D_yojE1nf8tpr03e7pN702Ef42T3Ci0XaeSUdzltqQdlArb9eqPARHnpjjteUxPGyT4QrfO2rr187poK9i7itoVGn54BoKtEXv9g00KqZFx7yyPSY89cT09oTBpFsnZQLo22kU9tRBYqVhLaQKxbt4Gc9OooHQ7TiS54zRrUaz73hlrVMP2WOj4AHLgup081_9X7pn6OMV-AFGWIcJV4qOnLi3nLi0rY7_Vi-hy2sWZDxrx_ARE5xWFcIIQztc4VnVnthxEd8bcV-N8TKOqGXUv",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:44.817Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "网易",
+    "title": "资深Java开发工程师（风控数仓平台）",
+    "salary": "35-50K·16薪",
+    "city": "杭州·滨江区·长河",
+    "desc": "职位描述\n1、参与云音乐风控领域特征数据引擎建设\n2、实时数据仓库、湖仓一体全链路建设\n3、参与音乐平台系统架构设计、优化、持续提升系统性能和稳定性，助力业务快速发展；\n4、关注前沿技术发展，探索实践，推动团队技术研究和创新。\n职位要求\n1、本科及以上学历，计算机软件相关专业，5年以上互联⽹开发经验；\n2、具备扎实的Java编程基础，熟练使⽤Spring等常⽤java开发框架，熟悉常用设计模式，有较好的代码设计和编写习惯；\n3、良好的问题分析能力、抗压能⼒、沟通能力和项目推进能力，独立负责过较大型的项目，有技术难点攻关经验；\n4、熟悉常用的中间件，包括但不限于分布式数据库，分布式缓存，消息队列等，理解中间件的基本原理；\n5、了解hive，spark，flink等大数据开发的框架，有批流任务的使用经验；\n6、有AI Coding 实践经验：熟练使用各类AI编程助手（如Claude\nCode，Codex等），需具备利用AI进行复杂业务逻辑生成、单元测试生成、代码重构的能力。理解并熟练掌握SDD（规约驱动开发）研发范式优先。\n7、有OpenClaw实际应用经验、SKILL调优经验者优先。",
+    "hr_active": "",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/58a0d02ae6d274520nBz39q5E1VT.html?securityId=ADDKh4IfzKSSh-21t2VilPn3QqK-sryraSaclxaZx71Oj__RKRI6McLCdgLr-lTpwYtrxbJVtKFi7nDZu7nYOhyu2x2Fz9df0gxr6eEAp4VVCMVtlyW922SkIE4M0kv4_UsfD-jjtVTQ2c1bAzRW8ilTqRpvE9D2U8bHK6jH97WYxxPPg5GcjVngsGspf-QMCI9k8Jxbc45GzIT1fU1J9TcDRGoPaGp16t982WaiYadBHNR6_BbaEj09WIQ5YgvHtOxCNM3QwH4ztKQ6tdLqXRb-e-ts7UDN8LQK5oK2V34TcShp5t04z9MjHRX90RKYiSodEmLQ9xZWn41W1oUfR14iFdRh1yiDBTYqbalWfpxv7ISrvtx0kn2aEhjabCDuYy1SQ1RA-mb0meuFG5BMWZ9zlU58",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:46.888Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "素医健康",
+    "title": "大数据运维开发工程师",
+    "salary": "12-13K",
+    "city": "南京·秦淮区·长白街",
+    "desc": "##### 岗位职责：\n- 负责大数据平台与应用平台的架构设计和优化工作，确保数据处理的高效性和可靠性。\n- 负责⼤数据平台运营的⼯作，掌握⼤数据维护、使用、问题排查的经验\n- 参与过大数据平台的数仓建设和数仓开发⼯作，具有数仓开发与调优的工作经验优先\n- 参与大数据项目需求分析、技术方案设计和开发计划制定，保障应用系统的稳定上线运行\n##### 任职要求：\n- 计算机科学、数据科学、软件工程或相关专业本科及以上学历。\n- 4年及以上大数据开发和架构设计经验。有大规模数据处理项目的实际经验和大数据开发经验者优先\n- 熟悉Hadoop、Spark等大数据处理框架。\n- 熟悉docker、Kubernetes基础的操作命令，有维护k8s平台的使用经验优先\n- 熟悉hive、hbase、impala等大数据生态系统组件的使用。\n- 有SQL和NoSQL数据库的实际使用经验、熟悉大数据平台的性能调优和优化方法。\n- 良好的沟通能力和团队协作能力，能够与团队成员和其他部门有效合作。\n- 具备良好的学习能力和技术敏感性，能够快速掌握和应用新技术。\n##### 工作内容\n- 参与日常TDH，TDC集群运维，指导应用使用大数据平台及外围工具；\n- 参与应用需求沟通，关注项目需求的可测性，并能预先评估风险；\n- 业务需求技术落地工作，包括对接应用的规划设计，技术架构，相关数据开发，底层性能优化等；\n- 负责对客户或合作伙伴进行相关赋能，如支持平台上层应用的对接、上层数据流转、技术架构优化工作；\n- 支持产品在业务系统中的使用，问题排查，优化等专业支持工作；\n- 围绕大数据平台周边脚本、程序开发。",
+    "hr_active": "",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/8773bb8f7bc32e9c0nN-09i1ElJV.html?securityId=l1a7LMmbwuFbn-h1EjlD_wmKEIul4eG0zryHitYtSq7r3ddSDGt_Rin-AgzXBTmmf6cHoSvdAGe-H-bSmzCWfb-i7tPAz8XmkAFvc5wu45BOEV867UgdJ1fsnUlGJKO3gZw5LO3QNwaQtW55k697BAFkEFF01D7j9rtZIxY29kN238zjrMdbGNVqO321w5mlbcTvdHsq-YhzuxcNjDnFu6dFQMRymIBw1fXkTjYzjPNrHcEmbmKMJOP5BSGdXso-NqBIxLQdOTRI881KLAXHZqEO1CS7jHncaIDM2tbaQsy8--bE_EGDjNWmAEm7EaQNmIt-kgeJmxoLxVskb08BBYKCRwjgMUUQ-_V4M72ZVkvAWa1KqNEhfggcxutkcnb2ufV5oj7z_V5fiRPmOgWMtvrNk6zbgTp3nmU~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:06.991Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "西安柚子信息科技",
+    "title": "数仓开发 (大数据方向)",
+    "salary": "17-18K",
+    "city": "南京·秦淮区·中华门",
+    "desc": "岗位职责：\n1. 负责基于 Doris，GP 的数据仓库架构设计、建模与开发，确保数据仓库的稳定性、可扩展性和高性能。\n2. 参与并主导基于 Doris，GP的数据处理流程的设计、开发、测试和上线，包括离线和实时数据处理。\n3. 深入理解业务需求，将其转化为高效的数据解决方案，并能快速投⼊到 Doris，GP数仓的搭建和优化⼯作中。\n4. 负责⼤数据平台相关组件的开发、维护和优化，包括数据采集、数据清洗、数据转换和数据应用等环节。\n5. 参与数据治理、数据质量监控和元数据管理等相关⼯作。\n6. 与团队成员协作，解决大数据平台及数仓开发过程中的技术难题。\n7. 跟踪和研究大数据领域新技术，并将其应用于实际项目中，提升团队技术水平。\n任职要求：\n1. 学历专业： 计算机相关专业本科及以上学历。\n2. 编程语言： 精通 JAVA、Python、SQL 编程语言，具备良好的编程习惯和代码规范。\n3. 数据仓库：\n   - 熟练掌握 Doris，GP数据仓库的建模理论与方法，具备丰富的 Doris，GP数仓项目实战经验。\n   - 深刻理解数据仓库体系，包括维度建模、事实建模等。\n4. 大数据平台与框架：\n   - 熟练掌握大数据平台的整体开发流程。\n   - 精通 Spring Boot 框架，并有实际项目应用经验。\n   - 熟练掌握 DolphinScheduler 任务调度系统，有二次开发经验者优先。\n5. 数据处理与集成：\n   - 熟悉 Spark、Flink 等计算引擎，具备离线和实时数据处理项目开发经验。\n   - 熟悉 DataX、SeaTunnel 等数据集成工具，并有实际使用经验。\n6. 综合素质：\n   - 具备良好的工作态度，积极主动，有责任心，能够承受一定的工作压力。\n   - 具备良好的沟通能力和团队协作精神。\n   - 具备较强的学习能力和分析问题、解决问题的能力。\n加分项：\n- 有大规模数据仓库建设和优化经验者优先。\n- 对其他大数据组件（如 Kafka, HBase, Elasticsearch 等）有了解或使用经验者优先。\n- 有云平台（如阿里云、华为云等）大数据服务使用经验者优先。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "大专"
+    ],
+    "url": "https://www.zhipin.com/job_detail/0210d6620b1164670nN929y8EVVR.html?securityId=nC9S9oJn0Ubyg-f1j4RaxpOcujT3fI1nuzWevvXWgEw7wco6_w1eA6HoXTs45pqT7uwRmSq0CpWRkZ8QELHSfp6z1y_uCquVgi2ZBHBRQN9Df1acRmxdhuSOck6g9Ie2arQMhXywf9BYos3K-053u21lUXrLRVDqu_MQdZtHm3mnWk4hgb5_QyN4DZn__uO1laqrpv_L7nswpoXQ6J5M1gTMzYU-XFaVkA9t-zLWLd6J_eK3h3Tkl4waJhz5Bu-pk2nE19XvLKHg0ZF9hc8hn9sneyMXPvH_Q42jkBjPdniihXJMgvvDjv5wLH-761Ni--is_wB-8gsOaBW5u1homBHJ931NfvhkOPJnG7rfVFaoGkJrXUXKyQyTugovWju8gWq_gVuTxlrUfmaZ__WEBhn58Y7yy_ogOC0~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:09.071Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "猎宝网",
+    "title": "数据开发（互联网电商 双休）",
+    "salary": "15-20K",
+    "city": "南京·玄武区·徐庄软件园",
+    "desc": "hello，因为hc原因，该岗位可线上初试但线下复试需要到面，如异地较远可不投递哦！岗位需要最近一份工作互联网⾏业！感恩！\n垂直领域的游戏账号交易与租赁平台，租赁 + 交易两条业务线，平台型业务，数据量和使⽤⽅都在快速增长。\n岗位职责\n1.负责 Doris 数仓分层建设与模型设计（ODS/DWD/DWS/ADS），治理生产库到数仓的同步链路，提升数仓的稳定性与易用性\n2.建设并维护基于 DolphinScheduler 的调度体系，保障任务时效、失败告警与快速恢复\n3.落地指标体系：与分析师协作，把租赁、交易两条业务线的核⼼指标字典化、口径标准化\n4.建设核心经营报表：基于指标层产出日报/周报/核心看板，让业务日常经营有据可依\n5.例行经营分析：周度核心指标解读、异动初筛与拆解，输出给分析师和运营负责人\n6.建立数据质量规则与校验机制，维护表级/字段级血缘\n任职要求\n1.2-5 年数据开发经验，熟悉数仓分层建模理论（维度建模），有独立完成数仓设计并落地的经历\n2.SQL 功底扎实，熟练使用 Doris / ClickHouse 等 MPP 或 OLAP 引擎\n3.熟悉至少一种调度系统（DolphinScheduler / Airflow），有任务稳定性保障经验\n4.理解指标治理与数据资产（指标字典、口径管理、血缘）\n5.具备基础经营分析能力，有报表/看板建设经验（FineBI、Tableau 等 BI 工具）\n6.结果导向、自驱，愿意理解业务指标的含义，而不是只接需求\n加分项\n1.游戏、电商或平台型交易业务背景\n2.用 AI 辅助开发（AI Coding）提效 ETL 或数据开发的实际经验\n3.有从 0 建设指标平台 / 数据中台的经历\n岗位需要到面！外地的小伙伴如不能接收请勿投递哇！",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/2b2433019ee5754c0nN62tu0E1VT.html?securityId=uBP2-MpK8Gfkz-Z1tJ9k-5Ep3ydo0S7oLjRsrygNQsLiPHWXeIyWsed6TWBd8c7Qc8zzzqiiMwz2A72SzSO25qZ4zcFSk3vQDfvi1wbdabXIoHKmjHdfHglvewx4DI6Up1MjldzzzTNZ0f9K2fVts4z7gSY93mgaMCIZdOr8dLhf5p68hCqKrCpsCiGz7MlcGspCLNWpCw0XpuFMCMM5hxCS7dCosgnGUsLTp2YzgXvHZrfywt6I-oogn3Fsnz8LhBUXo3A6AC1rg65aPY_tzkRhbUnjJWY8fVuQNEc5MA1cY5KVANjvGaXutYnmZ6rRg9TR35FPmHIEUqLRVAqy-71cJgH5EI8ajo4-FR5kxd7JlxLDxnXsCiSMgodfAEnVVYyZbkAftT7PsDg68Qv8qrK8_lei-1kG",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:13.207Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "泰治科技",
+    "title": "大数据开发经理",
+    "salary": "16-30K",
+    "city": "南京·雨花台区·楚翘城",
+    "desc": "工作要求\n1.负责大数据平台的整体架构设计与规划，主导离线与实时数仓（ODS/DWD/DWS）的分层架构设计及技术选型\n2.主导复杂数据项目的全周期交付，包括需求分析、技术方案评审、核⼼代码开发、测试上线及线上疑难问题排查\n2.负责开发团队的⽇常管理，包括任务分配、代码Review、绩效考核、梯队建设及技术培训；\n4.制定团队⼯作目标与计划，培养持续改进的团队文化，提升团队整体技术能⼒与交付效率\n岗位要求\n1. 本科及以上学历，计算机、软件工程、数据科学等相关专业优先；\n2 .  熟悉大数据AI开发的基础知识，5-10年工作经验,其中至少2-3年团队管理经验",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/e596e3d1ad6cc2350nN929S9FFRZ.html?securityId=Ccva7xWl9HGAM-B1-lhwdco-7J1ZFY0auzcKtc2Hv0CA4DfBI738oP_JbL4vW0qyxoAWoT7sns5tgnIYB_Lv3DoU44cjtwIpZxJfS0pnT-aAwO-Atmwdor91ijRVHKHDFpXNUb_S26hV-maldNw8hV3iCYRFzmtbp4jiWyLZ514LP6tRl6TGxt-T8ZQEUdl_l1mBWZr5_kHGQMgFU0GoEdWChbVrAPddFBGMTK9_e6j-nWEf0kT6ijDai2k9cRBo5EeKxlVTSIKZpVZSCtyjfJMk8CpAuIavK-YDYD5Z7b2Te97gJhSyf4lVe_5OwTVE_2jQegq68gRKs9hjjowvP-Ou0T3NcQWrj4kO259C9G40xsUJgIkgFmRUqZHP_1wTGNw3nGYOGs0BMrWQbmWyzbFOZcxJ9mSZuk0~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:17.349Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "河南海融软件有限公司",
+    "title": "【大数据运维/开发】",
+    "salary": "13-16K",
+    "city": "南京·建邺区·江东",
+    "desc": "岗位职责：\n- 负责大数据平台与应用平台的架构设计和优化工作，确保数据处理的高效性和可靠性。\n- 负责⼤数据平台运营的⼯作，掌握⼤数据维护、使用、问题排查的经验\n- 参与过大数据平台的数仓建设和数仓开发⼯作，具有数仓开发与调优的工作经验优先\n- 参与大数据项目需求分析、技术方案设计和开发计划制定，保障应用系统的稳定上线运行\n任职要求：\n- 计算机科学、数据科学、软件工程或相关专业本科及以上学历。\n- 4年及以上大数据开发和架构设计经验。有大规模数据处理项目的实际经验和大数据开发经验者优先\n- 熟悉Hadoop、Spark等大数据处理框架。\n- 熟悉docker、Kubernetes基础的操作命令，有维护k8s平台的使用经验优先\n- 熟悉hive、hbase、impala等大数据生态系统组件的使用。\n- 有SQL和NoSQL数据库的实际使用经验、熟悉大数据平台的性能调优和优化方法。\n- 良好的沟通能力和团队协作能力，能够与团队成员和其他部门有效合作。\n- 具备良好的学习能力和技术敏感性，能够快速掌握和应用新技术。\n工作内容\n- 参与日常TDH，TDC集群运维，指导应用使用大数据平台及外围工具；\n- 参与应用需求沟通，关注项目需求的可测性，并能预先评估风险；\n- 业务需求技术落地工作，包括对接应用的规划设计，技术架构，相关数据开发，底层性能优化等；\n- 负责对客户或合作伙伴进行相关赋能，如支持平台上层应用的对接、上层数据流转、技术架构优化工作；\n- 支持产品在业务系统中的使用，问题排查，优化等专业支持工作；\n- 围绕大数据平台周边脚本、程序开发。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/5bcbc36bf74b895c0nN-0t29GFRY.html?securityId=93AWgC1IwC4jd-W1py2uyoDL7kIh6dkdYgueVx0CDghaAAV2EqTgYUMylIRL5HHEnYVQVWl5AsU-k0BCfSol-dDjubAqQnfgb2pZQNbbqWxr1OihQM-wB9opO8Rq3kqrQVpXWaG9zk-5MJwSW5hTSkLv1MaBreDFe0u8CV5cKbL7lDcI_Ee0aiF2rSwneDs3W3UrAGkbM-IE0FtuVPKlPNQCjlFuEtAcayYB091kCMJ1mrwfsR9_P22v8ktn7ppvqAS-8dt1mJd-bMJeQ29XHf3J9tf3wVXfl3jBEuZ8qphyNwz7J4mLLaBXXyuJbVK5_VPicghx4LQvOQ0TLS-fE_c5wMDaauw8QbYNsLpUAnYN4_GQqJ7sfKIlcNLUUMKqo7jtvdY25v7ghhCo_KWfsR9y_UwOTXTAiMZq",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:19.433Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "天地网通",
+    "title": "大数据运维开发工程师",
+    "salary": "11-12K",
+    "city": "南京·建邺区·江东",
+    "desc": "岗位职责：\n- 负责大数据平台与应用平台的架构设计和优化工作，确保数据处理的高效性和可靠性。\n- 负责⼤数据平台运营的⼯作，掌握⼤数据维护、使用、问题排查的经验\n- 参与过大数据平台的数仓建设和数仓开发⼯作，具有数仓开发与调优的工作经验优先\n- 参与大数据项目需求分析、技术方案设计和开发计划制定，保障应用系统的稳定上线运行\n任职要求：\n- 计算机科学、数据科学、软件工程或相关专业本科及以上学历。\n- 4年及以上大数据开发和架构设计经验。有大规模数据处理项目的实际经验和大数据开发经验者优先\n- 熟悉Hadoop、Spark等大数据处理框架。\n- 熟悉docker、Kubernetes基础的操作命令，有维护k8s平台的使用经验优先\n- 熟悉hive、hbase、impala等大数据生态系统组件的使用。\n- 有SQL和NoSQL数据库的实际使用经验、熟悉大数据平台的性能调优和优化方法。\n- 良好的沟通能力和团队协作能力，能够与团队成员和其他部门有效合作。\n- 具备良好的学习能力和技术敏感性，能够快速掌握和应用新技术。\n工作内容\n- 参与日常TDH，TDC集群运维，指导应用使用大数据平台及外围工具；\n- 参与应用需求沟通，关注项目需求的可测性，并能预先评估风险；\n- 业务需求技术落地工作，包括对接应用的规划设计，技术架构，相关数据开发，底层性能优化等；\n- 负责对客户或合作伙伴进行相关赋能，如支持平台上层应用的对接、上层数据流转、技术架构优化工作；\n- 支持产品在业务系统中的使用，问题排查，优化等专业支持工作；\n- 围绕大数据平台周边脚本、程序开发。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/4afeac031878d5600nN-39i6EVNT.html?securityId=3dLoJlHmL1735-V1RD_o1xqbWHj_Gg53dyVUF0iYALXZNku-Ya6KksfkQaeU4F3N7RN467kWJqLN1krsVLFOQTQbA4deKjc9f6Go5prkRjvWHj15PGMul8J0j6Rz3hd8k7vpc6WQbTpExq7rjK_6qrgn4AqawTIvXwXjd24g2JL_Ghl1MPUzvEoKJjIlaWgK2W3w3az1jFn8aCz6FQYTgzQlT9sibkhj6TNivdYBLDvQe91oqVIew_wBhgrx3IWQPz0YsrpiTL-4XRn31j8XBBTwAqwe-Jutfn0bEebF_8W_r1hM9JRAKlhiCN2mpHsW5oxcXvnFrQPchsKx8N5dyYvvsbHirGjzDOypBJn4pMWm0VyjllQZB3oRnNmk42HILlWOBLRJF7WNE2zzGCctjbjcn7KPly8C5A~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:21.511Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "南京夏宏智能科技",
+    "title": "大数据开发工程师",
+    "salary": "9-12K",
+    "city": "南京·雨花台区·安德门",
+    "desc": "岗位职责：\n1、参与公司大数据平台的日常开发与维护工作，协助完成数据采集、清洗、转换（ETL）任务的开发与调度配置；\n2、负责⼤数据组件（如Hadoop/Hive/Spark）上的数据离线计算任务编写与执⾏，产出业务所需的数据报表；\n3、配合数据产品经理及业务⽅需求，完成数据提取、统计分析及临时取数工作；\n4、参与数据仓库/数据模型的设计与开发，确保数据口径准确、数据质量可靠；\n5、跟进数据任务运行的异常情况，及时排查并解决数据缺失、数据延迟等问题；\n6、编写清晰的数据字典及开发⽂档，做好开发过程的版本管理与记录。\n岗位要求：\n1、大专及以上学历，不限专业；\n2、熟练掌握Java或Python至少一门编程语言，具备基本的编码能力；\n3、了解关系型数据库（如MySQL/PostgreSQL）的基本操作；\n4、了解Hadoop生态基本概念（HDFS、Hive、Spark），有其中任一组件的简单使用经验即可；\n5、熟悉Linux常用命令，能够查看日志、编辑文件、执行脚本；",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "经验不限",
+      "大专"
+    ],
+    "url": "https://www.zhipin.com/job_detail/cc644593794bd1210nFz3tu7GVdZ.html?securityId=RpxH51brqeNDy--1FJMH4O3aEh0SzvwoqS2ND1HPdQ3KcxuUC4iDB4Zwos_f_cwklSZqelGJTTPdhEZPUS0EQ46V9Vvd-dJDG2FtoPhxi2YIq8UeHmHIoNZpbKLgsMMhDOXF90qD32PnkI0QsdBnhQKzTJrMoq9oo6V6QlshUrDKyXD2OasqcscrI0DQj5kkJLQOgBvZabDOjRG4HaB-qDipMGiPu5uySo9UYVMyTekmLAw3MwXZF5kHNM1jmTvgjKPgZZLfCjRgm_uF1WkKK7VkOrNq5Ha2DybrUJX2uov_TyZ1ZazCGn9tYRZb3HRENBzQ55Em19-i_pfp5OhYhNvk07K14lQ19o-SIReddE-FG4EzmGegMgOEecPl9QbqL63alGV0Z-mg-bnKsRAt9_62BGfQ6sghXS0J",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:23.606Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "杰倍思信息技术咨...",
+    "title": "数据开发工程师",
+    "salary": "11-16K",
+    "city": "南京·秦淮区·长白街",
+    "desc": "工作内容：\n负责银行金融数据仓库的建设、迭代与日常维护⼯作，参与银⾏ODS、DW、DWD、DWS、ADS等数仓分层模型的设计与开发，贴合银⾏业务数据规范完成数据清洗、分层建模、指标落地工作。\n- 熟练使用SQL完成复杂数据查询、统计分析、数据关联计算、数据去重与修复，优化SQL执⾏效率，解决慢查询、数据倾斜等问题，保障数据产出的准确性、及时性与稳定性。\n- 负责数据同步、调度任务开发与运维，基于DataX、DS等工具完成异构数据源的数据同步工作，涵盖MySQL、Oracle、Hive、数仓库等数据源的批量、增量同步，保障数据同步完整、无延迟、无丢失。\n- 基于Moia进行任务调度配置、流程编排、依赖配置、告警设置与日常运维，监控调度任务运行状态，及时排查处理任务失败、超时、异常等问题，保障数据流水线稳定运行。\n- 对接业务、数据分析、数据运营团队，理解业务需求，输出数据开发方案、数据字典、开发文档，支撑银行报表统计、经营分析、风控建模、用户画像、监管报送等数据应用场景。\n- 持续优化数仓架构与数据开发流程，优化任务调度逻辑、数据同步策略，提升数据开发效率和数仓整体性能。\n学历与经验：本科及以上学历，计算机、大数据、统计学、数学、金融工程等相关专业，1-3年及以上银行数仓专项开发经验，有银行总行/省级分行项目经验、金融大数据项目经验者优先。\n* 核心技能（必备）：精通SQL，熟练掌握Hive SQL、Oracle SQL、MySQL等主流数据库语法，精通多表关联、窗口函数、分组聚合、子查询等复杂语法，具备独立SQL优化、数据问题排查能力；熟练使用DataX数据同步工具，精通全量、增量同步配置与参数调优；熟练掌握DolphinScheduler（DS）调度平台、Moia调度工具，能够独立完成任务开发、流程编排、故障排查。\n* 数仓能力：熟悉银行数仓完整分层架构（ODS/DWD/DWS/ADS），了解金融行业数据建模规范，熟悉银行核心业务数据、账务数据、客户数据、交易数据等基础数据结构，了解银行监管报送数据口径者优先。\n* 技术栈拓展：了解Hadoop、Hive、Spark、Flink等大数据生态组件，掌握基础Shell脚本，能够独立编写简单自动化脚本，提升开发效率。\n* 综合素质：具备良好的业务理解能力、数据敏感度，能够快速对接并理解银行业务需求；逻辑清晰，具备独立排查数据异常、任务故障的能力；工作认真细致，责任心强，具备良好的团队协作能力和沟通能力，能承受项目迭代压力。\n* 其他加分项：有银行监管报送、普惠金融、风控指标、客户画像、经营分析报表开发经验；熟练使用DataWorks、Azkaban等同类调度工具；掌握Python数据处理能力。\"",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/1db19af528fc765a0nN_2NS7ElVU.html?securityId=YwNSfgadTA7Ph-o1Raq_NsaDZYqOlJwWKN-Dc9kIXeZltP3f8jzl_KgdPCkIpyeq6oDLgvkERdquutQb9ZYVTcRUOAv__IrNp8Ifq4QUwpkCykZwbRXO0JgWwY_OaETgqJuejHE32rouuOXariR4mMprRmLHq2IaP9phUf5bPnSOSkPpwBW8XF5cqgkjucbjUcedQwzO0zjSwWi0_3JsjY9m5-sJnpVG2kskig2zq87dSX9jXivOa5WYErWFzq3TluFW8iw_lrTRrRK76nsnnF8R-mcLQup_QYsiKOWvHEL7Iz7Du7Y_wtFQB523zJ9cEQeINtTfYCZDP60SsKPAfOjBsjIdYasFe7b0XeMi4xoKwl4hHg1dIuzpRB5fmFKkmGR-CCY13pkJZ-ZSKxS72cPHCWMtRz4B-hI~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:25.672Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "小米",
+    "title": "大数据研发工程师(A161528)",
+    "salary": "面议",
+    "city": "南京",
+    "desc": "工作职责：\n1. 数据仓库设计和开发：根据业务需求设计和实施数据仓库模型，包括事实表和维度表的设计；\n2. ETL开发：使用ETL工具进行数据的提取、转换和加载，确保数据的准确性和⼀致性；\n3. 数据集成和处理：处理和集成来⾃多个数据源的⼤数据集，确保数据的完整性和一致性；\n4. 数据建模：设计和实施数据建模解决方案，确保数据结构合理、规范且易于分析；\n5. 数据质量：监控数据仓库系统告警，诊断和解决数据质量问题，提升质量保障；\n6. 数据可视化：使⽤BI工具进行数据可视化开发，支持业务决策；\n7. 跨团队协作：与数据科学家、分析师和业务部门合作，确保数据仓库系统满足业务需求。\n任职要求:\n1. 计算机科学、大数据或相关专业本科及以上学历；\n2. 熟悉数据仓库技术和概念，具备数据存储方法、数据集成和检索机制的基础知识；\n3. 熟练使用SQL，能够编写基本查询，熟悉大数据技术并执行数据操作；\n4. 了解ETL工具和数据建模技术；\n5. 具备Python、Java、SQL编程技能者优先；\n6. 了解大数据技术（如Hadoop、Spark、Hive、Flink）者优先；\n7. 良好的团队合作能力，能够解决冲突并促进团队动态；\n8. 优秀的沟通能力，能够与技术和非技术团队成员有效沟通；\n9. 强烈的学习热情和主动性，能够快速掌握新技术和工具。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "在校/应届",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/be372f089ba3f8600nN-2ti4EFFZ.html?securityId=0dMYVdd5A24NH-71ANssUONJkXUWYMdBpQEXE3YxltN8DnG1P9i1Zee6zL3kgF1gWc_mJOSGQW09iO4SGRDKp2YKScJvRrKxKsgdY2LApR_ewA2OtUDx67Ot9XMaYU7zsFfqCkY6tL4hG-rQRCCSPegtuwFS0obawATxNl-EmxQubbXyCn5ttls4DejQblzwQ4q9vcYmIwdtwg5zcdeh4jbCNtk65I8Tg1Lrb4VGTDT5gEavB3abKrdPbp1QhB5_-MLX-VEpjP_WxHUgY2sqTOYF7LifHTNIKACTysLSDch4TusDmVf0dmXodfrx7q6JJRhFDDDoqJj0amm7X829NtanzjrDYRyHrq8oF4dm8OBvyk6wLpyje6qIwwIYTrRRWMFO-Zl9SC-fr8AJ8G_O_ifYm1Nl0RW1",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:29.854Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
+  },
+  {
+    "source": "boss-chrome",
+    "company": "万宝盛华企业管理...",
+    "title": "AI&大数据技术工程师",
+    "salary": "14-26K",
+    "city": "南京·雨花台区·安德门",
+    "desc": "岗位职责\n1. 负责大数据集群运维治理，保障集群稳定运行，处理故障与性能问题\n2. 完成OLAP引擎相关开发，做SQL、分区、排序键优化，提升查询性能\n3. 参与DataOps平台建设，优化大数据开发运维流程\n4. 对接业务需求，输出大数据技术⽅案，⽀撑业务数据分析场景\n5. 调研落地公有云⼤数据SaaS服务，持续优化平台架构\n岗位要求\n1. 计算机相关专业本科及以上，3年以上大数据平台开发/运维经验\n2. 熟悉Hadoop生态，有PB级集群运维、治理经验\n3. 掌握ClickHouse/StarRocks/Doris⾄少一种OLAP引擎，具备SQL调优、分区及排序键优化能力\n4. 熟悉Java开发；有DataOps平台建设、公有云大数据SaaS使用经验优先",
+    "hr_active": "",
+    "tags": [
+      "1-3年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/c92270472020303f0nN82ty8E1JT.html?securityId=h7isn8pPrwAKk-p1C4r_w3JXWDD9k7vDR-3scdWWxUcT6xrnk9OU0v-R4Bg3ar-6OjgjyQYf_-kYCYFp1ERJX2xOcoG1LujUXW2dQX8y5WKYhMQfsrl3mrYWVscrLCaaT4QSjwKfDjExpKRZyjgot4Kd-dPaEBP426MGUaw1XuapBbADarYjlO1cJdAqp1rOIvLhwnKMx9Wwhg9tXppdhI4O_6HCUizVUmhV8UlSAMYKoJu6nc6F2iVXtJCuLbUrFsV28LLTs2ODorTEDZT3a8jjc-Nj5m5p70cgrCBCOkhV8j6LS97ddQUen3Y_GNxWxUhtRJHIJYn2NwIk839bEvUYe-lZAu490o6g5XNdSe-FzrdoPa52ato4N0PG_N7p875pLMF6sk2RtfkNXQ8uxaSSE7hyPv7l8ug~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:34.001Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    }
   }
 ]

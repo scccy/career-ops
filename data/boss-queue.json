@@ -1,1 +1,198 @@
-[]
+[
+  {
+    "source": "boss-chrome",
+    "company": "网易",
+    "title": "资深Java开发工程师（风控数仓平台）",
+    "salary": "35-50K·16薪",
+    "city": "杭州·滨江区·长河",
+    "desc": "职位描述\n1、参与云音乐风控领域特征数据引擎建设\n2、实时数据仓库、湖仓一体全链路建设\n3、参与音乐平台系统架构设计、优化、持续提升系统性能和稳定性，助力业务快速发展；\n4、关注前沿技术发展，探索实践，推动团队技术研究和创新。\n职位要求\n1、本科及以上学历，计算机软件相关专业，5年以上互联⽹开发经验；\n2、具备扎实的Java编程基础，熟练使⽤Spring等常⽤java开发框架，熟悉常用设计模式，有较好的代码设计和编写习惯；\n3、良好的问题分析能力、抗压能⼒、沟通能力和项目推进能力，独立负责过较大型的项目，有技术难点攻关经验；\n4、熟悉常用的中间件，包括但不限于分布式数据库，分布式缓存，消息队列等，理解中间件的基本原理；\n5、了解hive，spark，flink等大数据开发的框架，有批流任务的使用经验；\n6、有AI Coding 实践经验：熟练使用各类AI编程助手（如Claude\nCode，Codex等），需具备利用AI进行复杂业务逻辑生成、单元测试生成、代码重构的能力。理解并熟练掌握SDD（规约驱动开发）研发范式优先。\n7、有OpenClaw实际应用经验、SKILL调优经验者优先。",
+    "hr_active": "",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/58a0d02ae6d274520nBz39q5E1VT.html?securityId=ADDKh4IfzKSSh-21t2VilPn3QqK-sryraSaclxaZx71Oj__RKRI6McLCdgLr-lTpwYtrxbJVtKFi7nDZu7nYOhyu2x2Fz9df0gxr6eEAp4VVCMVtlyW922SkIE4M0kv4_UsfD-jjtVTQ2c1bAzRW8ilTqRpvE9D2U8bHK6jH97WYxxPPg5GcjVngsGspf-QMCI9k8Jxbc45GzIT1fU1J9TcDRGoPaGp16t982WaiYadBHNR6_BbaEj09WIQ5YgvHtOxCNM3QwH4ztKQ6tdLqXRb-e-ts7UDN8LQK5oK2V34TcShp5t04z9MjHRX90RKYiSodEmLQ9xZWn41W1oUfR14iFdRh1yiDBTYqbalWfpxv7ISrvtx0kn2aEhjabCDuYy1SQ1RA-mb0meuFG5BMWZ9zlU58",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:27:46.888Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.24,
+    "score_detail": {
+      "responsibility": 3.5,
+      "skill": 5,
+      "salary": 4,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 3
+    },
+    "opportunity_legitimacy": {
+      "tier": "Proceed with Caution",
+      "label": "谨慎推进",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据仓库、数仓、湖仓一体、数据开发",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：35-50K·16薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 活跃时间不明确",
+          "weight": 0
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据仓库、数仓。我过往做过数据仓库、数仓、Hive，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据仓库",
+        "数仓",
+        "湖仓一体",
+        "数据开发"
+      ],
+      "skills": [
+        "数据仓库",
+        "数仓",
+        "Hive",
+        "Spark"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T14:28:39.313Z",
+    "report": "reports/boss-网易-资深Java开发工程师-风控数仓平台-16e80c83-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "猎宝网",
+    "title": "数据开发（互联网电商 双休）",
+    "salary": "15-20K",
+    "city": "南京·玄武区·徐庄软件园",
+    "desc": "hello，因为hc原因，该岗位可线上初试但线下复试需要到面，如异地较远可不投递哦！岗位需要最近一份工作互联网⾏业！感恩！\n垂直领域的游戏账号交易与租赁平台，租赁 + 交易两条业务线，平台型业务，数据量和使⽤⽅都在快速增长。\n岗位职责\n1.负责 Doris 数仓分层建设与模型设计（ODS/DWD/DWS/ADS），治理生产库到数仓的同步链路，提升数仓的稳定性与易用性\n2.建设并维护基于 DolphinScheduler 的调度体系，保障任务时效、失败告警与快速恢复\n3.落地指标体系：与分析师协作，把租赁、交易两条业务线的核⼼指标字典化、口径标准化\n4.建设核心经营报表：基于指标层产出日报/周报/核心看板，让业务日常经营有据可依\n5.例行经营分析：周度核心指标解读、异动初筛与拆解，输出给分析师和运营负责人\n6.建立数据质量规则与校验机制，维护表级/字段级血缘\n任职要求\n1.2-5 年数据开发经验，熟悉数仓分层建模理论（维度建模），有独立完成数仓设计并落地的经历\n2.SQL 功底扎实，熟练使用 Doris / ClickHouse 等 MPP 或 OLAP 引擎\n3.熟悉至少一种调度系统（DolphinScheduler / Airflow），有任务稳定性保障经验\n4.理解指标治理与数据资产（指标字典、口径管理、血缘）\n5.具备基础经营分析能力，有报表/看板建设经验（FineBI、Tableau 等 BI 工具）\n6.结果导向、自驱，愿意理解业务指标的含义，而不是只接需求\n加分项\n1.游戏、电商或平台型交易业务背景\n2.用 AI 辅助开发（AI Coding）提效 ETL 或数据开发的实际经验\n3.有从 0 建设指标平台 / 数据中台的经历\n岗位需要到面！外地的小伙伴如不能接收请勿投递哇！",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/2b2433019ee5754c0nN62tu0E1VT.html?securityId=uBP2-MpK8Gfkz-Z1tJ9k-5Ep3ydo0S7oLjRsrygNQsLiPHWXeIyWsed6TWBd8c7Qc8zzzqiiMwz2A72SzSO25qZ4zcFSk3vQDfvi1wbdabXIoHKmjHdfHglvewx4DI6Up1MjldzzzTNZ0f9K2fVts4z7gSY93mgaMCIZdOr8dLhf5p68hCqKrCpsCiGz7MlcGspCLNWpCw0XpuFMCMM5hxCS7dCosgnGUsLTp2YzgXvHZrfywt6I-oogn3Fsnz8LhBUXo3A6AC1rg65aPY_tzkRhbUnjJWY8fVuQNEc5MA1cY5KVANjvGaXutYnmZ6rRg9TR35FPmHIEUqLRVAqy-71cJgH5EI8ajo4-FR5kxd7JlxLDxnXsCiSMgodfAEnVVYyZbkAftT7PsDg68Qv8qrK8_lei-1kG",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T14:28:13.207Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.05,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 5,
+      "salary": 4,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、数据中台、ETL、指标体系",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-20K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、数据中台。我过往做过数仓、ETL、数据中台，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "数据中台",
+        "ETL",
+        "指标体系"
+      ],
+      "skills": [
+        "数仓",
+        "ETL",
+        "数据中台",
+        "BI"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T14:28:39.314Z",
+    "report": "reports/boss-猎宝网-数据开发-互联网电商-双休-bfa07828-2026-09-22.md"
+  }
+]
