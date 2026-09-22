@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>施辞 — CV</title>
+<style>
+  /* Themeable tokens (#1837): overridable via config/profile.yml `style:`, which
+     the PDF pipeline injects as a later :root block. Defaults below reproduce the
+     original hardcoded values, so a profile without a `style:` block is unchanged. */
+  :root {
+    --accent-color: hsl(187 74% 32%);
+    --font-family: "Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif;
+    --font-size: 11px;
+    /* Matches generate-pdf.mjs's PDF_PAGE_MARGIN — the actual PDF page margin
+       comes from the later @page rule injectPrintPageCss appends (which reads
+       this same variable), so this default must match it exactly. */
+    --page-margin: 0.6in;
+  }
+  @page { margin: var(--page-margin); }
+
+  /* ATS-safe typography (#font-extraction fix):
+     The bundled variable woff2 fonts (Space Grotesk / DM Sans) render with
+     glyph advances that make PDF text extractors inject spurious spaces inside
+     words (e.g. "SUM M ARY", "Germ any") — which corrupts ATS keyword parsing.
+     This template's job is clean machine-readable parsing, so we use a standard
+     static system sans stack instead. Verified clean via pypdf text extraction.
+     The lang="ja" rules reuse this Latin base stack (with a CJK fallback added);
+     the lang="ar" rules below intentionally define their own Arabic stack. */
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* Disable fi/fl/ffi ligatures. Headless Chromium substitutes these letter
+       pairs with the Unicode glyphs U+FB01/FB02/FB03 at PDF layout time, and PDF
+       text extractors (what ATS systems read) decode them back to those
+       codepoints, so "verification" becomes "veriﬁcation" and a literal keyword
+       search misses it. Setting this on every element covers headings and
+       competency tags too. Required ligatures (rlig) stay on, so Arabic shaping
+       is unaffected. */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+  }
+
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    line-height: 1.5;
+    color: #1a1a2e;
+    background: #ffffff;
+    padding: 0;
+    margin: 0;
+    /* Disable ligatures here as well; see the * rule above. */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 2px 0;
+  }
+
+  /* === HEADER === */
+  .header {
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    font-family: var(--font-family);
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+    line-height: 1.1;
+  }
+
+  .header-gradient {
+    height: 2px;
+    background: linear-gradient(to right, var(--accent-color), hsl(270, 70%, 45%));
+    border-radius: 1px;
+    margin-bottom: 10px;
+  }
+
+  .contact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-family: var(--font-family);
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: #555;
+  }
+
+  .contact-row a {
+    color: #555;
+    text-decoration: none;
+  }
+
+  .contact-row .separator {
+    color: #ccc;
+  }
+
+  /* === OPTIONAL PROFILE PHOTO (opt-in, DACH/European markets — #264) ===
+     Off by default: with no candidate.photo the  slot is empty, no
+     <img> is emitted, and the layout is byte-identical to a photoless CV.
+     When opted in (candidate.photo in config/profile.yml) the photo floats into
+     the top corner and the header/summary text wraps beside it. Photos are
+     penalized by US/UK/many-market ATS, so this is never on by default. */
+  .cv-photo {
+    float: right;
+    width: 80px;
+    height: 100px;
+    object-fit: cover;
+    margin: 0 0 8px 14px;
+    border-radius: 3px;
+    border: 1px solid #e2e2e2;
+  }
+
+  .cv-photo--rounded { border-radius: 8px; }
+  .cv-photo--circle { border-radius: 50%; aspect-ratio: 1; height: 80px; }
+  .cv-photo--square { border-radius: 0; aspect-ratio: 1; height: 80px; }
+
+  /* === SECTIONS === */
+  .section {
+    margin-bottom: 18px;
+  }
+
+  .section-title {
+    font-family: var(--font-family);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent-color);
+    border-bottom: 1.5px solid #e2e2e2;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+    line-height: 1.2;
+  }
+
+  /* === PROFESSIONAL SUMMARY === */
+  .summary-text {
+    font-size: var(--font-size);
+    line-height: 1.7;
+    color: #2f2f2f;
+  }
+
+  .summary-text strong {
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  /* Links must never break across lines */
+  a {
+    white-space: nowrap;
+  }
+
+  /* === CORE COMPETENCIES === */
+  .competencies-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .competency-tag {
+    font-family: var(--font-family);
+    font-size: 10px;
+    font-weight: 500;
+    color: hsl(187, 74%, 28%);
+    background: hsl(187, 40%, 95%);
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid hsl(187, 40%, 88%);
+  }
+
+  /* === WORK EXPERIENCE === */
+  .job {
+    margin-bottom: 14px;
+  }
+
+  .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .job-company {
+    font-family: var(--font-family);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: hsl(270, 70%, 45%);
+  }
+
+  .job-period {
+    font-size: 10.5px;
+    color: #777;
+    white-space: nowrap;
+  }
+
+  .job-role {
+    font-size: var(--font-size);
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+  }
+
+  .job-location {
+    font-size: 10px;
+    color: #888;
+  }
+
+  .job ul {
+    padding-left: 18px;
+    margin-top: 6px;
+  }
+
+  .job li {
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 4px;
+  }
+
+  .job li strong {
+    font-weight: 600;
+  }
+
+  /* === PROJECTS === */
+  .project {
+    margin-bottom: 12px;
+  }
+
+  .project-title {
+    font-family: var(--font-family);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: hsl(270, 70%, 45%);
+  }
+
+  .project-badge {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--accent-color);
+    background: hsl(187, 40%, 95%);
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-left: 6px;
+  }
+
+  .project-desc {
+    font-size: 10.5px;
+    color: #444;
+    margin-top: 3px;
+    line-height: 1.55;
+  }
+
+  .project-tech {
+    font-size: 9.5px;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* === EDUCATION === */
+  .edu-item {
+    margin-bottom: 8px;
+  }
+
+  .edu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .edu-title {
+    font-weight: 600;
+    font-size: var(--font-size);
+    color: #333;
+  }
+
+  .edu-org {
+    color: hsl(270, 70%, 45%);
+    font-weight: 500;
+  }
+
+  .edu-year {
+    font-size: 10px;
+    color: #777;
+    white-space: nowrap;
+  }
+
+  .edu-desc {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+    line-height: 1.5;
+  }
+
+  /* === CERTIFICATIONS === */
+  .cert-table {
+    display: table;
+    width: 100%;
+  }
+
+  .cert-item {
+    display: table-row;
+  }
+
+  .cert-item > * {
+    display: table-cell;
+    vertical-align: baseline;
+    padding-bottom: 6px;
+  }
+
+  .cert-title {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .cert-org {
+    color: hsl(270, 70%, 45%);
+    white-space: nowrap;
+  }
+
+  .cert-year {
+    font-size: 10px;
+    color: #777;
+    white-space: nowrap;
+    text-align: right;
+    width: 44px;
+  }
+
+  /* === AWARDS === */
+  /* Same table model as certifications (title / issuer / year on one baseline),
+     under its own class names so a template pack can restyle awards without
+     dragging certifications along. */
+  .award-table {
+    display: table;
+    width: 100%;
+  }
+
+  .award-item {
+    display: table-row;
+  }
+
+  .award-item > * {
+    display: table-cell;
+    vertical-align: baseline;
+    padding-bottom: 6px;
+  }
+
+  .award-title {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .award-org {
+    color: hsl(270, 70%, 45%);
+    white-space: nowrap;
+  }
+
+  .award-year {
+    font-size: 10px;
+    color: #777;
+    white-space: nowrap;
+    text-align: right;
+    width: 44px;
+  }
+
+  /* === SKILLS === */
+  .skills-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .skill-item {
+    font-size: 10.5px;
+    color: #444;
+  }
+
+  .skill-category {
+    font-weight: 600;
+    color: #333;
+    font-size: 10.5px;
+  }
+
+  /* === PRINT === */
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Keep a small right gutter for the print box. Right-aligned content
+       (job periods, education years) right-aligns to the content-box edge,
+       and the rightmost glyph's side bearing can spill ~1px past it and get
+       clipped by Chromium's print clip. A plain `.page` padding is reset to 0
+       here for print, which is why padding set outside @media print has no
+       effect; restoring a right gutter inside the print rule fixes it without
+       re-centering the page or hard-coding a per-format max-width. See #1341. */
+    .page {
+      padding: 0 0.18in 0 0;
+    }
+  }
+
+  /* === PAGE BREAK CONTROL === */
+  /* Only avoid breaking small atomic units (a cert row, an education line, the
+     header, a single competency or skill).  Sections and multi-bullet roles are
+     allowed to flow across a page boundary so content packs tight instead of
+     jumping wholesale and leaving large bottom gaps. */
+  .header,
+  .edu-item,
+  .cert-item,
+  .competency-tag,
+  .skill-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Keep a heading attached to the content that follows it, so headings are not
+     orphaned at the bottom of a page. */
+  .section-title,
+  .job-company,
+  .job-role,
+  .job-location,
+  .project-title {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* === RTL (Arabic) Support === */
+  html[lang="ar"] body {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+
+  html[lang="ar"] .header h1,
+  html[lang="ar"] .section-title,
+  html[lang="ar"] .job-company,
+  html[lang="ar"] .project-title,
+  html[lang="ar"] .competency-tag,
+  html[lang="ar"] .skill-category {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+
+  html[lang="ar"] .header-gradient {
+    background: linear-gradient(to left, var(--accent-color), hsl(270, 70%, 45%));
+  }
+
+  html[lang="ar"] .job ul {
+    padding-right: 18px;
+    padding-left: 0;
+  }
+
+  html[lang="ar"] .project-badge {
+    margin-right: 6px;
+    margin-left: 0;
+  }
+
+  html[lang="ar"] .cert-year {
+    text-align: left;
+  }
+
+  html[lang="ar"] .cert-table {
+    direction: rtl;
+  }
+
+  html[lang="ar"] .cv-photo {
+    float: left;
+    margin: 0 14px 8px 0;
+  }
+
+  /* === CJK (Japanese) font fallback === */
+  /* The bundled webfonts are Latin-only (see #951). Without a CJK fallback,
+     Japanese text renders as tofu (□) in headless Chromium on any system
+     without a CJK system font (Linux/CI, minimal containers). The Latin brand
+     fonts are kept first so ASCII still uses Space Grotesk / DM Sans, then the
+     browser's per-glyph fallback picks the first installed CJK face for kana
+     and kanji. Mirrors the lang="ar" precedent above. */
+  html[lang="ja"] body {
+    font-family: 'Liberation Sans', 'Helvetica Neue', Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+      'Yu Gothic', 'YuGothic', 'Noto Sans CJK JP', 'Noto Sans JP',
+      Meiryo, 'MS PGothic', sans-serif;
+  }
+
+  html[lang="ja"] .header h1,
+  html[lang="ja"] .section-title,
+  html[lang="ja"] .job-company,
+  html[lang="ja"] .project-title,
+  html[lang="ja"] .competency-tag,
+  html[lang="ja"] .skill-category {
+    font-family: 'Liberation Sans', 'Helvetica Neue', Arial, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+      'Yu Gothic', 'YuGothic', 'Noto Sans CJK JP', 'Noto Sans JP',
+      Meiryo, 'MS PGothic', sans-serif;
+  }
+
+  /* === Simplified Chinese typography ===
+     Keep Latin-capable system fonts first for stable ATS extraction, then use
+     platform-native and open-source Simplified Chinese faces for Han glyphs.
+     Explicit line-breaking prevents mixed Chinese/English tokens and Chinese
+     punctuation from producing clipped or awkward PDF lines. */
+  html[lang="zh-CN"] body,
+  html[lang="zh"] body {
+    font-family: 'Liberation Sans', 'Helvetica Neue', Arial, 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+      'Noto Sans SC', 'Source Han Sans SC', sans-serif;
+    line-break: strict;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+
+  html[lang="zh-CN"] .header h1,
+  html[lang="zh-CN"] .section-title,
+  html[lang="zh-CN"] .job-company,
+  html[lang="zh-CN"] .project-title,
+  html[lang="zh-CN"] .contact-row,
+  html[lang="zh-CN"] .competency-tag,
+  html[lang="zh-CN"] .skill-category,
+  html[lang="zh"] .header h1,
+  html[lang="zh"] .section-title,
+  html[lang="zh"] .job-company,
+  html[lang="zh"] .project-title,
+  html[lang="zh"] .contact-row,
+  html[lang="zh"] .competency-tag,
+  html[lang="zh"] .skill-category {
+    font-family: 'Liberation Sans', 'Helvetica Neue', Arial, 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+      'Noto Sans SC', 'Source Han Sans SC', sans-serif;
+  }
+
+  html[lang="zh-CN"] .summary-text,
+  html[lang="zh"] .summary-text,
+  html[lang="zh-CN"] .job li,
+  html[lang="zh"] .job li {
+    line-height: 1.7;
+  }
+
+  html[lang="zh-CN"] .section-title,
+  html[lang="zh"] .section-title {
+    letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  
+  <!-- HEADER -->
+  <div class="header">
+    <h1>施辞</h1>
+    <div class="header-gradient"></div>
+    <div class="contact-row">
+      <a href="tel:15268572795">15268572795</a>
+      <span class="separator">|</span>
+      <a href="mailto:shici2880@gmail.com">shici2880@gmail.com</a>
+      <span class="separator">|</span>
+      <a href="https://github.com/scccy">github.com/scccy</a>
+      <span class="separator">|</span>
+      <span>浙江杭州</span>
+    </div>
+  </div>
+
+  <!-- PROFESSIONAL SUMMARY -->
+  <div class="section">
+    <div class="section-title">个人简介</div>
+    <div class="summary-text">全栈数据工程师:5 年+ 数据仓库 / BI / 数据开发经验,能独立交付数据中台全链路——数据接入 → 数仓分层建模 → Java 后端 → BI 可视化 → AI 自动化,一人覆盖过去 2–3 人的工作面。主导过集团战略大屏、运营报表、财务佣金分发等核心数据产品;当前独立主导业务 BI 经营报表与 SaaS 数据分析平台两条产品线。以 AI 工具链放大单人产出:n8n 端到端 AI 视频生产线、火山引擎多模态接口,并在 PyPI 发布多款 MCP 开源工具包。</div>
+  </div>
+
+  <!-- CORE COMPETENCIES -->
+  <div class="section">
+    <div class="section-title">核心能力</div>
+    <div class="competencies-grid">
+      <span class="competency-tag">数据仓库分层建模 (Kimball / ODS-DWD-DWS-ADS)</span>
+      <span class="competency-tag">大数据开发 (DataWorks / Spark SQL / Hive)</span>
+      <span class="competency-tag">多渠道数据接入与调度 (XXL-Job / 历史补数)</span>
+      <span class="competency-tag">Java 后端全栈 (Spring Boot / MyBatis-Plus)</span>
+      <span class="competency-tag">数据可视化与 BI (FineReport / FineBI / ClickHouse)</span>
+      <span class="competency-tag">AI 工程化 (n8n / MCP 协议 / 火山引擎多模态)</span>
+      <span class="competency-tag">ETL 与数据集成 (DataX / DataArts / DataLeap)</span>
+      <span class="competency-tag">全栈数据交付 (数据接入 → 数仓 → 后端 → BI → AI 自动化)</span>
+    </div>
+  </div>
+
+  <!-- WORK EXPERIENCE -->
+  <div class="section">
+    <div class="section-title">工作经历</div>
+    <div class="job">
+  <div class="job-header">
+    <span class="job-company">追觅科技 -- MOVA 子公司(苏州四号孵化基地)</span>
+    <span class="job-period">2025.10 – 至今</span>
+  </div>
+  <div class="job-role">全栈数据工程师 / 独立主导</div>
+  <div class="job-location">苏州</div>
+  <ul>
+    <li>独立主导两条数据产品线(后端 / 数据模型 / 分析引擎 / 权限由本人 + AI 工具链实现,前端与产品另有专人)</li>
+    <li>业务 BI 经营报表平台(mova-data,内部经营分析):8 渠道数据接入(国内+海外并行,含 Google Ads / Meta Ads)+ 150 节点 DataWorks 离线数仓(SLA 9:30 前 / ADS 10:00 前)+ XXL-Job 调度与历史补数 + BI 报表,服务国内游戏 / 海外游戏 / 网文漫局 3 个业务团队</li>
+    <li>SaaS 数据分析平台(qpointplay-data,对外销售):自研多租户分析平台(对标神策 / GrowingIO),覆盖 SDK 数据上报 → 事件 / 留存 / 漏斗 / 分布 / 属性分析 → 用户分群 / 细查 → 可视化看板全链路</li>
+    <li>多租户权限与领域建模:平台侧 + 公司侧 RBAC(18 表权限模型),「项目组 → 应用组 → 产品 → appid」层级管理,Space / Dashboard / Report N:M 挂载与统一分享;制定数据库 / API 设计规范与 E2E 全链路验证</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">合肥起源计划</span>
+    <span class="job-period">2025.07 – 2025.10</span>
+  </div>
+  <div class="job-role">技术部 / Java 开发</div>
+  <div class="job-location">安徽合肥</div>
+  <ul>
+    <li>基于 n8n 搭建端到端 AI 视频生产线:脚本→分镜全自动工作流,集成 DeepSeek 剧本创作与 Prompt 工程化</li>
+    <li>深度对接火山引擎(Volcengine)视觉 AI 接口,自动化获取角色形象 / 分镜图片生成结果,设计视频比例 / 分镜字段 / 多分支流程控制,显著提升内容生产效率</li>
+    <li>私域闭环(尔木萄萄萄小镇)小程序后端全流程:积分发放、活动审核、任务奖励;有赞商城积分双向实时同步</li>
+    <li>跨平台集成:企业微信 / 飞书关键词解析、企微客户动态管理、飞书机器人业务预警 + SSO</li>
+    <li>AI 生态建设:MCP 协议开源贡献(见开源项目)</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">人瑞集团 -- 奇瑞 iCAR 事业部</span>
+    <span class="job-period">2025.03 – 2025.07</span>
+  </div>
+  <div class="job-role">大数据开发 / 项目制驻场(奇瑞 iCAR 事业部)</div>
+  <div class="job-location">安徽芜湖</div>
+  <ul>
+    <li>基于 Kimball 维度建模设计 DWD/DWS/ADS 分层,支撑 DMS/SCRM/APP 用户行为等业务主题</li>
+    <li>使用 DataArts 完成 Oracle/MySQL/Hive 多源集成,Spark SQL / Hetu 清洗保障 ODS→ADS 数据质量</li>
+    <li>联合产品经理评审原型,建立指标定义 / 数据来源 / 计算逻辑 / 更新频率指标体系文档</li>
+    <li>亮点项目:集团战略大屏「瞭望台」、运营报表「线索报告厅」「KPI 驾驶舱」,实现全渠道车辆流转与营销核心指标可视化</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">无忧传媒</span>
+    <span class="job-period">2024.07 – 2025.03</span>
+  </div>
+  <div class="job-role">AI 业务与研发中心 / BI 工程师</div>
+  <div class="job-location">浙江杭州</div>
+  <ul>
+    <li>抽象 STG/ODS/DW/ADM 分层,DataLeap 集成同步至 OLAP ByteHouse 与 MySQL,数据产出次日 8 点前</li>
+    <li>指标调研与标签体系专题库建设,消除指标二义性,按组织 / 个人权限控制数据可见范围</li>
+    <li>直播系列指标体系与报表(招募 / 开播 / 营收 / 日活),主导指标数据开发与可视化</li>
+    <li>财务佣金收集与分发报表:对接电商订单数据,通过 FineReport 填报实现佣金分发权限管理,按订单金额查看佣金分发并对账</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">杭州威圣网络科技有限公司</span>
+    <span class="job-period">2023.03 – 2024.05</span>
+  </div>
+  <div class="job-role">财务部 / BI 研发工程师</div>
+  <div class="job-location">浙江杭州</div>
+  <ul>
+    <li>从淘宝 / 抖音 / 快手接入数据,设计清洗汇总流程,构建统一规范订单数据体系</li>
+    <li>联合运营 / 采购 / 财务确认数据标准与编码体系,打通平台订单 / 金蝶 / 聚水潭 / Excel 数据壁垒,BI 系统统一查看</li>
+    <li>构建财务日 / 周 / 月报与运营关键指标,FineBI + FineReport 数据展示,部门权限管控</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">杭州朴家集团</span>
+    <span class="job-period">2019.09 – 2022.12</span>
+  </div>
+  <div class="job-role">研发部 / BI 研发工程师</div>
+  <div class="job-location">浙江杭州</div>
+  <ul>
+    <li>运用 Spring 框架接入自研 ERP,获取电商订单与工厂端业务数据,设计 ETL 流程保障数据准确</li>
+    <li>设计并实施数据分层架构(源数据层 / 清洗层 / 数仓层 / 数据集市层),通过精确 ETL 提炼高质量数据</li>
+    <li>以产品经理视角负责数据对接与报表项目规划、执行、监控,制定数据对接方案与报表设计蓝图</li>
+  </ul>
+</div>
+  <div class="job">
+  <div class="job-header">
+    <span class="job-company">网易大数据 / 有数 BI</span>
+    <span class="job-period">2018.07 – 2019.09</span>
+  </div>
+  <div class="job-role">技术支持 / 实施工程师</div>
+  <div class="job-location">浙江杭州</div>
+  <ul>
+    <li>解决集团内有数 BI 使用问题,编写样例 SQL 与图表,收集反馈推动产品迭代</li>
+    <li>参与杭州银行大数据项目实施:交付文档、Dev 环境排错、业务方 ADS 样例、Demo 部署</li>
+  </ul>
+</div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div class="section">
+    <div class="section-title">开源项目与贡献</div>
+    <div class="project">
+  <div class="project-title">doubao-mcp<span class="project-badge">PyPI 开源</span></div>
+  <div class="project-desc">基于 MCP 协议实现字节豆包大模型与标准 MCP 适配,增强 AI 调动业务工具的能力。</div>
+  <div class="project-tech">Model Context Protocol / Python</div>
+</div>
+  <div class="project">
+  <div class="project-title">neo4j-mcp-memory-scccy<span class="project-badge">PyPI 开源</span></div>
+  <div class="project-desc">结合 Neo4j 图数据库构建 AI 长短期记忆管理机制,解决复杂业务逻辑下的上下文持久化问题。</div>
+  <div class="project-tech">Neo4j / MCP / Python</div>
+</div>
+  <div class="project">
+  <div class="project-title">scccy-scaffolding</div>
+  <div class="project-desc">个人开源脚手架,沉淀通用业务代码逻辑与基础 Common 支持,持续维护。</div>
+  <div class="project-tech">Java / Spring Boot</div>
+</div>
+  </div>
+
+  <!-- EDUCATION -->
+  <div class="section">
+    <div class="section-title">教育经历</div>
+    <div class="edu-item">
+  <div class="edu-header">
+    <div class="edu-title">南京大学 金融系(非全日制本科) <span class="edu-org">南京大学</span></div>
+    <div class="edu-year">2021</div>
+  </div>
+  <div class="edu-desc">2018-2021</div>
+</div>
+  <div class="edu-item">
+  <div class="edu-header">
+    <div class="edu-title">南通航运职业技术学院 船舶与海洋工程(全日制专科) <span class="edu-org">南通航运职业技术学院</span></div>
+    <div class="edu-year">2016</div>
+  </div>
+  <div class="edu-desc">2013-2016</div>
+</div>
+  </div>
+
+  <!-- SKILLS -->
+  <div class="section">
+    <div class="section-title">技能清单</div>
+    <div class="skill-item"><span class="skill-category">数据仓库与建模: </span>Kimball 维度建模、DWD/DWS/ADS(STG/ODS/DW/ADM)、Spark SQL、Hive SQL、Hetu</div>
+<div class="skill-item"><span class="skill-category">ETL 与集成: </span>DataArts、DataLeap、DataX、Kettle</div>
+<div class="skill-item"><span class="skill-category">数据可视化: </span>FineReport、FineBI、ByteHouse、ClickHouse</div>
+<div class="skill-item"><span class="skill-category">AI 工程化: </span>n8n、DeepSeek、火山引擎视觉 AI、MCP 协议、Prompt 工程、多模态集成</div>
+<div class="skill-item"><span class="skill-category">后端开发: </span>Java、Spring Boot、Spring、MyBatis-Plus</div>
+<div class="skill-item"><span class="skill-category">数据存储: </span>MySQL、Oracle、Hive、ByteHouse、ClickHouse</div>
+<div class="skill-item"><span class="skill-category">其他: </span>Python、SQL、JavaScript</div>
+  </div>
+
+</div>
+</body>
+</html>
