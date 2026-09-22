@@ -268,6 +268,26 @@ export function countSentCompaniesToday(date = todayIso()) {
   return loadSentCompanyKeys({ date, statuses: ['sent'] }).size;
 }
 
+// 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）
+// 城市由发送记录 URL 反查候选池得到（发送日志本身无城市列）；无法匹配的 URL 归入"未知"。
+export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new Map() } = {}) {
+  const byCity = new Map();
+  if (!existsSync(SENT_LOG_PATH)) return {};
+  const seen = new Set();
+  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
+    if (!line.trim()) continue;
+    const [sentDate, , company, , url, status] = line.split('\t');
+    if (sentDate !== date || status !== 'sent') continue;
+    const dedupeKey = url || normalizeText(company);
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const city = String(urlCity.get(url) || '').split('·')[0] || '未知';
+    if (!byCity.has(city)) byCity.set(city, new Set());
+    byCity.get(city).add(normalizeText(company));
+  }
+  return Object.fromEntries([...byCity].map(([city, keys]) => [city, keys.size]));
+}
+
 export function appendSentLog({ job, status, message = '', error = '' }) {
   mkdirSync(ROOT_DATA_DIR, { recursive: true });
   if (!existsSync(SENT_LOG_PATH)) {
