@@ -22,6 +22,7 @@
     "boss:fill": "node boss-fill.mjs",
     "boss:review": "node boss-review.mjs",
     "boss:apply": "node boss-apply.mjs",
+    "boss:chrome:start": "bash boss-chrome-start.sh",
     "or": "node openrouter-runner.mjs",
     "or:scan": "node openrouter-runner.mjs scan",
     "or:pipeline": "node openrouter-runner.mjs pipeline",

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'child_process';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import {
+  CANDIDATES_PATH,
   QUEUE_PATH,
   appendApplication,
   appendSentLog,
   countSentCompaniesToday,
+  countSentCompaniesTodayByCity,
   loadProfile,
   loadSentCompanyKeys,
   loadSentKeys,
@@ -18,7 +20,18 @@ import {
 
 const RECENT_COMPANY_DEDUPE_DAYS = 30;
 
+// 本地适配：macOS 走 AppleScript；其他平台（或 BOSS_TRANSPORT=cdp）走 boss-cdp.mjs（Chrome CDP）
+const CDP_TRANSPORT = process.env.BOSS_TRANSPORT
+  ? process.env.BOSS_TRANSPORT === 'cdp'
+  : process.platform !== 'darwin';
+
 function execJs(js) {
+  if (CDP_TRANSPORT) {
+    return execFileSync(process.execPath, [fileURLToPath(new URL('./boss-cdp.mjs', import.meta.url)), '--eval', js], {
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    }).trim();
+  }
   const script = `tell application "Google Chrome" to execute active tab of front window javascript ${JSON.stringify(js)}`;
   return execFileSync('osascript', ['-e', script], {
     encoding: 'utf-8',
@@ -50,11 +63,21 @@ function pageString(value) {
   return JSON.stringify(String(value || ''));
 }
 
-function candidatesFromQueue(queue, { threshold, limit }) {
+function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false, cityLimits = null, urlCity = new Map() }) {
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const sentToday = countSentCompaniesToday();
-  const remainingToday = Math.max(0, limit - sentToday);
+  const sentTodayByCity = countSentCompaniesTodayByCity({ urlCity });
+  // 城市配额（2026-09-22 用户要求：上海20/杭州20/南京20，配置于 profile.yml boss.daily_limit_per_city）
+  const cityRemaining = new Map(
+    Object.entries(cityLimits || {}).map(([city, cap]) => [city, Math.max(0, Number(cap) - (sentTodayByCity[city] || 0))]),
+  );
+  const globalRemaining = Math.max(0, limit - sentToday);
+  const perCityTotal = [...cityRemaining.values()].reduce((sum, n) => sum + n, 0);
+  const remainingToday = cityLimits
+    ? (limitIsExplicit ? Math.min(globalRemaining, perCityTotal) : perCityTotal)
+    : globalRemaining;
+  const cityRemainingBefore = Object.fromEntries(cityRemaining);
   const seenCompanies = new Set();
   const jobs = queue
     .slice()
@@ -64,11 +87,27 @@ function candidatesFromQueue(queue, { threshold, limit }) {
     .filter((job) => {
       const key = uniqueCompanyKey(job);
       if (recentSentCompanies.has(key) || seenCompanies.has(key)) return false;
+      if (cityLimits) {
+        const city = String(job.city || '').split('·')[0];
+        if (cityRemaining.has(city)) {
+          const left = cityRemaining.get(city);
+          if (left <= 0) return false;
+          cityRemaining.set(city, left - 1);
+        }
+      }
       seenCompanies.add(key);
       return true;
     })
     .slice(0, remainingToday);
-  return { jobs, sentToday, remainingToday };
+  return {
+    jobs,
+    sentToday,
+    remainingToday,
+    sentTodayByCity,
+    cityRemaining: cityRemainingBefore,
+    cityRemainingAfterSelection: Object.fromEntries(cityRemaining),
+    cityLimits,
+  };
 }
 
 function printPostSendGuidance({ sentCount, dailyLimit }) {
@@ -239,20 +278,37 @@ async function main() {
   const profile = loadProfile();
   const queue = readJson(args.input || QUEUE_PATH, []);
   const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
+  const cityLimits = profile?.boss?.daily_limit_per_city || null;
+  const limitIsExplicit = args['daily-limit'] != null;
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
-  const { jobs, sentToday, remainingToday } = candidatesFromQueue(queue, { threshold, limit });
+  // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市
+  const urlCity = new Map(
+    cityLimits ? readJson(CANDIDATES_PATH, []).map((job) => [job.url, job.city || '']) : [],
+  );
+  const selection = candidatesFromQueue(queue, {
+    threshold,
+    limit,
+    limitIsExplicit,
+    cityLimits,
+    urlCity,
+  });
+  const { jobs, sentToday, remainingToday } = selection;
 
   if (args['dry-run']) {
     console.log(JSON.stringify({
       dryRun: true,
       threshold,
       dailyLimit: limit,
+      cityLimits,
       sentCompaniesToday: sentToday,
+      sentByCityToday: selection.sentTodayByCity,
+      remainingByCity: selection.cityRemaining,
       remainingToday,
       willSend: jobs.map((job) => ({
         company: job.company,
         title: job.title,
         score: job.score,
+        city: job.city,
         greeting: job.greeting,
       })),
     }, null, 2));
