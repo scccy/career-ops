@@ -1,0 +1,59 @@
+# BOSS 岗位评估：能欣投资 - flink大数据 开发工程师
+
+**Date:** 2026-09-22
+**URL:** https://www.zhipin.com/job_detail/be77c80f1f9e62bb03N43Ny_F1pX.html?securityId=VzOMIsQnAIbhw-p1Ph17N2CqDt77HiRZwwoz-sf2lMwCSG6rlTpXq6m_kl6cdUYWK-vQb42UzPQ_wpeoNQCjtX_CV5kaXakAcPsw-v3aL9ov4eHDv3pXqw0NR5o0Vuv0ZCgdSMWdEL3khspqRli9TqW-8h-Ba3N3Zjv5oC4_z68bK_hIj57SlviVkc2tQzDJNviWBFUSil6Tj8gNjerTaaSBqa_SrYSw4W5O37HOY4-RDfknYmloH5rovY7HxSSDdvFH8UKwTFX39ZWfC2YifXCruyFfsgHNPnKkz9pJT0f1PW7mkUTV-v4BgZO_lDdj4J9Wi_xAzyCKnnlhyKJmjLmc5qLVxwt6H03R-9TkhK3-1ARWDC04t9-XtCBPP2M4FXVKK2-A7V0qrBRjEMHiqvfmsJszy6o~
+**Score:** 3.71/5
+**Recommendation:** 一般，只记录不自动发送
+
+## 岗位摘要
+
+- 公司：能欣投资
+- 岗位：flink大数据 开发工程师
+- 薪资：15-20K
+- 城市：杭州·上城区·钱江新城
+- HR 活跃：
+
+## 分项评分
+
+| 维度 | 分数 |
+|---|---:|
+| responsibility | 2/5 |
+| skill | 4.5/5 |
+| salary | 4/5 |
+| city | 5/5 |
+| companyQuality | 5/5 |
+| hrActivity | 3/5 |
+
+## 机会可信度
+
+- 结论：谨慎推进
+- 等级：Proceed with Caution
+- 分数：5 / 5
+
+| 信号 | 发现 | 权重 |
+|---|---|---:|
+| JD 完整度 | 已读取右侧完整岗位详情 | +0.8 |
+| JD 信息量 | 岗位描述较充分 | +0.4 |
+| JD 结构 | 同时包含职责和要求，岗位边界较清楚 | +0.4 |
+| 岗位具体度 | 识别到具体业务/能力关键词：数据仓库、数据中台、数据湖、实时计算 | +0.5 |
+| 薪资透明度 | 薪资区间明确：15-20K | +0.3 |
+| 招聘活跃度 | HR 活跃时间不明确 | 0 |
+| 沟通入口 | 存在可沟通入口或未发现不可沟通信号 | +0.2 |
+
+## 风险点
+
+- 暂未识别硬性风险
+
+## JD 完整性
+
+- 已读取右侧完整 JD
+
+## 打招呼生成依据
+
+- JD 关注点：数据仓库、数据中台、数据湖、实时计算
+- 画像匹配技能：数据仓库、数据中台、Java
+- 画像匹配经历：数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)；多渠道数据接入与调度工程(8 渠道 + XXL-Job + 历史补数)
+
+## 推荐打招呼文案
+
+您好，我关注到岗位主要涉及数据仓库、数据中台。我过往做过数据仓库、数据中台、Java，经历里也包括数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)，和岗位要求比较贴近，方便进一步沟通吗？

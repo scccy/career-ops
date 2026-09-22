@@ -1,0 +1,148 @@
+# Career-Ops Profile Configuration
+# 候选人:施辞
+# 数据来源:cv.md + 对话确认
+
+candidate:
+  full_name: "施辞"
+  email: "shici2880@gmail.com"
+  phone: "15268572795"
+  wechat: "Holy-Father"
+  age: 29
+  location: "浙江杭州"
+  # 常驻地杭州(2026-09 从奇点玩家(苏州)离职)
+  current_city: "杭州"
+  linkedin: ""        # 待补充
+  github: "github.com/scccy"
+  portfolio_url: ""   # 待补充
+
+target_roles:
+  # 主攻方向(并列 primary):数据 + Java 后端双肩挑是核心卖点
+  primary:
+    - "数据仓库工程师 / 数仓开发"
+    - "大数据开发工程师"
+    - "Java 后端工程师(数据方向)"
+  # 兼容方向:BI 工程化 + 数据+AI 复合岗
+  secondary:
+    - "BI 工程师(指标体系 + 可视化)"
+    - "数据 + AI 工程化复合岗"
+  archetypes:
+    - name: "数据仓库 / 数仓开发"
+      level: "Mid-Senior"
+      fit: "primary"
+    - name: "大数据开发(DataWorks / Spark / Hive / 多渠道接入)"
+      level: "Mid-Senior"
+      fit: "primary"
+    - name: "Java 后端工程师(数据中台 / 数据方向)"
+      level: "Mid-Senior"
+      fit: "primary"
+    - name: "BI 工程师(指标体系 + 可视化)"
+      level: "Mid-Senior"
+      fit: "secondary"
+    - name: "数据 + AI 工程化复合岗"
+      level: "Mid-Senior"
+      fit: "secondary"
+
+narrative:
+  headline: "5 年+ 数据仓库 / BI 工程师,独立主导搭建 150 节点 DataWorks 数仓 + 8 渠道数据中台"
+  exit_story: "从 BI 报表实施起步,逐步走到独立主导搭建广告小游戏数据中台(mova-data):8 渠道接入(国内+海外)、150 节点 DataWorks 离线数仓(全分层,9:30 前产出)、XXL-Job 调度+历史补数;另负责游戏聚合 SDK 平台(qd.sdk)Java 版(3 款游戏接入、支付宝/微信支付、支付发货全链路)。兼具 Java 后端全栈能力与 AI 工程化经验(n8n + MCP 开源)。"
+  superpowers:
+    - "数仓全链路:从需求调研、指标体系、分层建模到报表交付"
+    - "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+    - "多渠道数据接入与调度工程(8 渠道 + XXL-Job + 历史补数)"
+    - "生产级性能问题解决(HikariCP 连接泄漏 / 分批 upsert)"
+    - "AI 工程化与 MCP 协议开源贡献"
+  proof_points:
+    - name: "mova-data 广告小游戏数据中台"
+      hero_metric: "150 节点 DataWorks 数仓 / 8 渠道接入 / 3 业务团队服务"
+      detail: "独立主导,覆盖 ODS→DWD→DWS→ADS 全分层,9:30 前产出"
+    - name: "doubao-mcp(PyPI 开源)"
+      hero_metric: "豆包大模型 + MCP 协议适配"
+      detail: "增强 AI 调动业务工具的能力"
+    - name: "neo4j-mcp-memory-scccy(PyPI 开源)"
+      hero_metric: "Neo4j 图数据库构建 AI 长短期记忆"
+      detail: "解决复杂业务逻辑下的上下文持久化"
+    - name: "qd.sdk 游戏聚合 SDK 平台(Java 版)"
+      hero_metric: "3 款游戏接入 / 支付宝+微信支付 / 账号-角色-支付发货全链路"
+      detail: "负责 Java 版:统一接入 SDK、三层身份体系、分级令牌、异步签名发货回调、实名认证合规"
+
+compensation:
+  # 期望年包(基薪 + 绩效 + 期权折算),CNY
+  # 2026-09-20 用户确认:市场难,薪资可降低(原 30-40 万 / 底线 28 万)
+  target_range: "25-33 万"
+  currency: "CNY"
+  minimum: "22 万"   # 低于此值基本不考虑,作为 walk-away 参考
+  location_flexibility: "优先杭州;接受上海;接受远程(视公司而定)"
+
+# BOSS 直聘通道(boss-*.mjs 评分/打招呼读取;关键词全部提炼自本文件与 cv.md,未新增事实)
+boss:
+  # 可选:简洁直接 / 偏岗位匹配 / 积极主动 / 偏技术细节 / 偏业务价值( fork 无"稳重专业"分支,会落兜底模板)
+  greeting_style: "偏岗位匹配"
+  # JD 关注点词表(用于机会可信度"岗位具体度"信号和打招呼文案;替换 fork 内置的法务词表)
+  jd_focus_terms:
+    - "数据仓库"
+    - "数仓"
+    - "数据中台"
+    - "数据治理"
+    - "数据湖"
+    - "湖仓一体"
+    - "离线数仓"
+    - "实时计算"
+    - "ETL"
+    - "指标体系"
+    - "BI"
+    - "报表"
+    - "数据服务"
+    - "数据质量"
+    - "数据开发"
+    - "大数据平台"
+    - "DataWorks"
+    - "Hive"
+    - "Spark"
+    - "Flink"
+    - "调度"
+  skills_core:
+    - "数据仓库"
+    - "数仓"
+    - "DataWorks"
+    - "Hive"
+    - "Spark"
+    - "ETL"
+    - "数据中台"
+    - "BI"
+    - "指标体系"
+    - "Java"
+    - "XXL-Job"
+    - "多渠道数据接入"
+
+location:
+  country: "中国"
+  city: "杭州(优先) / 上海"
+  current_city: "杭州(求职中,2026-09-20 最后工作日,随时可到岗)"
+  timezone: "CST (UTC+8)"
+  visa_status: "无需签证(国内)"
+  # 地点偏好,供 portals.yml 的 location_filter 参考
+  # 2026-09-22 用户要求南京投递,城市偏好加入南京
+  preferred_cities:
+    - "杭州"
+    - "上海"
+    - "南京"
+  acceptable:
+    - "杭州"
+    - "上海"
+    - "远程"
+    - "Remote"
+  # 暂不接受:北京、深圳、广州、海外 on-site(除非高薪+远程友好)
+  block_default:
+    - "北京"
+    - "深圳"
+    - "广州"
+
+# ── Cover Letter / 语言设置 ──────────────────────────────────────
+cover_letter:
+  notice_period_days: 0   # 2026-09-20 离职最后一天,次日可到岗
+  primary_domain: "广告 / 小游戏 / 电商 数据中台"
+
+# 输出语言:简历与评估默认中文(目标国内市场)
+# 如需切换英文/德语/日语等模式,见 AGENTS.md 的 Language Modes
+cv:
+  output_format: "html"

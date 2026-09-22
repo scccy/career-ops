@@ -1,0 +1,1462 @@
+[
+  {
+    "source": "boss-chrome",
+    "company": "天溯",
+    "title": "大数据开发工程师",
+    "salary": "18-30K·14薪",
+    "city": "南京·雨花台区·铁心桥",
+    "desc": "岗位职责\n1、负责公司离线&实时大数据计算引擎开发与维护，基于Spark、Flink搭建高吞吐、低延迟的数据计算任务，支撑海量日志、⽤户⾏为、业务数据流的处理，保障数据链路稳定可靠。\n2、负责⼤数据数据管道建设，包含数据采集、清洗、分层计算、落地存储，参与实时数仓、离线数仓架构优化，解决高并发、⼤数据量场景下的计算瓶颈。\n3、负责大数据任务性能调优与问题治理，独立排查数据倾斜、任务堆积、OOM、调度延迟、数据延迟等线上问题，持续优化集群资源利用率与任务运行效率。\n4、基于Hive/SparkSQL/Flink SQL进行复杂数据计算开发，同时能够手写Java/Scala原生代码实现复杂业务算子、自定义函数，支撑常规SQL无法实现的复杂计算场景。\n5、负责主流大数据存储组件（Kafka、ClickHouse、HBase、Iceberg/Hudi等）的落地使用与优化，根据业务场景做存储选型、冷热分层、数据分区与索引优化。\n6、参与数据中台/大数据平台能力建设，配合完成数据血缘、数据质量、任务监控、告警体系搭建，推进数据规范化、标准化治理。\n7、跟进大数据生态新技术，沉淀技术方案，推动团队技术迭代与架构升级。\n任职要求\n1、统招985/211本科及以上学历，计算机、大数据、软件工程、数学等相关专业，3年以上大数据开发经验。\n2、扎实掌握Java/Scala编程语言，熟练掌握SQL，精通Hive、Spark核心原理与实战调优。\n3、熟练掌握Flink实时计算，熟悉数据流、状态管理、Checkpoint、Watermark、窗口机制，具备真实实时项目开发经验。\n4、熟悉大数据全套生态：Hadoop、YARN、Zookeeper、Kafka、调度工具（DolphinScheduler/Azkaban），理解分布式计算、存储、资源调度核心思想。\n5、具备独立解决线上问题能力，熟练处理数据倾斜、任务卡顿、内存溢出、数据延迟等常见大数据问题，有性能调优实战经验优先。\n6、熟悉实时数仓、离线数仓分层思想，有指标体系建设、宽表开发、数据治理经验加分。\n7、熟悉Iceberg、Hudi、ClickHouse、HBase任意一种组件实战经验者优先；有大数据平台二次开发经验优先。\n8、逻辑清晰，责任心强，具备良好的业务理解能力和团队协作能力，能承受互联网节奏迭代压力。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/90cce2377bb54c040nN52N2_FVZS.html?securityId=lnYIUuUpvxjIJ-Q1lU1FIt91PWN0Hpzv0y1fwebMJZf9KcSjheGbLMyYoQSJTJesUiTvhu262RsNQyXl2MwI2yfjJ5IkD6B3qTqIGKbigd3zTRCiMF3Hunw73gDPWQI9MG8u4k7itRf4_y-LFamx6d3n91l1Zp0Neqj5h2Ev6eU8DsKzaZsEp2kg4rejGRafsomMa4BIGqBgwG-UHXurGtmfJaHhGEgUXpSCVKjASeEXLb02mUhJZvcRIFB0yn-i04s9QGDOPbGfh0S9z5HhfjWYfWrXYUcXrnjRiQmqIjASyxpBUfq_yHzMNNQ1zZ_DOcSypltAT_xDc42cJ2oQ6sAs7qg93GUfNux-43c4mqxnViQkQtwh_gHypqWL_hvEwOE5HvPF_3bxHSxnDXdSeubx3IZ33cGfip0~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:15:56.946Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.74,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、数据中台、数据治理、离线数仓",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：18-30K·14薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "强烈推荐，优先发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、数据中台。我过往做过数仓、Hive、Spark，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "数据中台",
+        "数据治理",
+        "离线数仓"
+      ],
+      "skills": [
+        "数仓",
+        "Hive",
+        "Spark",
+        "数据中台"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.957Z",
+    "report": "reports/boss-天溯-大数据开发工程师-699a57fa-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "启数智能",
+    "title": "大数据开发工程师",
+    "salary": "15-25K",
+    "city": "南京·雨花台区·铁心桥",
+    "desc": "有软考、数据治理相关证书优先录取（包括但不限于初中高级软件类证书）\n职位描述：\n1.参与公司大数据基础平台设计开发，包括实时、离线数仓/数据湖平台的构建，为业务系统提供可靠的业务支撑能力\n2.能够解决海量数据（千亿级别）下数据的存储、查询和分析问题\n3.能够利⽤⼤数据技术进⾏数据分析开发、基于业务需求进行数据模型开发等\n4.能够利用⼤模型技术相关业务开发，熟练处理相关的数据预处理、特征提取、模型训练和调优等任务\n5.负责大数据平台的基础工具开发、维护，对大数据前沿开发技术进行研究并输出技术报告\n任职要求:\n1.全日制工科、计算机、统计或其他相关专业本科及以上学历，3年以上大数据相关研发和运维经验\n2.精通java、scala、python等开发语言，至少掌握一种，能进行hadoop、spark、flink组件相关的开发\n3.熟悉hadoop平台开源组件，熟悉flink，spark一种或多种计算框架\n4.熟悉dolphinscheduler、kafka、hive、elasticsearch等开源组件的一种或多种\n5.熟悉spring，spring boot 等业务开发组件，熟练使用者优先\n6.有基于主流的大数据平台（华为、阿里、腾讯等）进行开发经验者优先\n7.有知识图谱项目经验，熟悉HugeGraph、JanusGraph、NebulaGraph等图数据库者优先\n8. 对主流大模型技术有一定了解，熟悉提示词工程技术，能够利用AI工具进行编程等\n9.有钻研精神，有较强的问题解决和沟通协调的能力\n10.能够接受短期出差，能够承受一定的压力。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "1-3年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/108342019410e40c0nJ539W7ElpU.html?securityId=FB6hMCypHPr9p-G15htMwztmMkN5qdEzb7Zey73hBC722O_GTifjmbtX3ZpIpfvCTdtHes3Puw99BhHfxc-_a-cS0rYX-oxTijvt7MMKfiRwpOOiQkQQLVnD974wQig7yOH8UlQxp7MOHohVQJihGjXhf34SFDvzE3SXuodeMqgjCphyrED-MFQzrflzv6JQ4H7G4ssOXpVtWC7y20x2XT6g5GSp17JbgKAZakvdwTEmFhBv30S-o-6eKwzHtg4u614CGl_2HVz8CWA9RHoa2rfLJKPnNZjf2jfJbS1_ui0ro69La1xHwI8a2l-nGdYZkPoDm-kr-B2R2dLefbuy9r8mE975D3Y4d3tjyg7NHwoDTAdImUVe2P3rIRIXZLnoQv3hj65QORmRT-A40kE-8bNhC5uzHB4p17A~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:08:54.003Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.61,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、数据治理、数据湖、离线数仓",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-25K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "强烈推荐，优先发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、数据治理。我过往做过数仓、Hive、Spark，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "数据治理",
+        "数据湖",
+        "离线数仓"
+      ],
+      "skills": [
+        "数仓",
+        "Hive",
+        "Spark",
+        "Java"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.941Z",
+    "report": "reports/boss-启数智能-大数据开发工程师-e06301ef-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "满帮集团",
+    "title": "中高级大数据开发工程师",
+    "salary": "25-45K",
+    "city": "南京·雨花台区·安德门",
+    "desc": "岗位职责：\n\"1.负责支付风控数仓的搭建和维护，包括数据采集、清洗、存储、加工，确保数据质量。\n2.深入业务分析挖掘，识别潜在洗钱/⽀付安全风险敞口，制定策略缓释或推动业务优化。\n3.构建关键风险浓度指标，制作监控报表，⾃动化预警。\"\n任职要求：\n\"1.全⽇制本科及以上学历，数学、统计学、计算机、金融等相关专业。\n2.两年以上数据分析开发经验，精通SQL/Python、Hadoop、Hive、Spark、FineBI等工具平台。\n3.具备较强的逻辑思维及落地能⼒，能够体系化构建高质量宽表、画像、特征。\n4.具备良好的跨部门沟通能力和团队合作精神。\n5.熟悉反洗钱政策、法规和防控策略、具备图数据库neo4j、机器学习算法经验者优先。\"",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "1-3年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/11d66a5ae1cfa1ef0nd83d24E1JU.html?securityId=ZEbbCipUKYNgE-01h90OltiLFSrGOHCnQ5FpJjS6nhsz5NTqN8tqq8VVBGi4tW1NUYmquu1ahBVY8WH2YLNp86ex2Hk_0L1aZQ3MbOKu2hCRjSYfUu3hi6xvzwKXFlMd5WbFG-kcCE4nvqxYALudqKGv6TBh-kymSeQ0HfbUBbWeSJqqrqHF8yCNRK9vjWuo_6RDCEWyOArAECvYioOFK9hnSUiaDDzdQS9YKPTvgmnaUBLI7o3y-9CV8tUNiIV4urYuVTpzTauRHcZD96jJXYGKAvakxwPdcx56z91isj1b6t8mA7y9ayccuaAs3o3lzcredNh9pU-g_Qf4V1ACKhCxqa9MGlxRRjMaJztMWovJmQiek1PB00bPFft25egG0XCCVCxMsIeKsxn7reVcH15Gdc-IJrksJb8~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:15:16.617Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.61,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、BI、报表、数据质量",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：25-45K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "强烈推荐，优先发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、BI。我过往做过数仓、Hive、Spark，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "BI",
+        "报表",
+        "数据质量"
+      ],
+      "skills": [
+        "数仓",
+        "Hive",
+        "Spark",
+        "BI"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.954Z",
+    "report": "reports/boss-满帮集团-中高级大数据开发工程师-70839dc9-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "万辰集团",
+    "title": "大数据开发工程师",
+    "salary": "20-40K·13薪",
+    "city": "南京·建邺区·江东",
+    "desc": "岗位职责：\n1. 对接所属业务域，理解业务目标、流程和指标口径，完成需求分析、工作量评估、任务拆解及交付计划制定。\n2. 负责所属业务域的数据仓库模型设计和迭代，建设事实表、维度表、主题模型及面向应用的数据集。\n3. 负责批处理、流处理、数据接口、报表数据集等数据链路的开发、测试、发布和运维。\n4. 将⼀次性需求沉淀为可复⽤的数据模型、公共指标和数据资产，减少重复取数和烟囱式建设。\n5. 参与跨业务域专项，按照专项⽬标、资源预算和里程碑完成业务数据方案及应⽤交付。\n6. 落实数据质量、血缘、SLA、Owner 和文档要求，保障交付结果可验证、可维护、可追溯。\n7. 参与需求准入、方案评审和模型评审；资深人员可担任域模型 Owner，负责域内模型规范、口径一致性和资产复用。\n8. 持续优化任务性能、交付流程和开发规范，提升需求交付效率与数据稳定性。\n任职要求：\n1. 本科及以上学历，计算机、软件工程、数据科学或相关专业，具备 5 年及以上数据仓库、数据开发或 ETL 工作经验。\n2. 熟练掌握 SQL，具备复杂查询、数据核对、性能分析和问题定位能力。\n3. 熟悉维度建模、事实表设计、指标体系和数仓分层，能够独立完成中等复杂度业务域的数据模型设计。\n4. 具备至少一个业务域的实际建设经验，能够将业务流程转化为稳定、可扩展的数据模型。\n5. 熟悉至少一种主流大数据计算或调度体系，如 Spark、Flink、StarRocks、Hive 或同类技术。\n6. 具备完整的数据交付意识，能够独立推进需求澄清、设计、开发、测试、上线、验收和后续维护。\n7. 具备良好的沟通和协作能力，能够与产品、业务、数据分析及上下游研发共同推进交付。\n8. 对数据质量和工程规范有基本认识，愿意持续维护模型、血缘、文档和数据资产。\n优先条件：\n- 深度参与过零售、供应链、会员营销、商品或门店经营等领域的数据仓库建设；\n- 担任过业务域数据 Owner、模型 Owner 或复杂项目核心开发；\n- 有 Paimon、Flink、Spark、StarRocks 等湖仓技术的实际使用经验；\n- 有指标平台、标签体系、用户画像、供应链预测或经营分析项目经验；\n- 有数据质量治理、模型复用、历史链路重构或性能优化经验。",
+    "hr_active": "",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/49a84c4020a451430nd509u4FlRU.html?securityId=pB-CEipVDLZau-g1OIj2w1Odz39T-nR2upRjuV4fVuJaUpZyuVg6zwdF6FOeDMQJsDD73oOmZG_eh2XfeMQh3cNo73wjJqNskaQvVjY6VJCdXj4t9wsZsHoYvPgvbbzJ8GJiN_c8ozhH_4bqgjinKLHzHQ_mbEJWn1NxLsneSTGJgvT8whV_oq0HLLo840trjOxsR-tW-e8vbZ_iTAYGb3mk_HAjnPT8WnIpL6wVA5ZnxtQvX-wS-7vnmWZYO86rbIuec7kRvlq-kUrFOAefSk5EWO8kKO03eDZA1VA7AlV8eaKH7SokipE2hOiMQmYaArF6m9DykV4KZ0X-nrDx7BjkmOk6C2TCskyv2BkdOGvQnixxzsvP6AznboF_o1lejmTEUt6_rKbFFbpjWKg68IghFjhhVCCoj3g~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:04:26.336Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.53,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 3
+    },
+    "opportunity_legitimacy": {
+      "tier": "Proceed with Caution",
+      "label": "谨慎推进",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据仓库、数仓、ETL、指标体系",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：20-40K·13薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 活跃时间不明确",
+          "weight": 0
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "强烈推荐，优先发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据仓库、数仓。我过往做过数据仓库、数仓、Hive，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据仓库",
+        "数仓",
+        "ETL",
+        "指标体系"
+      ],
+      "skills": [
+        "数据仓库",
+        "数仓",
+        "Hive",
+        "Spark"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.933Z",
+    "report": "reports/boss-万辰集团-大数据开发工程师-4775f660-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "迈富时",
+    "title": "大数据开发工程师",
+    "salary": "15-30K",
+    "city": "南京·浦口区·江浦",
+    "desc": "岗位职责：\n基于Java技术栈进行大数据实时计算相关系统的设计、开发、测试与上线，核心负责基于Flink的实时数据处理链路搭建与优化；\n负责Kafka集群的日常运维、topic规划、分区优化、消息积压处理、吞吐量调优保障消息传输的⾼可⽤、⾼可靠；\n参与需求评审，将业务需求转化为技术方案，基于Flink实现数据清洗、聚合、关联、CEP复杂事件处理等核心业务逻辑；\n优化Flink作业的资源配置、并⾏度、状态后端、checkpoint/savepoint策略，解决数据延迟、数据一致性、作业重启等问题；\n对接上下游系统，设计基于Kafka的消息收发方案，适配不同数据源(MySQL/Redis/日志)与下游存储(HDFS/HBase/Doris)的数据流转；\n任职要求：\n1,学历与经验: 计算机相关专业，3年及以上Java后端开发经验，3年及以上Flink+Kafka大数据实时计算项目实战经验；\n2,sql能力: 熟悉mysql,hivesql等数仓开发\n3,编程能力: 熟练掌握至少一种编程语言,如java,scala,python\n4,语言能力：熟练Java基础语法、集合框架、并发编程、IO/NIO，熟悉SpringBoot/SpringCloud等微服务框架，具备扎实的后端开发功底；\n5,大数据能力：精通Flink核心原理与应用，熟练使用Flink DataStream/Table API，掌握状态管理、窗口函数、CEP、分流合流等核心功能，能独立完成Flink作业开发与调优；\n6,大数据技术栈：精通Kafka核心机制，熟悉生产者/消费者原理、分区策略、副本机制、幂等性/事务消息、消费者组管理，能独立进行Kafka集群问题排查与性能调优,\n熟悉大数据生态相关组件(Hadoop/Hive/Doris/Redis等)，了解数据同步工具(Canal/MaxWell)，具备端到端数据链路设计能力；\n7,问题解决能力：具备良好的问题排查能力，能快速定位并解决线上Flink作业异常、Kafka消息积压丢失、数据一致性等问题；\n8,熟悉k8s/docker等开发部署环境\n9,业务理解能力：能够快速理解和掌握公司业务模式,对数据驱动文化有深刻的理解\n10,团队协作：良好的沟通能力和团队协作精神,工作积极主动,有责任心",
+    "hr_active": "",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/265199378f8b4b140nF-2t69GFFU.html?securityId=AN4sXErdE1J99-q1RYkKF2S1NBz_PqByxLRRfiboCB5Hf6-miASksXubWon2WaKF4A4uNyNAcQDOYCpNBFbLkCMGSVsVXGWfCHon10asHjP_8jwcQ8C3y66u71EetrkBVLpSRR_k-_SVvUcxvRSx9PrBiS4CwTePmwwwIPjGEqDZB81COQ1rmvJfpE1WZiUjBmejiiJeYy_q4-lMR6vLaZ-G3zqe-iINHYIiC5IYoOHMFxFwxJC_Ujc28NbR9peal2reC3ZQNoT2yvRNAtTcu6z9Je_iNSYS6i5Ix95uXwiyOHy0_a_3r7D1CEuN7gdo-4mvx7YDJYlGkXUyFnA_ZxvQ4MdJ3vW-SxQv6jStTyRbkwmVeY3nI3KO5rqxk5bHqkUn5JoYHewjQvtMdn-mmLg0p66MJnJgXEbv",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:03:57.939Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.39,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 3
+    },
+    "opportunity_legitimacy": {
+      "tier": "Proceed with Caution",
+      "label": "谨慎推进",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、实时计算、数据开发、Hive",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-30K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 活跃时间不明确",
+          "weight": 0
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、实时计算。我过往做过数仓、Hive、Java，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "实时计算",
+        "数据开发",
+        "Hive"
+      ],
+      "skills": [
+        "数仓",
+        "Hive",
+        "Java"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.931Z",
+    "report": "reports/boss-迈富时-大数据开发工程师-adbeab41-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "华晨宝马",
+    "title": "大数据开发工程师",
+    "salary": "15-20K",
+    "city": "南京·建邺区·奥体",
+    "desc": "主要职责\n•与产品团队、业务部门和数据科学家合作，理解业务需求并提供技术解决方案。\n•设计、开发和维护大数据平台和数据处理系统，支持海量数据的存储、处理和分析，确保系统的高可⽤性和可扩展性。\n•⽀持业务部门的数据分析需求，提供数据接口和报表服务。\n•确保数据处理过程符合安全规范和合规要求，保护数据隐私和完整性。\n•带领团队创建并交付使⽤大数据和商业智能（BI）技术的业务洞察项目，应⽤于营销、生产、销售和研究等领域，利用数学与统计方法和模型。\n•与产品负责人（Product Owner）、Scrum Master、开发团队成员、后端开发人员、安全专家及其他相关团队合作，识别技术和功能需求。\n•为业务部门提供数据可视化解决方案和服务，展示数据洞察和价值。\n•与产品开发团队合作，定义、设计和开发数据驱动的用户案例，以创造新的市场机会。\n•完成上级指派的其他任务。\n任职要求\n•拥有信息技术、统计学或相关专业学士学位，或具备相关经验、培训及实际交付能力。\n•沟通表达能力强，具备团队协作精神和清晰的逻辑思维。\n•熟练掌握至少一种编程语言（如 Python、Scala，优先考虑 Python），熟悉 Linux 和 Shell 脚本。\n•熟练掌握多种 SQL（如 Hive、Presto），具备优化经验。\n•熟悉大数据生态系统（如 Hadoop、Flink、Kafka）。\n•具备 AI 工具使用意识和实践经验，能够将大模型工具应用于数据开发、SQL 优化、数据质量检查、报表分析、知识检索和日常交付提效。\n•熟悉主流 AI 助手或大模型工具的使用方式，如 ChatGPT、GitHub Copilot、Microsoft Copilot、Dify、FastGPT、RAGFlow 等，能够结合实际业务场景提升团队工作效率。\n•具备基础 Prompt Engineering 能力，能够通过结构化提问、上下文补充和结果校验，提升 AI 辅助分析和开发的准确性，并关注数据安全、隐私和合规要求。\n•具备创造性思维和解决问题的能力，具有较强的研究和分析思维，注重细节。\n•擅长演讲，能够熟练进行结构化表达。\n•强大的研究和分析能力，对细节极度关注。\n•熟悉公共云服务，有 AWS 使用经验者优先。\n•熟悉 IAC（基础设施即代码）工具，优先使用 Terraform。熟悉 CI/CD 工具（如 Jenkins 和 GitHub Actions）。\n•具备软件交付和全生命周期经验，例如敏捷开发、代码管理、版本控制、持续集成和部署、发布、维护等。\n•优先考虑具备英语沟通能力的候选人。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "1-3年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/9c450bffbcdec0820nN_3tm9FlVY.html?securityId=7OgDaZx4LiZva-11QtCOOSUbO-HSHF-uw7GsawTs_XxjuseGzmxxsIMNNQq-Os0ZAIrQ6EHkZA5Od7mHMc1GzgZ3u0hV9Dd7FJOAK9gRELqzRoXLZOu6ADlasmMtXraVGQLfEaeNJargWCjhDOKMwAoIjvMdMQPVIDKjku_5fvlCrveAhZrpXjhkcmVmChtJZKCWHtyTXmusqzrEg4cHyVjE5_EgKN_PIA1kvGx8F-3F12dSyBokwqYqd7Qn7x7QUsdI9crnFkfOHILK88tBkaPPXJzZOMYnCgdMPX7TZd8T-14nYXq1smsNZf8htITFa4YczReer-Su-3Lqft3_iJy0QSa2qGRFAo_kFMYcAISIGsQOTvepfy1CbtM3UPeYgQL7dflzAamOj4OBen1opeuekb8PjeXqtg~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:03:43.659Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.32,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 4,
+      "salary": 4,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "有岗位详情结构，但职责/要求不够完整",
+          "weight": 0.1
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：BI、报表、数据质量、数据开发",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-20K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及BI、报表。我过往做过Hive、BI，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "BI",
+        "报表",
+        "数据质量",
+        "数据开发"
+      ],
+      "skills": [
+        "Hive",
+        "BI"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.930Z",
+    "report": "reports/boss-华晨宝马-大数据开发工程师-b899052c-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "麦麦科技",
+    "title": "大数据开发工程师",
+    "salary": "15-25K·15薪",
+    "city": "南京·浦口区·泰山",
+    "desc": "作为技术研究员，你将深度参与产品核心系统的架构设、前沿技术研究、技术预研工作并实现最小MVP场景验证， 关键技术推广或项⽬落地存在问题时，与实施团队合作完成技术攻关和客户侧技术谈判沟通，为业务增长提供可扩展、⾼可⽤的技术解决方案。\n核心职责\n1. 负责后端服务（Python/Java）的架构设计与核⼼代码实现，保证系统高并发、高可用、易扩展；\n2. 负责前沿技术研究，包括但不限于：智能体、多模态、NLP、CV、边缘计算等关键技术研究，跟踪前沿技术趋势，进行技术调研、原型验证，输出研究报告并推动落地；\n3. 与产品、算法、测试等多团队协作，快速迭代产品功能并解决关键技术难题；\n4. 现场关键问题诊断与解决，配合市场、实施团队完成项目落地，参与配合市场完成客户侧POC验证、客户侧技术谈判沟通等；\n5. 指导初中级工程师成长，营造持续学习和分享的技术氛围。\n任职要求\n1. 本科及以上学历，计算机/软件工程/电子等相关专业，8年以上研发经验，有AI、IOT相关模型研发调优经验，熟悉底层原理，具备良好的算法设计与实现能力；\n2. 熟练掌握至少一种后端语言（Python/Java），理解常用框架源码及运行机制；具备扎实的面向对象/函数式编程思想；\n3. 熟悉主流前端框架（React/Vue）及其生态，掌握前端工程化、模块化、性能优化方法；\n4. 熟悉时序数据库（如TDengine）、消息队列（如Kafka、RocketMQ）、缓存（如Redis）、向量数据库（如Postgres Vector、Milvus等）等常用中间件，具备设计与调优能力；\n5. 熟悉AI模型（如LTSM、Transformer、CNN、YOLO、SAM等），具备模型设计、微调、继续预训练能力；\n6. 熟悉边缘计算（如Node-RED、EdgeX等边缘计算平台），具备云、边、雾边缘计算架构设计与调优能力；\n7. 了解微服务架构、容器化（Docker/K8s）、CI/CD流程，有实际项目落地经验者优先；\n8. 对技术有浓厚兴趣，具备良好英文阅读能力，能快速调研并落地新技术；\n9. 思维清晰、沟通顺畅，具备优秀的分析解决问题能力和团队协作精神。\n面试考察项\n1. 研究能力：是否有研究前沿技术的能力，是否有跟踪前沿技术趋势的能力，是否有输出研究报告的能力；\n2. 技术能力：是否有设计与实现复杂系统的能力，是否有解决复杂问题的能力；\n3. 是否有与团队合作的能力，是否有与客户沟通的能力；\n加分项\n参与过开源项目或拥有个人技术博客\n具备真实项目的智能体、机器学习、深度学习项目经验",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "大专"
+    ],
+    "url": "https://www.zhipin.com/job_detail/ae7da682ac7e683d0nB93Ny-E1BQ.html?securityId=MAASLvSFz2Ypk-R1vhlSLuKY3pTbcDYHTf_JQmKtnCwrhcc-p57omysltBVwyz95ruGXnfXQhJUiDnYn_y6RWtd0Axi9jYFjOOk2a5kNgEuabZNQTXKMsL7nIXwSPogCF10Jz1vjQwGtrnvLM7oYdTf6wlf3ZRKTIqru_5bwSue5PHZ2S2yZKDQMN764BhqB2WWOi8F2zK1N-JxmtoVHjpkdJw7j4NlntFRHFruFJU67C_Qf1yPid-X5ghPlMyJt3VL_hE7zcoR5BveBqmy5lQ3YKsfmbgc8aqQFk3mE4miy4vKlmG5Vw7NbM1OYGx7M-C_JL0IKl-9yXydQnksiINIUD3E2cPkt5P7L9O0z4nYDlRhTTrOleH0LSBGvo4px3-4HJW0kZyzXBVECbMR4_o9YlWJOysuOcQ~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:03:53.172Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.21,
+    "score_detail": {
+      "responsibility": 4,
+      "skill": 3,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "有岗位详情结构，但职责/要求不够完整",
+          "weight": 0.1
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "有少量具体关键词：数据开发",
+          "weight": 0.2
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-25K·15薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据开发。我过往做过Java，经历里也包括数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据开发"
+      ],
+      "skills": [
+        "Java"
+      ],
+      "evidence": [
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.931Z",
+    "report": "reports/boss-麦麦科技-大数据开发工程师-d230ce07-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "景枫集团",
+    "title": "数据开发工程师",
+    "salary": "15-24K",
+    "city": "南京·江宁区·百家湖",
+    "desc": "工作职责:\n1.负责大数据平台的搭建；\n2.负责基于大数据平台的数据仓库的设计、开发及优化；\n3.负责大数据BI系统的设计、开发、测试和上线，满足公司业务运营和管理的数据分析需求;\n4.参与公司大数据平台的规划设计；\n5.按规范要求编写代码，保证产品的持续敏捷开发，并保证线上稳定运行；\n6.编写研发过程中的相关文档等。\n任职要求：\n1.计算机相关专业本科及以上学历，3年以上工作经验；\n2.熟悉数据产品的全周期过程，在用户行为数据采集、海量数据处理、数据建模、基于数据的业务理解等方面有丰富的经验；\n3.精通Hadoop/MapReduce/Hive，有一定的hql/sql性能调优经验；\n4.熟悉Java/Python/Shell/Mysql，有相关开发经验；\n5.良好的学习能力，善于主动思考及行动，勇于解决具有挑战性的问题；\n6.良好的沟通交流能力、逻辑思维能力强、责任心强，富于团队合作精神和敬业精神；\n7.有数据分析思维，参与过Echarts等开源图表展示相关工作的更佳；\n8.对数据及相关业务敏感、对新技术敏感、对数据产品设计有想法者优先。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/211454ee787f511e1HZ52Nq5FFJR.html?securityId=m50ZdQ41-cyMI-11sfAiM_pXoetKzoDAGZe61ZGRQLf-NWKdAutyVi6dRjstapRGwjx0kHSCaFs8by6gO4mKlgslM0h4Btj3HTXdqKFjGuBC5l0y794L1Avx1zaL5p6JtTX0zv50A2Q7g61vmwbv9PE4d9gBrMba9cAFPJdwZpKE7w_fgDoabvLmFu6bFe-jdrVpHYshQ1gHLDGAnnK89sayz3pp6eQfiY3-tpM7uk0R0h5Izwe8YC7RKplJRx0eslFCpSV7DsPAN0Jlwvy4vmcRXEzewtqknbaIEQC7InX63iVmba3wq6mT81l8-aIhXChZXNDkWRBDnV975_YWUcYYKxrWMjkOHbjY9c03GyOTLMRqU2X-IDuJX3h55JztHgHSPfOnCtch_aJ0_hQERADBfpveNntaMIA~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:04:43.036Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据仓库、BI、数据开发、大数据平台",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：15-24K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据仓库、BI。我过往做过数据仓库、Hive、BI，经历里也包括数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据仓库",
+        "BI",
+        "数据开发",
+        "大数据平台"
+      ],
+      "skills": [
+        "数据仓库",
+        "Hive",
+        "BI",
+        "Java"
+      ],
+      "evidence": [
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.934Z",
+    "report": "reports/boss-景枫集团-数据开发工程师-ab2f63ce-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "慧天云海",
+    "title": "中级Java开发工程师（大数据方向）",
+    "salary": "16-22K·13薪",
+    "city": "南京·浦口区·泰山",
+    "desc": "岗位职责：\n（1）负责公司行业大数据平台/数据中台、大数据相关产品的设计与开发；\n（2）深入分析数据安全发展趋势，基于⾏业监管要求挖掘⾏业数据安全需求；\n（3）参与公司其他⾃主产品或项目的设计与开发；\n（4）负责大数据技术领域关键技术的调研；\n（5）负责项⽬相关文档的撰写；\n（6）负责大数据技术方向人才的培养，及相关资源的积累沉淀；\n任职要求：\n（1）统招本科及以上学历，计算机、数学、信息科学、统计学等相关专业；\n（2）5年以上java开发经验，2年以上大数据研发经验，有大数据平台或者数据中台架构设计及开发经验，对常用的大数据技术生态熟练掌握，包括（但不限于）：Hadoop/spark/flink/iceberg / MinIO等；\n（3）精通SQL语言及数据库优化，至少精通一种关系型数据库，包括（但不限于）：postgresql、Greenplum等；\n（4）有web开发技术经验，熟练使用Spring，Springboot、Mybatis等框架者优先；\n（5）有强烈的事业心、责任感及自驱力；具有良好的沟通能力、团队精神及凝聚力；",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/b69ab95a117f32810nF90928EVZR.html?securityId=KA8hieWtXCzmZ-U1z8M3bXmNqPnVzFp-LRW0vzsuDFxGf6p_BMWgFRxP-MgvmYR3HjO1BI-7fLuLEwNyLmY6yw6S5HZbTiaLEF7H28hTf8kXApdC6K3QlLsuZaQEpa8gl4WjPsD-1zT5HdDR3t_D3kB_-j3IzyGWcQUnEx-YsmCSXsM4elih_xb2edPMObAbAFTXkuT-_sZoieHG_5gjvK6fmPkIYOJ5m0gufOkzs5Xk-QS7rHDOxmbPWiurCdDenkdmPNuqT7PbrRBYfojeJoNlz447UN1pkPfeE0femClieTsMBmDxgQIYrBxb73TYox02anupBvxKwMlHneuDxQ4CZdRUZoo_uyXcOAXNUH_YDTUR4CF30nZwSzWv1f_muIF24VWq1PjalWYU7tk_axXcTGy8xaE_CA~~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:09:58.350Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据中台、大数据平台、Spark、Flink",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：16-22K·13薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据中台、大数据平台。我过往做过Spark、数据中台、Java，经历里也包括数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据中台",
+        "大数据平台",
+        "Spark",
+        "Flink"
+      ],
+      "skills": [
+        "Spark",
+        "数据中台",
+        "Java"
+      ],
+      "evidence": [
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.946Z",
+    "report": "reports/boss-慧天云海-中级Java开发工程师-大数据方向-19dce909-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "乐小鼠电商",
+    "title": "AI开发工程师(Agent/数仓方向)",
+    "salary": "18-30K",
+    "city": "南京·江宁区·东山",
+    "desc": "岗位介绍\n公司正在建设内部AI运营中台，面向财务、HR、客服、供应链、电商运营等部门，目标是通过AI、自动化、数据报表和流程系统，提升日常运营效率。\n本岗位主要负责AI应⽤开发、后端接口开发、数据链路和数仓建设，⽀持经营驾驶舱、⾃动化任务、知识问答、业务分析和部门工作台等能力落地。该岗位不属于纯算法或模型训练岗位，更看重AI应⽤落地、业务系统\n开发、数据处理和系统稳定交付能力。\n岗位职责\n1.负责AI运营中台后端功能开发，包括接口、任务调度权限、日志、告警、报表等基础能力。\n2.负责Agent/RAG类AI应用开发，包括知识库问答、经营追问、客服回复建议、异常分析、内容生成等场景。\n3.参与公司业务数据接入和数仓建设，梳理数据来源、指标口径、数据模型、ETL/数据同步和数据质量校验。\n4.对接电商平台、金蝶、WMS/E3、钉钉、RPA平台、文件系统、AI模型API等外部系统。\n5.建设自动化任务执行链路，支持任务状态、执行日志、失败原因、接口回执和人工接管记录。\n6.配合产品交付经理评估需求可行性，参与技术方案、接口设计、联调测试和上线支持。\n7.负责系统上线后的问题排查、接口异常、数据异常、任务失败、性能优化和日常运维支持。\n任职要求\n1.3年以上后端开发、数据开发、企业系统开发或AI应用开发经验。\n2.熟悉Python、Node.js、Java中至少一种后端技术栈，能独立开发接口、任务和后台管理能力。\n3.SQL基础扎实，熟悉MySQL、PostgreSQL等数据库，能进行表结构设计、复杂查询和数据问题排查。\n4.有数仓、数据集市ETL/ELT、指标体系、报表数据链路建设经验，理解ODS/DWD/DWS/ADS 或类似分层建模思路者优先。\n5.熟悉定时任务、异步任务、接口重试、日志追踪、权限控制、异常处理等企业系统常见能力。\n6.使用过大模型API、Prompt、RAG、向量库、Agent框架或知识库问答系统者优先。\n7.有外部系统API接入经验，理解鉴权、限流、幂等、错误码、回调、接口超时和重试机制。\n8.责任心强，能关注系统可维护性、数据准确性、日志完整性和上线稳性。加分项\n1.做过企业内部中台、自动化平台、数据平台、报表系统、流程审批系统。\n2.有电商、零售、财务、供应链、客服、人力等业务数据建设经验。\n3.有RPA、影刀、UiBot、Power Automate、钉钉开放平台、电商平台API、ERP、WMS、金蝶等经验。\n4.有React、Vue等前端经验，能独立完成简单管理后台页面。\n5.熟悉 Docker、Linux、Nginx、CI/CD、监控告警等基础运维能力。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/a7a686a96143538d0nJz3N2-F1VX.html?securityId=iDGrsNCR0O6vj-w1INWymaE7W0DCZipMFd3mly-3I2D502cRkZlYz10PnPAfsyOaQ_fcjXvHToJ6CEYlm5IJTP6_wl3HE0U5z2swTM1qss5pYjtllV5z9QNl82g28CanDRmbL6SINT0VsrJLzn4-xf6cGFh6zaLA2iAUsSiG4nrV4wvK-uNmkP5TG7XtYXmb8MybBxyQ1ZG4uhThvuWAOtx6p4EY8klGjw_yUxXvV0Xr7Oo87A4PFtl7MUeOJ5xSOZjIjWCZEnKdqsl4a2HezInUlQCgr-tiSoYyMZwzgOKrlV5BmFckqNMFaYTWNSNDLS5MzbLsnPAMfutI2jIvtK0g4LAY045PIXJOH8m02v-x7FQbZjzpijsRjdJIT3jnpC0MA7um_DfGZb1Bqjc-cYHB01JRqQ_MvvQH",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:14:33.667Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、ETL、指标体系、报表",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：18-30K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、ETL。我过往做过数仓、ETL、指标体系，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "报表"
+      ],
+      "skills": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "Java"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.950Z",
+    "report": "reports/boss-乐小鼠电商-AI开发工程师-Agent-数仓方向-fc7b9182-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "斗焰电子",
+    "title": "ai开发工程师（agent/数仓方向）",
+    "salary": "16-25K",
+    "city": "南京·江宁区·东山",
+    "desc": "岗位介绍\n公司正在建设内部AI运营中台，面向财务、HR、客服、供应链、电商运营等部门，目标是通过AI、自动化、数据报表和流程系统，提升日常运营效率。\n本岗位主要负责AI应⽤开发、后端接口开发、数据链路和数仓建设，⽀持经营驾驶舱、⾃动化任务、知识问答、业务分析和部门工作台等能力落地。该岗位不属于纯算法或模型训练岗位，更看重AI应⽤落地、业务系统\n开发、数据处理和系统稳定交付能力。\n岗位职责\n1.负责AI运营中台后端功能开发，包括接口、任务调度权限、日志、告警、报表等基础能力。\n2.负责Agent/RAG类AI应用开发，包括知识库问答、经营追问、客服回复建议、异常分析、内容生成等场景。\n3.参与公司业务数据接入和数仓建设，梳理数据来源、指标口径、数据模型、ETL/数据同步和数据质量校验。\n4.对接电商平台、金蝶、WMS/E3、钉钉、RPA平台、文件系统、AI模型API等外部系统。\n5.建设自动化任务执行链路，支持任务状态、执行日志、失败原因、接口回执和人工接管记录。\n6.配合产品交付经理评估需求可行性，参与技术方案、接口设计、联调测试和上线支持。\n7.负责系统上线后的问题排查、接口异常、数据异常、任务失败、性能优化和日常运维支持。\n任职要求\n1.3年以上后端开发、数据开发、企业系统开发或AI应用开发经验。\n2.熟悉Python、Node.js、Java中至少一种后端技术栈，能独立开发接口、任务和后台管理能力。\n3.SQL基础扎实，熟悉MySQL、PostgreSQL等数据库，能进行表结构设计、复杂查询和数据问题排查。\n4.有数仓、数据集市ETL/ELT、指标体系、报表数据链路建设经验，理解ODS/DWD/DWS/ADS 或类似分层建模思路者优先。\n5.熟悉定时任务、异步任务、接口重试、日志追踪、权限控制、异常处理等企业系统常见能力。\n6.使用过大模型API、Prompt、RAG、向量库、Agent框架或知识库问答系统者优先。\n7.有外部系统API接入经验，理解鉴权、限流、幂等、错误码、回调、接口超时和重试机制。\n8.责任心强，能关注系统可维护性、数据准确性、日志完整性和上线稳性。加分项\n1.做过企业内部中台、自动化平台、数据平台、报表系统、流程审批系统。\n2.有电商、零售、财务、供应链、客服、人力等业务数据建设经验。\n3.有RPA、影刀、UiBot、Power Automate、钉钉开放平台、电商平台API、ERP、WMS、金蝶等经验。\n4.有React、Vue等前端经验，能独立完成简单管理后台页面。\n5.熟悉 Docker、Linux、Nginx、CI/CD、监控告警等基础运维能力。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/043ed6c8009ae41a0nN_09i7FFJV.html?securityId=1JKxtYinVtzZi-l1kQNL2Uk_MmGjsgZDMG2_i4feLXkVTV3OQZZUAkf5dKKqarY74x28z4yXmO6-SqGXmTEZ_npyzNgfBXWoXH9lYKiWPfbHAZMqvuqKCT_NR8uCKrmayHSRgp_L4vezFMueQfkCwLSAYFTg95yh1J_2ivphoNmAGKM_JJqvyoED2oNKFVo7K_MO-IGXLi-HTi-l0XM7GUTkHcM0CYUnhnZRxhlydjtW6r7-mVbBUed_EKUV5AhE80F2pKTard_Xr0_UW9svJrr-sKbfXd9mrOqrfq4CasuA3cnggbEF2mVpVXFlpG_sbhAtRmcZEq6wHLCzRW9Ll9zAjUO775nuk2tN3LRszh7fUrqgaN6SEqEutnb5FATwruZcysDAzczkVvwj0XjTQnJM84z3U898jknv",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:14:40.834Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、ETL、指标体系、报表",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：16-25K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、ETL。我过往做过数仓、ETL、指标体系，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "报表"
+      ],
+      "skills": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "Java"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.951Z",
+    "report": "reports/boss-斗焰电子-ai开发工程师-agent-数仓方向-13691bb9-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "卡蒂罗",
+    "title": "AI 开发工程师（Agent/数仓方向）",
+    "salary": "18-30K",
+    "city": "南京·玄武区·徐庄软件园",
+    "desc": "岗位介绍\n公司正在建设内部运营中台（信息化），面向财务、HR、客服、供应链、电商运营等部门，目标是通过 AI、自动化、数据报表和流程系统，提升日常运营效率。\n本岗位主要负责 AI 应⽤开发、后端接口开发、数据链路和数仓建设，⽀持经营驾驶舱、⾃动化任务、知识问答、业务分析和部门工作台等能力落地。该岗位不属于纯算法或模型训练岗位，更看重 AI 应⽤落地、业务系统开发、数据处理和系统稳定交付能力。\n岗位职责\n负责 AI 运营中台后端功能开发，包括接口、任务调度、权限、日志、告警、报表等基础能力。\n负责 Agent/RAG 类 AI 应用开发，包括知识库问答、经营追问、客服回复建议、异常分析、内容生成等场景。\n参与公司业务数据接入和数仓建设，梳理数据来源、指标口径、数据模型、ETL/数据同步和数据质量校验。\n对接电商平台、金蝶、WMS/E3、钉钉、RPA 平台、文件系统、AI 模型 API 等外部系统。\n建设自动化任务执行链路，支持任务状态、执行日志、失败原因、接口回执和人工接管记录。\n配合产品交付经理评估需求可行性，参与技术方案、接口设计、联调测试和上线支持。\n负责系统上线后的问题排查、接口异常、数据异常、任务失败、性能优化和日常运维支持。\n任职要求\n3 年以上后端开发、数据开发、企业系统开发或 AI 应用开发经验。\n熟悉 Python、Node.js、Java 中至少一种后端技术栈，能独立开发接口、任务和后台管理能力。\nSQL 基础扎实，熟悉 MySQL、PostgreSQL 等数据库，能进行表结构设计、复杂查询和数据问题排查。\n有数仓、数据集市、ETL/ELT、指标体系、报表数据链路建设经验，理解 ODS/DWD/DWS/ADS 或类似分层建模思路者优先。\n熟悉定时任务、异步任务、接口重试、日志追踪、权限控制、异常处理等企业系统常见能力。\n使用过大模型 API、Prompt、RAG、向量库、Agent 框架或知识库问答系统者优先。\n有外部系统 API 接入经验，理解鉴权、限流、幂等、错误码、回调、接口超时和重试机制。\n责任心强，能关注系统可维护性、数据准确性、日志完整性和上线稳定性。\n加分项\n做过企业内部中台、自动化平台、数据平台、报表系统、流程审批系统。\n有电商、零售、财务、供应链、客服、人力等业务数据建设经验。\n有 RPA、影刀、UiBot、Power Automate、钉钉开放平台、电商平台 API、ERP、WMS、金蝶等经验。\n有 React、Vue 等前端经验，能独立完成简单管理后台页面。\n熟悉 Docker、Linux、Nginx、CI/CD、监控告警等基础运维能力。",
+    "hr_active": "3日内活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/0b343416b5e0ae4e0nF82dm4FlJQ.html?securityId=Z2DZ8kPE999W7-U10ifsT23gYupPqipTYbsEq28V3-AV6J83HQCD1Jt7YNXm8LJiIhTZ4Nc4qfS3_jJxTo_Vh4qCPx-lSDowbyZj7HWoF72Owk9WwaQCijmSNppPiEmvPgq9dAIj-QiPEb2S4ktfmvrcXLCSBGsmjRIk72ITBqipDuTKpKHGD9L3cFcw0SDD-UXWcdqwa4TG_CdZfS8hx2QUwqIgMB_QPT7ESrCQZq5bpCE0naDFZvgTYd917ERmvehYuTl5aNiq4dc9S9pF6kwEsIC-WdXvxTLwblEKmphJwxMIVcLPAS5a1qkejQ6TZXe6aguwJffoOzqMV6istWzAYoae06dmg5RMxUVZEfAsKVAmbu3JWd9PLa7nsCGKOB6VY4I1jdesO9ia4k3ZPB8P6aJq4yfp",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:15:14.232Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、ETL、指标体系、报表",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：18-30K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：3日内活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、ETL。我过往做过数仓、ETL、指标体系，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "报表"
+      ],
+      "skills": [
+        "数仓",
+        "ETL",
+        "指标体系",
+        "Java"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.954Z",
+    "report": "reports/boss-卡蒂罗-AI-开发工程师-Agent-数仓方向-aafe1d7a-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "嬉皮狗",
+    "title": "AI 全栈开发工程师",
+    "salary": "16-30K·13薪",
+    "city": "南京·江宁区·百家湖",
+    "desc": "岗位概述\n作为全栈开发工程师，你将以 Claude Code 为核心开发工具，独立负责公司AI 平台的全栈开发、数据仓库搭建、AI Agent 应⽤落地及相关基础设施建设。\n这不是⼀个传统的\"写 CRUD\"的开发岗位——你将深度参与 AI 平台架构、MCP ⼯具链开发、开源模型部署、浏览器自动化、数仓建模等多个前沿技术领域。\n核心职责\n⼀、AI 平台开发与维护\n负责 AI 平台的日常开发、功能迭代、版本升级与缺陷修复\n跟进上游版本更新，完成版本合并、回归测试与差异适配\n维护平台的系统配置体系（工具/技能/MCP 的系统级配置管理）\n优化平台体验（如生图数量限制、系统工具命名规范、提示词助理功能修复等）\n维护云效 CI/CD 流水线，确保构建、测试、部署流程稳定高效\n二、MCP 工具链与数据权限引擎开发\n搭建统一 MCP 数据权限引擎（核心底座），实现基于角色的数据访问控制、字段级权限管控、操作审计日志\n使用 FastMCP（Python） 将聚水潭 ERP REST API、数仓查询、各业务系统接口封装为 MCP 工具\n开发和维护各类 MCP 工具，统一纳入权限引擎管控，确保 Agent 生态的数据访问一致性和安全性\n对接钉钉开放平台，实现 Agent 与钉钉的消息互通、待办管理、审批流等能力\n三、电商数据仓库搭建\n基于 PostgreSQL 搭建公司电商数据仓库（ODS → DIM → DWD → ADS 四层架构）\n通过聚水潭开放 API 实现订单、库存、采购、售后、物流等核心业务数据的增量同步\n设计并维护核心维度表（商品维度、店铺维度、人员维度、日期维度等）和业务宽表\n开发 ETL 清洗脚本，统一多平台数据口径（淘宝/抖音/拼多多等平台差异处理）\n构建经营分析报表层（店铺日报、商品利润排行、库存预警、售后归因、人员业绩等）\n将数仓查询能力通过 MCP 工具暴露给 AI Agent，实现自然语言查询经营数据\n四、AI Agent 业务应用开发\n开发和落地各业务场景的 AI Agent，包括但不限于：\n\no产品控价助理：监控各平台商品价格，自动预警和建议调价策略\no竞品分析助理：整合竞品数据，生成竞品分析报告\no智能客服自动接待：多平台统一接待，意图识别，自动应答，智能转人工\no商品自动评价：基于浏览器自动化实现商品评价的自动化处理\no推广自动化：结合数仓数据和浏览器自动化，实现广告投放的智能优化\no产品自动上架：基于工作流实现商品信息的跨平台自动发布\n设计 Agent 的 Prompt Engineering 和 Workflow，持续优化 Agent 的输出质量和业务适配度\n补充和维护官方工具技能库\n五、浏览器自动化基础设施\n搭建 AdsPower + Stagehand/Playwright 浏览器自动化工具体系\n解决多店铺登录态管理和防关联问题（AdsPower 指纹管理 + IP 代理池）\n开发基于浏览器自动化的数据采集、商品管理、运营操作等自动化脚本\n将浏览器自动化能力封装为 MCP 工具，供 AI Agent 调用\n六、AI 模型服务与基础设施\n在自有 GPU 服务器上部署开源模型（如 Qwen、Flux.2 等），用于智能客服、图像处理等高频场景\n管理 AI 模型服务架构（通过 New API 统一管理多渠道模型的 API Key、路由和负载均衡）\n升级知识库的多模态向量化模型，提升语义检索能力（pgvector）\n部署和维护代码执行安全沙箱（Sandbox），支撑需要代码执行能力的 Agent 场景\n根据场景复杂度合理选择闭源模型与自有部署开源模型，优化模型调用成本\n任职要求\n必须项\n要求\t说明\nPython 精通\t核心开发语言，用于 FastMCP 工具开发、ETL 脚本、数据处理、模型部署等\nPostgreSQL 实战经验\t熟悉表设计、索引优化、分区表、物化视图；了解 pgvector 向量扩展者优先\n前端开发能力（React/Next.js）\thipiAI 基于 LobeHub（React/Next.js 技术栈），需要能读懂和修改前端代码\nAI 应用开发经验\t有 RAG、Agent、Prompt Engineering、Function Calling 等 AI 应用落地经验\nMCP 协议理解\t了解 Model Context Protocol，有 MCP Server/Client 开发经验者优先\nClaude Code 或同类 AI 编程工具使用经验\t这是我们的核心开发工具，必须能熟练使用 AI 辅助编程大幅提升开发效率\nDocker 容器化部署\t熟悉 Docker 镜像构建、容器编排，有阿里云 ECS 部署经验者优先\n独立交付能力\t能一个人从需求理解到架构设计到编码测试到部署上线，全流程闭环交付\n3 年以上开发经验\t需要有足够的工程化经验来独立支撑整个平台\n强加分项（有任意 3 项即显著加分）\n加分项\t对应场景\nFastMCP / FastAPI 开发经验\tMCP 工具链开发、API 封装\n开源大模型部署经验（vLLM / llama.cpp / Ollama）\tGPU 服务器上部署 Qwen、Flux.2 等\nPlaywright / Puppeteer 浏览器自动化\tAdsPower + 浏览器自动化体系搭建\n数仓建模经验（星型/雪花模型、ETL）\t电商数据仓库搭建\n电商行业经验或聚水潭 ERP 对接经验\t业务理解 + ERP 数据同步\n钉钉开放平台开发经验\thipiAI 与钉钉的深度集成\n向量数据库 / RAG 全链路经验\t知识库升级、智能客服\nGo 语言能力\tLobeHub 部分组件使用 Go\nCI/CD 流水线（云效/GitHub Actions）\t云效流水线维护与优化\nPython 爬虫经验（Scrapy 等）\t数据采集、竞品监控\n软性要求\n自驱力强：这是一个\"一人军团\"的岗位，需要你能主动发现问题、主动推进、主动沟通\n学习能力强：AI 领域技术迭代极快，需要持续学习新模型、新工具、新协议\n业务思维：不只是写代码，要理解每个功能背后的业务价值（能帮公司多赚多少钱或省多少钱）\n沟通能力：需要与运营、财务、客服等非技术部门沟通需求，把业务语言翻译成技术方案\n我们提供什么\n技术层面\n最前沿的 AI 技术栈：MCP 协议、Agent 体系、RAG、开源模型部署——你在这里接触的技术比大多数互联网公司都更前沿\nClaude Code 作为核心开发工具：AI 辅助编程大幅提升你的开发效率，一个人做出传统 3 人团队的产出\n自有 GPU 服务器：有独立的 GPU 算力资源，可以自由部署和实验开源模型\n丰富的真实业务场景：年 2000 万单、10+ 平台的电商数据，是 AI 应用落地的最佳试验田\n成长层面\n技术广度极大：前端、后端、数仓、AI、自动化、运维——全栈中的全栈，快速成长为稀缺的复合型 AI 工程师\n直接对话业务决策层：你的技术产出直接影响公司经营决策，能清晰看到技术创造的商业价值\nAI 技术负责人的成长路径：随着平台成熟和团队扩展，你将自然成长为 AI 技术团队的核心骨干\n当前项目进度与你将接手的工作\nAI 平台已完成基础搭建并在公司内部运行，当前有 22 项待开发需求，按波次排列：\n波次\t内容\t状态\n波次 1（轻量任务）\t缺陷修复（提示词助理、模型计费）、CI/CD 优化、系统工具命名规范、版本升级回归\t部分已完成，剩余可快速上手\n波次 2（关键底座）\tMCP 数据权限引擎、AdsPower 浏览器自动化搭建、GPU 服务器模型部署\t进行中，是你入职后的核心攻坚任务\n波次 3（业务 + 底座）\t产品控价助理、竞品分析助理、安全沙箱部署、知识库多模态向量化升级\t待启动\n波次 4（依赖上游的业务）\t商品自动评价、自建数仓、产品自动上架工作流、智能客服自动接待\t待波次 2/3 完成后启动\n波次 5（全链路闭环）\t推广自动化（数仓 + 浏览器自动化的综合应用）\t最终目标\n你入职后的前 2 周，将从波次 1 的剩余轻量任务开始，快速熟悉代码库和技术架构；随后进入波次 2 的核心底座搭建，这是整个平台后续所有业务能力的基石。\n如果你正在寻找一个能让你\"一个人用 AI 改变一家公司\"的机会，这里就是。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/03ac91e624f0f4160nd_3ti4FVdV.html?securityId=-9WKmEXdzGP28-n1ArGmbm6SHrrE5nYudI-QkUKg5BLZxk3NK7RUjEOYy_GVyh4gcas-JoalFuCsQuj-m5WuQ0GpDyBLo4gSuKBWR4dLK8BNueK_MixZSTAilpxDuPjcZv3gKBXEjI8R1moh9tchd5DHOLUsYIpJHiNsOH1wDbhTVm_vvCtU6r7XNYF3e0z0OXwyb5l_PVfE89RMFkg-Jsp2VC4_2lSA5XtgMoXkdxdMl-AZ_SULrRB41PtZTvLL34uM5W55kfqOcb02n_8oVhlkIS35WBeli75EH_nhHBZ5IFB1rACYs7GIfw0cjqIfTN7QFdUaY7oDFdUHqMzvdt4zonxbjAiuYGWWTpyxG4eDmmVV_9Rw3b8_aM2RI8WrqdN91kaUU5cdFLRHeigHGFtHArN2ilz6",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:15:37.935Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "有岗位详情结构，但职责/要求不够完整",
+          "weight": 0.1
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据仓库、数仓、ETL、报表",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：16-30K·13薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        },
+        {
+          "signal": "异常吸引信号",
+          "finding": "出现偏营销化招聘表达：快速上手",
+          "weight": -0.5
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据仓库、数仓。我过往做过数据仓库、数仓、ETL，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据仓库",
+        "数仓",
+        "ETL",
+        "报表"
+      ],
+      "skills": [
+        "数据仓库",
+        "数仓",
+        "ETL"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.955Z",
+    "report": "reports/boss-嬉皮狗-AI-全栈开发工程师-8ff7e41f-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "南京证券",
+    "title": "数据开发工程师",
+    "salary": "20-25K",
+    "city": "南京",
+    "desc": "岗位职责：\n1.参与公司大数据平台、实时计算平台、数据中台等基础数据平台的规划与建设，参与设计并优化公司整体数据架构，确保数据体系的高效性、可扩展性与安全性，打造支撑业务决策的高效数据⽣态系统；\n2.负责对接业务部门在客户画像、精准营销、活动/产品运营、风险管控等核⼼场景的需求，开展数据分析挖掘、特征⼯程、数据建模等相关工作，推动数据驱动的业务创新与发展；\n3.持续关注数据开发领域的行业动态与前沿技术，积极探索并推动新技术、新⼯具在数据平台建设与业务应用中的落地实践。\n任职要求：\n1.，硕士研究生及以上学历，计算机、数学或统计学相关专业，具有3年及以上数据开发经验；\n2.熟悉Hadoop/Flink/Hive等大数据技术，有海量数据开发经验或者实时数仓开发经验者优先；\n3.熟悉数据建模理论与方法，能够按照需求正确划分主题，产出概念模型、业务模型、逻辑模型等；\n4.熟悉客户画像、精准营销、活动/产品运营、风险管控等数据应用场景，对机器学习、深度学习有实战经验者优先；\n5.具备良好的学习能力、沟通能力和团队协作能力,熟悉金融证券业务知识，取得证券从业资格证者优先。",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "3-5年",
+      "硕士"
+    ],
+    "url": "https://www.zhipin.com/job_detail/7d05de494a091be50nN82d6_E1JZ.html?securityId=RRJyUXTsS6aJC-C11jSWCZYNcnzR23OdvWlGOTP8GA6y5KPeB_NprudALrDF6UVnZ-aVQqY8OA5OO2RqRTHiobsfrguFxfNynkn1CzxFM524_5ICFdS0BuVjUvXD-KnIkfn7eFpl68DOKjr4DHiKW8slNtXAowNSHkulDdfnlVHTLXkBUv55ajluTONpYxZU4IDYlhhJFBhG86w71e5qUIVypn8lRo5m_mMBa5i-sK8dSuBmyvwEWUWaUyAI76vAfockWmayXZOBhKLdTnj3RV4Je7VED8pz2awWZIYrxGJAS_6FXIyua9BSnZmTqA3Tv70Lt9ECI2WJXMAIIDqTqdftyg9bTzj_BZV1KdA4rXPo7An9NCAFfU_he6qjIXY9Y2TeTq0sBOrOmu7j0MLOcC5ZHRbJADEJeW8~",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:16:35.048Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.08,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 4.5,
+      "salary": 5,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数仓、数据中台、实时计算、数据开发",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：20-25K",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数仓、数据中台。我过往做过数仓、Hive、数据中台，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数仓",
+        "数据中台",
+        "实时计算",
+        "数据开发"
+      ],
+      "skills": [
+        "数仓",
+        "Hive",
+        "数据中台"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.961Z",
+    "report": "reports/boss-南京证券-数据开发工程师-fa23cfd9-2026-09-22.md"
+  },
+  {
+    "source": "boss-chrome",
+    "company": "星云数字技术有限公司",
+    "title": "数据开发工程师",
+    "salary": "13-20K·15薪",
+    "city": "南京·建邺区·江东",
+    "desc": "岗位职责：\n1、数据架构设计：公司数据仓库、数据集市的逻辑模型与物理模型设计，构建分层清晰、规范统一的数据体系\n2、BI 与数据产品开发：负责 BI 系统及数据仓库应用产品的设计与开发，将数据转化为业务价值\n3、指标体系建设：深度参与业务数据指标的设计、计算与挖掘，构建可复用的数据指标中台\n4、ETL 全链路开发：负责数据仓库 ETL 流程的设计、开发与优化，保障数据链路的稳定性与时效性\n5、性能与稳定性保障：负责数据仓库及大数据平台的系统监控、性能调优与效率提升，持续打磨数据基础设施\n任职要求：\n1、学历与经验：本科及以上学历，计算机相关专业，5 年以上数据仓库 / ETL 开发相关经验\n2、数据⼯程能⼒：具备丰富的数据库设计与开发经验，有⼤批量数据处理与性能调优实战经验；有完整数据仓库或 BI 项目从 0 到 1 实施经验者优先\n3、技术栈深度：精通 Oracle 等主流关系型数据库，熟练掌握数据仓库建模方法论与开发调优技巧\n4、编程能⼒：熟练掌握 Python/Java中至少一种编程语言，能够通过工程化方式完成复杂 ETL 任务开发\n5、软实力：具备强烈的责任心与 owner 意识，良好的跨团队协作能力与沟通表达能力；对数据有热情，乐于挑战复杂技术问题\n6、有银行业、租赁业数据仓库建设经验者优先\n岗位福利：\n【国企甲方・长期实施岗】双休 | 不出差 | 包三餐 | 带薪年假\n1、甲方背景：国企自研项目，工作稳定有保障。地理位置、办公环境优越，团队氛围好\n2、薪资福利：市场化的涨薪政策 + 节假日福利 + 带薪年假\n3、用餐福利：免费一日三餐\n4、工作节奏：周末双休，法定节假日正常休",
+    "hr_active": "刚刚活跃",
+    "tags": [
+      "5-10年",
+      "本科"
+    ],
+    "url": "https://www.zhipin.com/job_detail/0b0cb25a659077510nJ63NS_GFVY.html?securityId=rDb3qhJtnGMNd-E1ezOXL-JlLmuCpOpwEcLAV4ubcyMyDh3__BtrfJbPnalYJNq45y-EFj6NENWqcprgMmUq8xxzzQPW3kT2Q65rI5JE-FbPW5mynWvEpQ0utrUK5sPv0fi2gAxAzgx_Y9pZztKpwBZouU-4RkLelBvem7Aey4dsVQVuZKnRV_JsPdKjBkDUnCMuAuKv_JPpdxCzW6_M2ArUztoKQ_AGS6DtFApXMlPYBSWVQSdvlovMzt0vEp_QdXaU5NcA9yHnQV90dXm-SrjRBtDZksqWWFoc2QIEs9wCFKz4jT3yE5aEi1qjykx_BjlqLyDiTXo7d7X0et4bOZS8WKqk9eMS4DR0iypiSXDqtLv8Um89vQeej-_7GnbJyM0sxEJsfdAtLfaf0solvBOfOJOuxFgvmXrY",
+    "can_chat": true,
+    "already_contacted": false,
+    "scanned_at": "2026-09-22T10:05:35.371Z",
+    "jd_detail": {
+      "ok": true,
+      "reason": "已包含右侧完整岗位详情"
+    },
+    "score": 4.05,
+    "score_detail": {
+      "responsibility": 2,
+      "skill": 5,
+      "salary": 4,
+      "city": 5,
+      "companyQuality": 5,
+      "hrActivity": 5
+    },
+    "opportunity_legitimacy": {
+      "tier": "High Confidence",
+      "label": "高可信",
+      "score": 5,
+      "signals": [
+        {
+          "signal": "JD 完整度",
+          "finding": "已读取右侧完整岗位详情",
+          "weight": 0.8
+        },
+        {
+          "signal": "JD 信息量",
+          "finding": "岗位描述较充分",
+          "weight": 0.4
+        },
+        {
+          "signal": "JD 结构",
+          "finding": "同时包含职责和要求，岗位边界较清楚",
+          "weight": 0.4
+        },
+        {
+          "signal": "岗位具体度",
+          "finding": "识别到具体业务/能力关键词：数据仓库、ETL、指标体系、BI",
+          "weight": 0.5
+        },
+        {
+          "signal": "薪资透明度",
+          "finding": "薪资区间明确：13-20K·15薪",
+          "weight": 0.3
+        },
+        {
+          "signal": "招聘活跃度",
+          "finding": "HR 近期活跃：刚刚活跃",
+          "weight": 0.5
+        },
+        {
+          "signal": "沟通入口",
+          "finding": "存在可沟通入口或未发现不可沟通信号",
+          "weight": 0.2
+        }
+      ]
+    },
+    "risk_hits": [],
+    "generic_hits": [],
+    "risk_penalty": 0,
+    "recommendation": "推荐，进入批量发送",
+    "eligible": true,
+    "greeting": "您好，我关注到岗位主要涉及数据仓库、ETL。我过往做过数据仓库、ETL、BI，经历里也包括数仓全链路:从需求调研、指标体系、分层建模到报表交付，和岗位要求比较贴近，方便进一步沟通吗？",
+    "greeting_basis": {
+      "jd_focus": [
+        "数据仓库",
+        "ETL",
+        "指标体系",
+        "BI"
+      ],
+      "skills": [
+        "数据仓库",
+        "ETL",
+        "BI",
+        "指标体系"
+      ],
+      "evidence": [
+        "数仓全链路:从需求调研、指标体系、分层建模到报表交付",
+        "数据 + Java 后端双肩挑(数仓建模 + sync/bi 服务全栈实现)"
+      ]
+    },
+    "scored_at": "2026-09-22T10:16:39.938Z",
+    "report": "reports/boss-星云数字技术有限公司-数据开发工程师-f279746f-2026-09-22.md"
+  }
+]
