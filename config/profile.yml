@@ -1,6 +1,7 @@
 # Career-Ops Profile Configuration
 # 候选人:施辞
 # 数据来源:cv.md + 对话确认
+# 【恢复副本 2026-09-22】原文件随项目目录被误删，内容从会话重建（含当日全部修改）
 
 candidate:
   full_name: "施辞"
@@ -77,6 +78,12 @@ compensation:
 boss:
   # 可选:简洁直接 / 偏岗位匹配 / 积极主动 / 偏技术细节 / 偏业务价值( fork 无"稳重专业"分支,会落兜底模板)
   greeting_style: "偏岗位匹配"
+  # 2026-09-22 用户确认最新要求:每日配额按城市计(非全局),三城各 20 家
+  # boss-chrome-apply.mjs 读取此配置逐城市扣减当日已发送数;发送日志无城市列,由 URL 反查候选池
+  daily_limit_per_city:
+    上海: 20
+    杭州: 20
+    南京: 20
   # JD 关注点词表(用于机会可信度"岗位具体度"信号和打招呼文案;替换 fork 内置的法务词表)
   jd_focus_terms:
     - "数据仓库"

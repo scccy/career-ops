@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'child_process';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import {
   CANDIDATES_PATH,
   countUniqueCompanies,
@@ -42,7 +42,18 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 本地适配：macOS 走 AppleScript；其他平台（或 BOSS_TRANSPORT=cdp）走 boss-cdp.mjs（Chrome CDP）
+const CDP_TRANSPORT = process.env.BOSS_TRANSPORT
+  ? process.env.BOSS_TRANSPORT === 'cdp'
+  : process.platform !== 'darwin';
+
 function execJs(js) {
+  if (CDP_TRANSPORT) {
+    return execFileSync(process.execPath, [fileURLToPath(new URL('./boss-cdp.mjs', import.meta.url)), '--eval', js], {
+      encoding: 'utf-8',
+      maxBuffer: 20 * 1024 * 1024,
+    }).trim();
+  }
   const script = `tell application "Google Chrome" to execute active tab of front window javascript ${JSON.stringify(js)}`;
   return execFileSync('osascript', ['-e', script], {
     encoding: 'utf-8',
