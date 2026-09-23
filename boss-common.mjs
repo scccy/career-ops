@@ -389,6 +389,8 @@ CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
   city VARCHAR(128) DEFAULT '',
   url VARCHAR(768) DEFAULT '',
   greeted TINYINT(1) DEFAULT 0,
+  salary_min DECIMAL(6,2) NULL,
+  salary_max DECIMAL(6,2) NULL,
   score DECIMAL(4,2) NULL,
   status VARCHAR(32) DEFAULT '',
   scanned_at DATETIME(3) NULL,
@@ -398,12 +400,25 @@ CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
   INDEX idx_city_score (city, score),
   INDEX idx_company (company),
   INDEX idx_greeted (greeted),
+  INDEX idx_salary (salary_min, salary_max),
   INDEX idx_scanned (scanned_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
 `;
 
 let _schemaReady = null;
 let _idleTimer = null;
+
+// 薪资解析：K 月薪 → {min,max}（单位 K/月）；日结/时薪/面议等非 K 格式 → {min:null,max:null}
+// 覆盖："15-22K"、"15-30K·14薪"、"20-40K.16薪"、大小写 K
+// 薪资列解析：仅接受 K/千 月薪格式 → {min,max}（单位 K/月）；日结/时薪/月结数字/面议 → {min:null,max:null}
+// （复用 parseSalaryRange 的解析能力，但加单位守卫：防止 "180-200元/天" 被误读成 180-200K）
+export function parseSalaryMinMax(salary) {
+  const text = String(salary || '');
+  if (/元\/(天|时|月)/.test(text) || /面议/.test(text)) return { min: null, max: null };
+  const parsed = parseSalaryRange(text);
+  if (!parsed) return { min: null, max: null };
+  return { min: Math.min(parsed.min, parsed.max), max: Math.max(parsed.min, parsed.max) };
+}
 // CLI 脚本跑完 main 后需自然退出：连接池空闲 5s 后自动关闭，否则挂起的 socket 会让进程永不退出
 function cancelIdleClose() {
   if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
@@ -440,8 +455,23 @@ function schemaReady() {
         await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN greeted TINYINT(1) DEFAULT 0 AFTER url`);
         added.push('greeted');
       }
+      if (!colNames.has('salary_min') || !colNames.has('salary_max')) {
+        if (!colNames.has('salary_min')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_min DECIMAL(6,2) NULL AFTER greeted`);
+        if (!colNames.has('salary_max')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_max DECIMAL(6,2) NULL AFTER salary_min`);
+        added.push('salary_min/salary_max');
+      }
       if (added.length) {
         await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_greeted (greeted)`).catch(() => {});
+        if (added.includes('salary_min/salary_max')) {
+          await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_salary (salary_min, salary_max)`).catch(() => {});
+          // 薪资解析依赖 JS 正则，逐行回填（仅 K 月薪格式；日结/时薪/面议存 NULL）
+          const [salaryRows] = await pool.query(`SELECT id, salary FROM ${BOSS_JOBS_TABLE}`);
+          for (const row of salaryRows) {
+            const { min, max } = parseSalaryMinMax(row.salary);
+            if (min === null) continue;
+            await pool.query(`UPDATE ${BOSS_JOBS_TABLE} SET salary_min = ?, salary_max = ? WHERE id = ?`, [min, max, row.id]);
+          }
+        }
         await pool.query(
           `UPDATE ${BOSS_JOBS_TABLE}
              SET url = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw, '$.url')), ''),
@@ -495,6 +525,7 @@ function jobRow(job) {
   const scoreNum = Number(job.score);
   // city 列存城市前缀（"杭州·滨江区·长河" → "杭州"）方便精确搜索；raw 里保留完整串
   const cityPrefix = String(job.city || job.location || '').split('·')[0].slice(0, 120);
+  const { min: salaryMin, max: salaryMax } = parseSalaryMinMax(job.salary);
   return [
     candidateKeyHash(job),
     String(job.company || '').slice(0, 190),
@@ -503,6 +534,8 @@ function jobRow(job) {
     cityPrefix,
     String(job.url || '').slice(0, 760),
     job.greeted ? 1 : 0,
+    salaryMin,
+    salaryMax,
     job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
     String(job.status || '').slice(0, 30),
     scanned && !Number.isNaN(scanned.getTime()) ? scanned : null,
@@ -524,7 +557,7 @@ export async function saveCandidates(jobs) {
       if (list.length) {
         const values = list.map(jobRow);
         await conn.query(
-          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, score, status, scanned_at, raw) VALUES ?`,
+          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, salary_min, salary_max, score, status, scanned_at, raw) VALUES ?`,
           [values],
         );
       }
