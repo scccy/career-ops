@@ -119,7 +119,9 @@ export function evaluateJob(job, profile) {
   const beforePenalty = weighted.reduce((sum, [score, weight]) => sum + score * weight, 0) / totalWeight;
   const total = clamp(beforePenalty - riskPenalty);
 
-  const eligible = jdCheck.ok && total >= 4.0 && riskHits.length === 0
+  // 2026-09-22 用户指令「只要带数据就投递，不管其他的」：移除内部 total>=4.0 硬门槛，
+  // 分数线统一由 --threshold 参数控制（jdCheck/riskHits/可疑机会/面议 等保护性闸门保留）
+  const eligible = jdCheck.ok && riskHits.length === 0
     && job.can_chat !== false && job.already_contacted !== true
     && legitimacy.tier !== 'Suspicious' && salaryClear;
   const recommendation = !jdCheck.ok ? `缺少完整JD，不能评分入队：${jdCheck.reason}`
@@ -370,7 +372,6 @@ function writeReport(job) {
 function main() {
   const args = parseArgs();
   const input = args.input || CANDIDATES_PATH;
-  const threshold = Number(args.threshold ?? 4.0);
   const allowUnconfirmed = Boolean(args['allow-unconfirmed']);
   if (args.help) {
     console.log('Usage: node boss-score.mjs --input data/boss-candidates.json --threshold 4.0 [--dry-run]');
@@ -401,6 +402,8 @@ function main() {
   }
   if (!existsSync(input)) throw new Error(`input not found: ${input}`);
   const profile = loadProfile({ allowUnconfirmed });
+  // 2026-09-23 用户确认：日常评分阈值标准 3.0，统一由 config/profile.yml boss.send_threshold 控制（--threshold 参数可临时覆盖）
+  const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const jobs = readJson(input, []);
