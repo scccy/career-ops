@@ -16,7 +16,8 @@ if ! curl -s --max-time 3 http://127.0.0.1:9222/json/version >/dev/null 2>&1; th
   exit 1
 fi
 
-MODE="${1:-main}"   # main | all
+MODE="${1:-main}"          # main | all（兼容 --main / --all 写法）
+MODE="${MODE#--}"
 if [ "$MODE" != "main" ] && [ "$MODE" != "all" ]; then
   echo "用法: bash boss-extract-3cities.sh [main|all]"; exit 1
 fi
