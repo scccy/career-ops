@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BOSS 直聘流程可视化</title>
+<style>
+  :root{
+    --bg:#f6f9fc; --card:#ffffff; --ink:#0a2540; --muted:#425466; --line:#e6ebf1;
+    --indigo:#635bff; --indigo-2:#7a73ff; --indigo-soft:#f5f3ff;
+    --red:#df1b41; --red-soft:#fff0f3; --amber:#b25e09; --amber-soft:#fff7ed;
+    --green:#00a86b; --green-soft:#e9f9f1;
+    --shadow:0 2px 5px rgba(50,50,93,.1),0 1px 3px rgba(0,0,0,.07);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#f6f9fc 0%,#eef2f8 100%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#635bff,#9b8cff);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;box-shadow:var(--shadow)}
+  h1{font-size:21px;margin:0;font-weight:700;letter-spacing:.2px}
+  .sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .status{display:flex;align-items:center;gap:10px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600;background:#fff;box-shadow:var(--shadow)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .dot.bad{background:var(--red)}
+  .btn{border:none;background:var(--indigo);color:#fff;font-weight:600;font-size:13px;padding:9px 16px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow);transition:.15s}
+  .btn:hover{background:var(--indigo-2);transform:translateY(-1px)}
+  .btn.ghost{background:#fff;color:var(--indigo);border:1px solid var(--line)}
+  .banner{margin:14px 0;padding:12px 16px;border-radius:12px;font-size:13.5px;display:none}
+  .banner.err{display:block;background:var(--red-soft);color:var(--red);border:1px solid #f6c9d3}
+  .banner.ok{display:block;background:var(--green-soft);color:#067a4f;border:1px solid #bfe9d3}
+
+  section{margin-top:30px}
+  .sec-title{font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:0 0 14px 2px;display:flex;align-items:center;gap:8px}
+  .sec-title::before{content:"";width:4px;height:16px;border-radius:3px;background:var(--indigo)}
+
+  /* overview cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;box-shadow:var(--shadow)}
+  .card .k{font-size:12.5px;color:var(--muted);font-weight:600}
+  .card .v{font-size:27px;font-weight:750;margin-top:6px;letter-spacing:-.5px}
+  .card .x{font-size:12px;color:var(--muted);margin-top:3px}
+  .card.accent .v{color:var(--indigo)}
+  .card.good .v{color:var(--green)}
+  .card.warn .v{color:var(--amber)}
+
+  /* quota */
+  .quota-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .quota{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow)}
+  .quota h4{margin:0 0 10px;font-size:14px;display:flex;justify-content:space-between;align-items:baseline}
+  .quota h4 .q{color:var(--muted);font-weight:600;font-size:12.5px}
+  .bar{height:9px;border-radius:6px;background:#eef1f6;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#635bff,#9b8cff);transition:width .4s}
+  .bar.full > i{background:linear-gradient(90deg,#df1b41,#ff5c7a)}
+  .quota .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:7px}
+
+  /* flow diagram */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 16px}
+  .stage{flex:0 0 auto;width:158px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 13px 14px;box-shadow:var(--shadow);cursor:pointer;transition:.15s;position:relative}
+  .stage:hover{transform:translateY(-3px);border-color:var(--indigo)}
+  .stage .num{display:inline-flex;width:22px;height:22px;border-radius:7px;background:var(--indigo-soft);color:var(--indigo);font-weight:700;font-size:12px;align-items:center;justify-content:center;margin-bottom:8px}
+  .stage .t{font-weight:700;font-size:14px;line-height:1.3}
+  .stage .c{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--muted);margin-top:7px;background:#f3f6fb;border-radius:6px;padding:5px 6px;word-break:break-all}
+  .stage.checkpoint{border-color:#f3c0cb;background:var(--red-soft)}
+  .stage.checkpoint .num{background:#fbd3db;color:var(--red)}
+  .stage.gate{border-color:#f0d3a8;background:var(--amber-soft)}
+  .stage.gate .num{background:#fbe6c8;color:var(--amber)}
+  .arrow{flex:0 0 auto;align-self:center;color:var(--indigo);font-size:22px;padding:0 4px;font-weight:700}
+
+  /* storage + branch callouts */
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.lanes{grid-template-columns:1fr}.flow{flex-wrap:nowrap}}
+  .lane{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;box-shadow:var(--shadow)}
+  .lane h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .lane .tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px}
+  .tag.mysql{background:var(--indigo-soft);color:var(--indigo)}
+  .tag.key{background:var(--green-soft);color:#067a4f}
+  .lane p{margin:6px 0;font-size:13px;color:var(--muted)}
+  .lane code{background:#f3f6fb;padding:2px 6px;border-radius:6px;font-size:12px;color:var(--ink);font-family:ui-monospace,Menlo,monospace}
+  .mini{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{font-size:11.5px;background:#f3f6fb;border-radius:8px;padding:4px 9px;color:var(--muted)}
+
+  /* detail panel */
+  #detail{margin-top:14px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--indigo);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);display:none}
+  #detail.show{display:block}
+  #detail .dh{font-weight:700;font-size:15px;margin-bottom:4px}
+  #detail .dn{font-size:12.5px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;margin-bottom:8px}
+  #detail .dnote{font-size:13.5px;color:var(--ink)}
+
+  /* keyhash panel */
+  .kh{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px;box-shadow:var(--shadow)}
+  .kh .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .kh label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px}
+  .kh input{flex:1;min-width:260px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-family:ui-monospace,Menlo,monospace;outline:none}
+  .kh input:focus{border-color:var(--indigo)}
+  .kh .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .kh pre{background:#0a2540;color:#cfe3ff;padding:12px 14px;border-radius:10px;font-size:12.5px;overflow:auto;margin:12px 0 0;white-space:pre-wrap}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  td.mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--muted)}
+  .st{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .st.ok{background:var(--green-soft);color:#067a4f}
+  .st.no{background:var(--red-soft);color:var(--red)}
+  .st.pend{background:var(--amber-soft);color:var(--amber)}
+  .empty{color:var(--muted);font-size:13px;padding:14px 2px}
+  footer{margin-top:40px;text-align:center;color:var(--muted);font-size:12px}
+  a{color:var(--indigo)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">B</div>
+      <div>
+        <h1>BOSS 直聘流程可视化</h1>
+        <div class="sub">career-ops · MySQL 候选池 · 实时概览 + 交互式流程架构</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="pill"><span class="dot" id="dbDot"></span><span id="dbText">连接中…</span></span>
+      <button class="btn" id="refresh">刷新数据</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <!-- 概览 -->
+  <section>
+    <p class="sec-title">实时概览</p>
+    <div class="cards" id="cards">
+      <div class="card"><div class="k">候选池总数</div><div class="v" id="cTotal">—</div><div class="x" id="cTotalX">boss_jobs</div></div>
+      <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x" id="cGreetedX">greeted=1</div></div>
+      <div class="card accent"><div class="k">待复核可发</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">score≥阈值 & 未发</div></div>
+      <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x" id="cTodayX">发送日志</div></div>
+      <div class="card"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x" id="cUnscoredX">待 boss:score</div></div>
+    </div>
+  </section>
+
+  <!-- 城市配额 -->
+  <section>
+    <p class="sec-title">每日城市配额进度</p>
+    <div class="quota-grid" id="quota"></div>
+  </section>
+
+  <!-- 主流程 -->
+  <section>
+    <p class="sec-title">主流程（点节点看命令与注意点）</p>
+    <div class="flow" id="flow"></div>
+    <div id="detail">
+      <div class="dh" id="dH"></div>
+      <div class="dn" id="dN"></div>
+      <div class="dnote" id="dNote"></div>
+    </div>
+  </section>
+
+  <!-- 存储层 + 点名单发 -->
+  <section>
+    <p class="sec-title">存储层与点名单发分支</p>
+    <div class="lanes">
+      <div class="lane">
+        <h3>💾 候选池存储 <span class="tag mysql">MySQL</span></h3>
+        <p>全量候选已切到 <code>career_ops.boss_jobs</code>（Docker MySQL 8.0，仅绑 127.0.0.1）。</p>
+        <p>扫描写入、评分/排队读取、发送后把 <code>greeted</code> 置 1；<code>data/boss-candidates.json</code> 降级为写池时的备份镜像，库空时一次性迁移。</p>
+        <div class="mini">
+          <span class="chip">key_hash CHAR(64) 主键</span>
+          <span class="chip">url / greeted 独立列</span>
+          <span class="chip">score DECIMAL(4,2)</span>
+          <span class="chip">idx_city_score</span>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>🎯 点名单发 <span class="tag key">key_hash</span></h3>
+        <p><code>boss:send:one --key-hash &lt;h1[,h2,…]&gt;</code></p>
+        <p><b>单个或多个 key_hash 都支持</b>（逗号/空格分隔），按 <code>boss_jobs.key_hash</code> 直取，<b>绕过队列/城市配额/30 天去重</b>；<code>greeted=1</code> 默认拒绝重发，需 <code>--force-greeted</code>。</p>
+        <p>流程不变：先 <code>--dry-run</code> 展示岗位+文案 → 你明确确认 → 再加 <code>--confirmed-review</code>。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- keyhash 查询 -->
+  <section>
+    <p class="sec-title">key_hash 点名查询（单 / 多个）</p>
+    <div class="kh">
+      <div class="row">
+        <div style="flex:1;min-width:260px">
+          <label>key_hash（逗号或空格分隔，支持多个）</label>
+          <input id="khInput" placeholder="a1b2c3…, d4e5f6…  或  a1b2c3 d4e5f6" />
+        </div>
+        <button class="btn" id="khGo">查询</button>
+      </div>
+      <div class="hint">key_hash 由 SQL 查得，如 <code>SELECT key_hash,company,title,score FROM boss_jobs WHERE city='杭州' AND greeted=0 AND score&gt;=3.5 ORDER BY score DESC</code>。本面板只做查询/预览，真实发送仍需你在对话中确认后由脚本执行。</div>
+      <pre id="khCmd" style="display:none"></pre>
+      <div id="khResult"></div>
+    </div>
+  </section>
+
+  <footer>BOSS 直聘无公开 API，扫描/发送走真实 Chrome + CDP · 数据来自 career_ops.boss_jobs 与发送日志 · 生成于 career-ops / boss-web</footer>
+</div>
+
+<script>
+const STAGES = [
+  {id:'profile', n:1, t:'画像门 / 冷启动', cmd:'npm run doctor', type:'gate',
+   note:'config/profile.yml 画像确认才放行；未就绪不扫描、不评分、不发送。'},
+  {id:'scan', n:2, t:'扫描 scan', cmd:'npm run boss:extract:daily[:all]', type:'normal',
+   note:'CDP 驱动真实 Chrome 逐城逐词提取（禁 Playwright）。单条补 JD：boss:import:url / boss:import:detail。'},
+  {id:'score', n:3, t:'评分 score', cmd:'npm run boss:score', type:'normal',
+   note:'阈值默认 boss.send_threshold（现 3.0）；输出 opportunity_legitimacy，可疑/面议不进队列。'},
+  {id:'fill', n:4, t:'排队 fill', cmd:'npm run boss:fill -- --prepare', type:'normal',
+   note:'每日城市配额 + 30 天公司去重。重跑 score 会重建队列，须重新剔除已发/外包/校招等公司。'},
+  {id:'review', n:5, t:'复核 review', cmd:'npm run boss:review', type:'checkpoint',
+   note:'🔴 必须向用户展示前 N 家 + 文案，获得明确确认；--confirmed-review 只是脚本门槛，确认来自你。'},
+  {id:'dryrun', n:6, t:'预演 dry-run', cmd:'npm run boss:chrome:apply --dry-run', type:'checkpoint',
+   note:'🔴 逐岗位预览打招呼文案；未生成可复核清单则停止真实发送，重新评分或补候选池。'},
+  {id:'send', n:7, t:'真实发送', cmd:'npm run boss:chrome:apply -- --confirmed-review', type:'normal',
+   note:'点"发送"并验证自定义文案进入聊天记录；失败/未验证不计额度、停同批次。'},
+  {id:'track', n:8, t:'追踪合并', cmd:'node merge-tracker.mjs', type:'normal',
+   note:'发送记录写 batch/tracker-additions/*.tsv（状态 Applied）再合并，绝不直接改 data/applications.md。'},
+  {id:'post', n:9, t:'后置引导', cmd:'pdf / interview-prep', type:'normal',
+   note:'HR 要简历 → 定制 PDF（先读完整 JD）；进面试 → interview-prep。'},
+];
+
+function renderFlow(){
+  const flow = document.getElementById('flow');
+  flow.innerHTML = '';
+  STAGES.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'stage ' + (s.type === 'checkpoint' ? 'checkpoint' : s.type === 'gate' ? 'gate' : '');
+    el.innerHTML = `<div class="num">${s.n}</div><div class="t">${s.t}</div><div class="c">${s.cmd}</div>`;
+    el.onclick = () => showDetail(s);
+    flow.appendChild(el);
+    if (i < STAGES.length - 1) {
+      const a = document.createElement('div');
+      a.className = 'arrow';
+      a.textContent = '→';
+      flow.appendChild(a);
+    }
+  });
+}
+
+function showDetail(s){
+  const d = document.getElementById('detail');
+  document.getElementById('dH').textContent = `${s.n}. ${s.t}`;
+  document.getElementById('dN').textContent = s.cmd;
+  document.getElementById('dNote').textContent = s.note;
+  d.classList.add('show');
+  d.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+async function loadOverview(){
+  const banner = document.getElementById('banner');
+  banner.className = 'banner';
+  try {
+    const r = await fetch('/api/overview');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || '数据获取失败');
+    document.getElementById('dbDot').classList.remove('bad');
+    document.getElementById('dbText').textContent = 'MySQL 已连接';
+    document.getElementById('cTotal').textContent = d.total;
+    document.getElementById('cGreeted').textContent = d.greeted;
+    document.getElementById('cPending').textContent = d.pending;
+    document.getElementById('cToday').textContent = d.todaySent;
+    document.getElementById('cUnscored').textContent = d.unscored;
+    document.getElementById('cPendingX').textContent = `score≥${d.threshold} & 未发`;
+    document.getElementById('cTotalX').textContent = `已评分 ${d.scored} · 未评分 ${d.unscored}`;
+
+    const q = document.getElementById('quota');
+    q.innerHTML = '';
+    d.quota.forEach(c => {
+      const pct = c.quota ? Math.min(100, Math.round(c.sentToday / c.quota * 100)) : 0;
+      const full = c.sentToday >= c.quota;
+      const div = document.createElement('div');
+      div.className = 'quota';
+      div.innerHTML = `<h4>${c.city} <span class="q">配额 ${c.quota}/日</span></h4>
+        <div class="bar ${full ? 'full' : ''}"><i style="width:${pct}%"></i></div>
+        <div class="meta"><span>今日已发 ${c.sentToday}</span><span>剩余 ${c.remaining}</span></div>
+        <div class="meta"><span>池中待发 ${c.poolPending}</span><span>池总量 ${c.poolTotal}</span></div>`;
+      q.appendChild(div);
+    });
+    if (d.unknownCitySent) {
+      const div = document.createElement('div');
+      div.className = 'quota';
+      div.innerHTML = `<h4>未知城市 <span class="q">URL 未匹配</span></h4>
+        <div class="bar"><i style="width:0%"></i></div>
+        <div class="meta"><span>今日已发 ${d.unknownCitySent}</span><span>—</span></div>`;
+      q.appendChild(div);
+    }
+    banner.className = 'banner ok';
+    banner.textContent = `已连接 · 阈值 ${d.threshold} · 打招呼风格「${d.greetingStyle || '—'}」 · 更新于 ${new Date(d.generatedAt).toLocaleTimeString('zh-CN')}`;
+  } catch (e) {
+    document.getElementById('dbDot').classList.add('bad');
+    document.getElementById('dbText').textContent = '连接失败';
+    banner.className = 'banner err';
+    banner.textContent = '无法连接 MySQL：' + e.message + '（确认 /opt/docker/mysql 已启动、MYSQL_* 可达）';
+  }
+}
+
+async function runKeyhash(){
+  const raw = document.getElementById('khInput').value.trim();
+  const out = document.getElementById('khResult');
+  const pre = document.getElementById('khCmd');
+  if (!raw) { out.innerHTML = '<div class="empty">请输入至少一个 key_hash。</div>'; pre.style.display='none'; return; }
+  out.innerHTML = '<div class="empty">查询中…</div>';
+  try {
+    const r = await fetch('/api/keyhash?h=' + encodeURIComponent(raw));
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    pre.style.display = 'block';
+    pre.textContent = '# 预览命令（确认后由你执行真实发送）\n' + d.cmd + ' --dry-run';
+    if (!d.matched.length) {
+      out.innerHTML = '<div class="empty">未匹配到任何岗位。请检查 key_hash 是否正确。</div>';
+      return;
+    }
+    let rows = d.matched.map(m => {
+      const st = m.greeted ? '<span class="st no">已发 greeted=1</span>'
+        : (m.score != null && Number(m.score) >= 3.0 ? '<span class="st ok">可发</span>' : '<span class="st pend">低分</span>');
+      return `<tr>
+        <td>${escapeHtml(m.company || '—')}</td>
+        <td>${escapeHtml(m.title || '—')}</td>
+        <td>${escapeHtml(m.city || '—')}</td>
+        <td>${m.score != null ? m.score : '—'}</td>
+        <td>${st}</td>
+        <td class="mono">${escapeHtml((m.key_hash||'').slice(0,12))}…</td>
+      </tr>`;
+    }).join('');
+    out.innerHTML = `<table>
+      <thead><tr><th>公司</th><th>岗位</th><th>城市</th><th>分数</th><th>状态</th><th>key_hash</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="hint" style="margin-top:10px">匹配 ${d.matched.length} 条 · 可发(未发) ${d.sendable.length} 条 · 未命中 ${d.missing.length} 条${d.missing.length?'（'+d.missing.map(h=>h.slice(0,8)+'…').join(', ')+'）':''}。${d.sendable.length && d.matched.some(m=>m.greeted)?' 含已发岗位，需 --force-greeted 才放行。':''}</div>`;
+  } catch (e) {
+    out.innerHTML = '<div class="empty">查询失败：' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+document.getElementById('refresh').onclick = loadOverview;
+document.getElementById('khGo').onclick = runKeyhash;
+document.getElementById('khInput').addEventListener('keydown', e => { if (e.key === 'Enter') runKeyhash(); });
+renderFlow();
+loadOverview();
+</script>
+</body>
+</html>
