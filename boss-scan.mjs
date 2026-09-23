@@ -14,6 +14,10 @@ import {
   uniqueCandidateKey,
   uniqueCompanyKey,
   writeJson,
+  isCandidatesPath,
+  loadCandidates,
+  mergeIntoCandidates,
+  saveCandidates,
 } from './boss-common.mjs';
 
 const BASE_URL = 'https://www.zhipin.com';
@@ -340,10 +344,17 @@ async function main() {
   }
   const jobs = await scan(args);
   const output = args.output || CANDIDATES_PATH;
-  const finalJobs = args.append && !args['dry-run']
-    ? mergeJobs(readJson(output, []), jobs)
-    : jobs;
-  if (!args['dry-run']) writeJson(output, finalJobs);
+  const useDb = isCandidatesPath(output);
+  const appending = args.append && !args['dry-run'];
+  let finalJobs;
+  if (useDb) {
+    finalJobs = appending
+      ? await mergeIntoCandidates(jobs)
+      : (args['dry-run'] ? jobs : await saveCandidates(jobs));
+  } else {
+    finalJobs = appending ? mergeJobs(readJson(output, []), jobs) : jobs;
+    if (!args['dry-run']) writeJson(output, finalJobs);
+  }
   console.log(JSON.stringify({
     scanned: jobs.length,
     total: finalJobs.length,

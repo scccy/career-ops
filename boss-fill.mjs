@@ -10,6 +10,8 @@ import {
   loadSentKeys,
   parseArgs,
   readJson,
+  isCandidatesPath,
+  loadCandidates,
 } from './boss-common.mjs';
 import { planQuota } from './boss-quota.mjs';
 
@@ -51,7 +53,7 @@ function buildNextStep(plan, input, profile) {
   };
 }
 
-function main() {
+async function main() {
   const args = parseArgs();
   if (args.help) {
     console.log(`Usage:
@@ -68,7 +70,7 @@ Rules:
 
   const input = args.input || CANDIDATES_PATH;
   const profile = loadProfile({ allowUnconfirmed: Boolean(args['allow-unconfirmed']) });
-  const jobs = readJson(input, []);
+  const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const plan = planQuota(jobs, profile, {
     targetCompanies: Number(args['target-companies'] ?? profile?.boss?.daily_limit ?? DEFAULT_TARGET_COMPANIES),
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
@@ -99,5 +101,5 @@ Rules:
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  main().catch((err) => { console.error(err); process.exit(1); });
 }

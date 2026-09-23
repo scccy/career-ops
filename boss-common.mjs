@@ -1,5 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, normalize } from 'path';
+import { createHash } from 'crypto';
+import mysql from 'mysql2/promise';
 import * as yaml from 'js-yaml';
 
 export const ROOT_DATA_DIR = 'data';
@@ -345,4 +347,163 @@ export function appendApplication({ job, score = '—', status = 'Applied', repo
   const row = [num, todayIso(), job.company || '?', job.title || '', status, score, '❌', report, notes, job.url || ''].join('\t');
   writeFileSync(file, `${header}\n${row}\n`, 'utf-8');
   return file;
+}
+
+// ===== MySQL 候选池（career_ops.boss_jobs）=====
+// 2026-09-23 用户确认：职位池一步到位迁 MySQL，data/boss-candidates.json 降级为每次写入时的备份镜像。
+// 消费方：loadCandidates / saveCandidates / mergeIntoCandidates / isCandidatesPath。
+// 连接参数可用环境变量覆盖：MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DB。
+
+const DB_NAME = process.env.MYSQL_DB || 'career_ops';
+const DB_CONFIG = {
+  host: process.env.MYSQL_HOST || '127.0.0.1',
+  port: Number(process.env.MYSQL_PORT || 3306),
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || 'asdsc88-+Q12',
+  connectionLimit: 5,
+  waitForConnections: true,
+};
+const BOSS_JOBS_TABLE = '`' + DB_NAME + '`.`boss_jobs`';
+
+let _dbPool = null;
+function dbPool() {
+  if (!_dbPool) _dbPool = mysql.createPool(DB_CONFIG);
+  return _dbPool;
+}
+
+export function isCandidatesPath(p) {
+  return normalize(String(p || '')) === normalize(CANDIDATES_PATH);
+}
+
+export function candidateKeyHash(job) {
+  return createHash('sha256').update(uniqueCandidateKey(job)).digest('hex');
+}
+
+const BOSS_JOBS_DDL = `
+CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  key_hash CHAR(64) NOT NULL UNIQUE,
+  company VARCHAR(191) DEFAULT '',
+  title VARCHAR(255) DEFAULT '',
+  salary VARCHAR(128) DEFAULT '',
+  city VARCHAR(128) DEFAULT '',
+  score DECIMAL(4,2) NULL,
+  status VARCHAR(32) DEFAULT '',
+  scanned_at DATETIME(3) NULL,
+  raw JSON NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_city_score (city, score),
+  INDEX idx_company (company),
+  INDEX idx_scanned (scanned_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+`;
+
+let _schemaReady = null;
+let _idleTimer = null;
+// CLI 脚本跑完 main 后需自然退出：连接池空闲 5s 后自动关闭，否则挂起的 socket 会让进程永不退出
+function cancelIdleClose() {
+  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
+}
+function scheduleIdleClose() {
+  cancelIdleClose();
+  _idleTimer = setTimeout(async () => {
+    _idleTimer = null;
+    const pool = _dbPool;
+    _dbPool = null;
+    _schemaReady = null;
+    if (pool) { try { await pool.end(); } catch { /* 退出阶段忽略 */ } }
+  }, 5000);
+}
+function schemaReady() {
+  if (!_schemaReady) {
+    _schemaReady = (async () => {
+      const pool = dbPool();
+      // 连接串不带 database，先建库再建表（首次冷启动也能跑）
+      await pool.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE=utf8mb4_0900_ai_ci`);
+      await pool.query(BOSS_JOBS_DDL);
+    })().catch((err) => { _schemaReady = null; throw err; });
+  }
+  return _schemaReady;
+}
+
+function parseRawRow(raw) {
+  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+}
+
+export async function loadCandidates() {
+  cancelIdleClose();
+  try {
+    await schemaReady();
+    const pool = dbPool();
+    const [rows] = await pool.query(`SELECT raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
+      // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
+      const legacy = readJson(CANDIDATES_PATH, []);
+      if (legacy.length) {
+        await saveCandidates(legacy);
+        console.error(`[boss-db] 已从 ${CANDIDATES_PATH} 迁移 ${legacy.length} 条到 MySQL ${DB_NAME}.boss_jobs`);
+        return legacy;
+      }
+    }
+    return rows.map((r) => parseRawRow(r.raw));
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+function jobRow(job) {
+  const scanned = job.scanned_at ? new Date(job.scanned_at) : null;
+  const scoreNum = Number(job.score);
+  return [
+    candidateKeyHash(job),
+    String(job.company || '').slice(0, 190),
+    String(job.title || '').slice(0, 250),
+    String(job.salary || '').slice(0, 120),
+    String(job.city || '').slice(0, 120),
+    job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
+    String(job.status || '').slice(0, 30),
+    scanned && !Number.isNaN(scanned.getTime()) ? scanned : null,
+    JSON.stringify(job),
+  ];
+}
+
+// 语义对齐原 writeJson(CANDIDATES_PATH, jobs)：整池重写；同时落 JSON 备份镜像
+export async function saveCandidates(jobs) {
+  cancelIdleClose();
+  try {
+    await schemaReady();
+    const pool = dbPool();
+    const list = listJobs(jobs);
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query(`TRUNCATE TABLE ${BOSS_JOBS_TABLE}`);
+      if (list.length) {
+        const values = list.map(jobRow);
+        await conn.query(
+          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, score, status, scanned_at, raw) VALUES ?`,
+          [values],
+        );
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+    writeJson(CANDIDATES_PATH, list);
+    return list;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+// 语义对齐 mergeJobs(readJson(CANDIDATES_PATH), incoming) + writeJson：库内合并（同 key 字段覆盖）
+export async function mergeIntoCandidates(incomingJobs) {
+  const existing = await loadCandidates();
+  const merged = mergeJobs(existing, incomingJobs);
+  await saveCandidates(merged);
+  return merged;
 }

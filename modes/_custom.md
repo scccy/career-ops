@@ -63,6 +63,8 @@
 
 Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + AppleScript（仅 macOS + Chrome；需开启 视图→开发者→允许 Apple 事件中的 JavaScript）。不要用 Playwright 浏览器去访问 BOSS——会触发风控。
 
+**职位池存储（2026-09-23 用户确认全切 MySQL）**：`career_ops.boss_jobs` 表（Docker：`/opt/docker/mysql`，`docker.1ms.run/library/mysql:8.0`，host 网络+仅绑 127.0.0.1，root 密码见 compose.yaml）。统一入口：`boss-common.mjs` 的 `loadCandidates / saveCandidates / mergeIntoCandidates / isCandidatesPath`——脚本的 `--input/--output` 指向 `data/boss-candidates.json` 时自动路由到 MySQL，指向其他文件仍走 JSON。`data/boss-candidates.json` 降级为每次写池时的备份镜像，不再作为读取来源；库空时自动从该文件一次性迁移。连接参数可用环境变量覆盖（MYSQL_HOST/PORT/USER/PASSWORD/DB）。连接池空闲 5s 自动关闭，保证 CLI 自然退出。
+
 流程：**主动搜索** `npm run boss:extract:daily[:all]`（仅需 BOSS Chrome 已启动并登录；脚本经 CDP 自行逐城逐词导航搜索页提取，关键词读 `boss.daily_extract_queries`，手动兜底 `npm run boss:chrome:extract --append` 需用户停在搜索页）→ `npm run boss:score`（默认阈值读 `config/profile.yml` `boss.send_threshold`，现为 3.0）→ `npm run boss:fill -- --prepare`（每日城市配额 + 30 天公司去重）→ `npm run boss:review`（必须向用户展示清单并获得明确确认）→ `npm run boss:chrome:apply --dry-run` → `npm run boss:chrome:apply -- --confirmed-review`（真实发送）。
 
 ### 日常标准（2026-09-23 用户确认）

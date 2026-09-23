@@ -11,6 +11,8 @@ import {
   readJson,
   uniqueCompanyKey,
   uniqueJobKey,
+  isCandidatesPath,
+  loadCandidates,
 } from './boss-common.mjs';
 import { evaluateJob } from './boss-score.mjs';
 
@@ -103,7 +105,7 @@ export function planQuota(jobs, profile, {
   };
 }
 
-function main() {
+async function main() {
   const args = parseArgs();
   if (args.help) {
     console.log('Usage: node boss-quota.mjs --input data/boss-candidates.json --target-companies 20 --threshold 4.0');
@@ -111,7 +113,7 @@ function main() {
   }
   const profile = loadProfile({ allowUnconfirmed: Boolean(args['allow-unconfirmed']) });
   const input = args.input || CANDIDATES_PATH;
-  const jobs = readJson(input, []);
+  const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const plan = planQuota(jobs, profile, {
     targetCompanies: Number(args['target-companies'] ?? profile?.boss?.daily_limit ?? DEFAULT_TARGET_COMPANIES),
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
@@ -123,5 +125,5 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  main().catch((err) => { console.error(err); process.exit(1); });
 }
