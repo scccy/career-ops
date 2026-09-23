@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# boss-extract-3cities.sh — 按 config/profile.yml boss.daily_extract_queries 多城多关键词提取
-# 关键词单一来源 = profile.yml（每城第 1 个为主关键词，其余为补充关键词），城市自动含 无锡/常州
+# boss-extract-3cities.sh — 地点×岗位词 笛卡尔积提取（2026-09-23 用户确认：统一词表全量跑每城，不做每城定制主词）
+# 单一来源 = config/profile.yml：boss.daily_extract_cities × boss.daily_extract_queries
+# 词表顺序即优先级：前 3 个为主关键词(main 轮)，其余为补充关键词(all 轮)
 #
 # 前置：BOSS Chrome 已启动（双击图标即可，自带 9222 调试端口）
 # 用法：
-#   bash boss-extract-3cities.sh            # 只跑每城主关键词（--company-limit 40 --max-cards 200）
-#   bash boss-extract-3cities.sh --all      # 主关键词 + 补充关键词（补充轮 --company-limit 30 --max-cards 120）
+#   bash boss-extract-3cities.sh            # 主关键词轮：每城前 3 词（--company-limit 40 --max-cards 200）
+#   bash boss-extract-3cities.sh --all      # 主+补充轮：每城全部词（补充轮 --company-limit 30 --max-cards 120）
 
 set -e
 cd "$(dirname "$0")"
@@ -20,14 +21,21 @@ if [ "$MODE" != "main" ] && [ "$MODE" != "all" ]; then
   echo "用法: bash boss-extract-3cities.sh [main|all]"; exit 1
 fi
 
-# 从 profile.yml 读 城市<TAB>关键词... 表（daily_extract_queries 的唯一消费方）
+# 从 profile.yml 读城市列表与统一词表
 mapfile -t ROWS < <(node -e '
 const yaml = require("js-yaml");
 const fs = require("fs");
-const q = (yaml.load(fs.readFileSync("config/profile.yml", "utf-8")) || {}).boss?.daily_extract_queries || {};
-if (!Object.keys(q).length) { console.error("config/profile.yml 缺少 boss.daily_extract_queries"); process.exit(1); }
-for (const [city, kws] of Object.entries(q)) console.log([city, ...kws].join("\t"));
+const boss = (yaml.load(fs.readFileSync("config/profile.yml", "utf-8")) || {}).boss || {};
+const cities = boss.daily_extract_cities || [];
+const queries = boss.daily_extract_queries || [];
+if (!cities.length || !queries.length) { console.error("config/profile.yml 缺少 boss.daily_extract_cities / daily_extract_queries"); process.exit(1); }
+console.log("CITIES\t" + cities.join("\t"));
+console.log("QUERIES\t" + queries.join("\t"));
 ')
+IFS=$'\t' read -r -a CITY_ARR <<< "${ROWS[0]#CITIES$'\t'}"
+IFS=$'\t' read -r -a QUERY_ARR <<< "${ROWS[1]#QUERIES$'\t'}"
+
+MAIN_COUNT=3   # 主关键词数 = 词表前 3 个
 
 city_code() {
   node -e 'import("./boss-common.mjs").then(m => console.log(m.BOSS_CITY_CODES[process.argv[1]] || ""))' "$1"
@@ -44,17 +52,17 @@ extract_one() {
   sleep 5   # 轮间隔，降低风控压力
 }
 
-for row in "${ROWS[@]}"; do
-  IFS=$'\t' read -r -a cols <<< "$row"
-  city="${cols[0]}"
+for city in "${CITY_ARR[@]}"; do
   code=$(city_code "$city")
   if [ -z "$code" ]; then echo "⚠ 未知城市 [$city]，跳过（可在 boss-common.mjs BOSS_CITY_CODES 补城市码）"; continue; fi
-  # 主关键词 = 第 1 个
-  extract_one "$city" "$code" "${cols[1]}" 40 200
-  # 补充关键词 = 第 2..N 个（仅 --all）
+  # 主轮：词表前 MAIN_COUNT 个
+  for ((i = 0; i < MAIN_COUNT && i < ${#QUERY_ARR[@]}; i++)); do
+    extract_one "$city" "$code" "${QUERY_ARR[$i]}" 40 200
+  done
+  # 补充轮：其余词（仅 --all）
   if [ "$MODE" = "all" ]; then
-    for ((i = 2; i < ${#cols[@]}; i++)); do
-      extract_one "$city" "$code" "${cols[$i]}" 30 120
+    for ((i = MAIN_COUNT; i < ${#QUERY_ARR[@]}; i++)); do
+      extract_one "$city" "$code" "${QUERY_ARR[$i]}" 30 120
     done
   fi
 done
