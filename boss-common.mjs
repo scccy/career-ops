@@ -17,6 +17,8 @@ export const BOSS_CITY_CODES = {
   杭州: '101210100',
   成都: '101270100',
   南京: '101190100',
+  无锡: '101190200',
+  常州: '101191100',
   苏州: '101190400',
   武汉: '101200100',
   西安: '101110100',
@@ -237,7 +239,8 @@ export function loadSentKeys({ date = null, sinceDate = '', lookbackDays = null,
   return keys;
 }
 
-export function loadSentCompanyKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent'] } = {}) {
+// auto_sent = 继续沟通场景下 BOSS 自动发送的默认打招呼语（真实联系已建立，计入配额与去重）
+export function loadSentCompanyKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent', 'auto_sent'] } = {}) {
   const keys = new Set();
   if (!existsSync(SENT_LOG_PATH)) return keys;
   const allowedStatuses = new Set(statuses);
@@ -265,7 +268,7 @@ export function countSentToday(date = todayIso()) {
 }
 
 export function countSentCompaniesToday(date = todayIso()) {
-  return loadSentCompanyKeys({ date, statuses: ['sent'] }).size;
+  return loadSentCompanyKeys({ date, statuses: ['sent', 'auto_sent'] }).size;
 }
 
 // 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）
@@ -274,10 +277,11 @@ export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new
   const byCity = new Map();
   if (!existsSync(SENT_LOG_PATH)) return {};
   const seen = new Set();
+  const countedStatuses = new Set(['sent', 'auto_sent']);
   for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
     if (!line.trim()) continue;
     const [sentDate, , company, , url, status] = line.split('\t');
-    if (sentDate !== date || status !== 'sent') continue;
+    if (sentDate !== date || !countedStatuses.has(status)) continue;
     const dedupeKey = url || normalizeText(company);
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);

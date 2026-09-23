@@ -107,6 +107,33 @@ async function evaluateIn(target, expression) {
   return typeof value === 'string' ? value : String(value);
 }
 
+// 真实鼠标点击（CDP Input 域，等效真人操作）：部分 BOSS 按钮对合成 .click() 无响应，
+// 页面 JS 返回 { __CDP_CLICK__: { x, y } } 坐标标记时，由 CLI 派发 mousePressed/Released
+async function realClick(target, x, y) {
+  const ws = await getWs(target);
+  await call(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
+  await new Promise((r) => setTimeout(r, 60));
+  await call(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+  await new Promise((r) => setTimeout(r, 60));
+  await call(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+}
+
+async function evaluateMaybeClick(target, expression) {
+  const raw = await evaluateIn(target, expression);
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { return raw; }
+  if (parsed && typeof parsed === 'object' && parsed.__CDP_CLICK__) {
+    const { x, y } = parsed.__CDP_CLICK__;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error(`__CDP_CLICK__ 坐标无效: ${JSON.stringify(parsed.__CDP_CLICK__)}`);
+    }
+    await realClick(target, Math.round(x), Math.round(y));
+    const { __CDP_CLICK__, ...rest } = parsed;
+    return JSON.stringify(rest);
+  }
+  return raw;
+}
+
 async function hasFocus(target) {
   try {
     return (await evaluateIn(target, 'document.hasFocus()')) === 'true';
@@ -225,7 +252,8 @@ async function main() {
   if (argv[0] === '--eval') {
     const js = argv[1];
     if (js === undefined) throw new Error('--eval 需要 JS 表达式参数');
-    const out = await cdpExecJs(js);
+    const target = await resolveTarget();
+    const out = await evaluateMaybeClick(target, js);
     if (out !== '') console.log(out);
     return;
   }
@@ -233,7 +261,7 @@ async function main() {
   process.exit(2);
 }
 
-export { assertAvailable, cdpExecJs, cdpExecJson, gotoUrl, listPages, probe, resolveTarget };
+export { assertAvailable, cdpExecJs, cdpExecJson, evaluateMaybeClick, gotoUrl, listPages, probe, realClick, resolveTarget };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then(() => {
