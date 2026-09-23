@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
-import { CANDIDATES_PATH, countUniqueCompanies, mergeJobs, parseArgs, readJson, writeJson } from './boss-common.mjs';
+import { CANDIDATES_PATH, countUniqueCompanies, isCandidatesPath, loadCandidates, mergeJobs, parseArgs, readJson, saveCandidates, writeJson } from './boss-common.mjs';
 
 const BAD_JOB = /外包|派遣|猎头|驻场|某[^\\n]{0,12}公司/;
 const NOISE = /^(首页|职位|公司|校园|海归|APP|消息|简历|搜索|热门职位|筛选|推荐|最新|登录|注册|客服|隐私政策|用户协议|反馈)$/;
@@ -237,8 +237,11 @@ async function main() {
   const text = readInput(args);
   const jobs = parseText(text, args);
   const output = args.output || CANDIDATES_PATH;
-  const finalJobs = args.append ? mergeJobs(readJson(output, []), jobs) : jobs;
-  writeJson(output, finalJobs);
+  const useDb = isCandidatesPath(output);
+  const before = useDb ? await loadCandidates() : readJson(output, []);
+  const finalJobs = args.append ? mergeJobs(before, jobs) : jobs;
+  if (useDb) await saveCandidates(finalJobs);
+  else writeJson(output, finalJobs);
   console.log(JSON.stringify({
     imported: jobs.length,
     total: finalJobs.length,

@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
-import { CANDIDATES_PATH, countUniqueCompanies, mergeJobs, parseArgs, readJson, writeJson } from './boss-common.mjs';
+import { CANDIDATES_PATH, countUniqueCompanies, isCandidatesPath, loadCandidates, mergeJobs, parseArgs, readJson, saveCandidates, writeJson } from './boss-common.mjs';
 
 const BOSS_SALARY_MAP = new Map([
   [String.fromCharCode(0xE031), '0'],
@@ -160,9 +160,11 @@ URL：https://www.zhipin.com/...
   }
 
   const output = args.output || CANDIDATES_PATH;
-  const before = readJson(output, []);
+  const useDb = isCandidatesPath(output);
+  const before = useDb ? await loadCandidates() : readJson(output, []);
   const finalJobs = args.append ? mergeJobs(before, jobs) : jobs;
-  writeJson(output, finalJobs);
+  if (useDb) await saveCandidates(finalJobs);
+  else writeJson(output, finalJobs);
   console.log(JSON.stringify({
     imported: jobs.length,
     total: finalJobs.length,
