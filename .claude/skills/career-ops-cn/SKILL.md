@@ -20,7 +20,7 @@ cd /Volumes/project/career-ops
 
 ## BOSS 通道（先读）
 
-BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + AppleScript**（仅 macOS + Chrome；需开启 视图→开发者→允许 Apple 事件中的 JavaScript）。**禁止用 Playwright 浏览器访问 BOSS**——会触发风控。extract 前置条件：用户已登录 BOSS，且 Chrome 前台活动标签停在 BOSS 搜索结果页。若页面被重置为 about:blank，说明风控介入——停止重试，让用户手动搜索后重新 extract。
+BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**（用户 Chrome 带 9222 调试端口启动）。**禁止用 Playwright 浏览器访问 BOSS**——会触发风控。**主动搜索（默认）**：`npm run boss:extract:daily[:all]`（boss-extract-3cities.sh）由脚本经 CDP 自行逐城逐词导航到搜索页并提取，前置条件仅要求 BOSS Chrome 已启动且已登录，无需用户手动停在搜索页。手动兜底（`npm run boss:chrome:extract --append`）才要求前台停在搜索结果页。若页面被重置为 about:blank，说明风控介入——停止重试，让用户手动搜索后重新 extract。
 
 ## 默认主线
 
@@ -72,7 +72,7 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + AppleSc
 
 执行任何 mode 前，读取：`AGENTS.md`（项目根）、`modes/_custom.md` 的 Boss直聘 Workflow 小节、`config/profile.yml`、`docs/CHINA_BOSS.md`（参考文档）。对应脚本：
 
-- `scan`：`npm run boss:chrome:extract -- --company-limit 30 --max-cards 120 --click-gap-ms 2200 --append`（增量必须带 `--append`）
+- `scan`（主动搜索，默认）：`npm run boss:extract:daily`（只跑每城主关键词）或 `npm run boss:extract:daily:all`（主+补充关键词，凑配额用）——脚本自行导航搜索页，无需用户停在搜索页；手动兜底：`npm run boss:chrome:extract -- --company-limit 30 --max-cards 120 --click-gap-ms 2200 --append`（用户已停在搜索页时，增量必须带 `--append`）
 - 单条岗位：`npm run boss:import:url -- "<url>" --append`；失败时让用户复制详情页文本，`npm run boss:import:detail -- --clipboard --append`
 - `score`：`npm run boss:score -- --input data/boss-candidates.json（阈值默认读 config/profile.yml boss.send_threshold，现 3.0；仅用户当次要求时才加 --threshold 覆盖）`
 - 排队：`npm run boss:fill -- --input data/boss-candidates.json --prepare`
