@@ -220,3 +220,4 @@
 | 213 | 2026-09-23 | 常州苏适智能科技 | IT 开发工程师 | 3.05/5 | Applied | ❌ | reports/boss-常州苏适智能科技-IT-开发工程师-6af42881-2026-09-23.md | BOSS Chrome 自动打招呼 |
 | 214 | 2026-09-23 | 朗涛 | 资深软件开发工程师 | 3.05/5 | Applied | ❌ | reports/boss-朗涛-资深软件开发工程师-9c179e36-2026-09-23.md | BOSS Chrome 自动打招呼 |
 | 215 | 2026-09-23 | 高校邦 | 大数据讲师 | 3.05/5 | Applied | ❌ | reports/boss-高校邦-大数据讲师-e8deaf5a-2026-09-23.md | BOSS Chrome 自动打招呼 |
+| 216 | 2026-09-23 | 袋鼠先生 | BI工程师 | 4/5 | Applied | ❌ | reports/boss-袋鼠先生-BI工程师-2dbad3b6-2026-09-23.md | BOSS Chrome 自动打招呼 |
