@@ -12,6 +12,7 @@ import {
   loadProfile,
   loadSentCompanyKeys,
   loadSentKeys,
+  markCandidatesGreeted,
   parseArgs,
   readJson,
   uniqueCompanyKey,
@@ -497,6 +498,18 @@ async function main() {
     }
   }
 
+  // 发送成功（sent/auto_sent）的岗位在职位池里打 greeted 标记
+  const greetedUrls = jobs
+    .filter((job, i) => results[i] && (results[i].status === 'sent' || results[i].status === 'auto_sent') && job.url)
+    .map((job) => job.url);
+  if (greetedUrls.length) {
+    try {
+      const marked = await markCandidatesGreeted(greetedUrls);
+      console.log(`[boss-db] 已标记 ${marked} 条 greeted`);
+    } catch (err) {
+      console.error(`[boss-db] greeted 标记失败（不影响发送结果）: ${err.message}`);
+    }
+  }
   const sentCount = results.filter((r) => r.status === 'sent').length;
   console.log(JSON.stringify({ sent: sentCount, results }, null, 2));
   printPostSendGuidance({ sentCount, dailyLimit: limit });
