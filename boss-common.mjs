@@ -387,6 +387,8 @@ CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
   title VARCHAR(255) DEFAULT '',
   salary VARCHAR(128) DEFAULT '',
   city VARCHAR(128) DEFAULT '',
+  url VARCHAR(768) DEFAULT '',
+  greeted TINYINT(1) DEFAULT 0,
   score DECIMAL(4,2) NULL,
   status VARCHAR(32) DEFAULT '',
   scanned_at DATETIME(3) NULL,
@@ -395,6 +397,7 @@ CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_city_score (city, score),
   INDEX idx_company (company),
+  INDEX idx_greeted (greeted),
   INDEX idx_scanned (scanned_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
 `;
@@ -422,6 +425,31 @@ function schemaReady() {
       // 连接串不带 database，先建库再建表（首次冷启动也能跑）
       await pool.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE=utf8mb4_0900_ai_ci`);
       await pool.query(BOSS_JOBS_DDL);
+      // 存量表列迁移：缺 url / greeted 列时补列 + 从 raw 回填（历史表升级路径）
+      const [cols] = await pool.query(
+        `SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'boss_jobs'`,
+        [DB_NAME],
+      );
+      const colNames = new Set(cols.map((c) => c.name));
+      const added = [];
+      if (!colNames.has('url')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN url VARCHAR(768) DEFAULT '' AFTER city`);
+        added.push('url');
+      }
+      if (!colNames.has('greeted')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN greeted TINYINT(1) DEFAULT 0 AFTER url`);
+        added.push('greeted');
+      }
+      if (added.length) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_greeted (greeted)`).catch(() => {});
+        await pool.query(
+          `UPDATE ${BOSS_JOBS_TABLE}
+             SET url = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw, '$.url')), ''),
+                 greeted = IF(IFNULL(JSON_EXTRACT(raw, '$.greeted'), 0) OR IFNULL(JSON_EXTRACT(raw, '$.already_contacted'), 0), 1, 0)
+           WHERE url = '' OR url IS NULL`,
+        );
+        console.error(`[boss-db] boss_jobs 补列: ${added.join(', ')}（已从 raw 回填）`);
+      }
     })().catch((err) => { _schemaReady = null; throw err; });
   }
   return _schemaReady;
@@ -436,7 +464,7 @@ export async function loadCandidates() {
   try {
     await schemaReady();
     const pool = dbPool();
-    const [rows] = await pool.query(`SELECT raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    const [rows] = await pool.query(`SELECT url, greeted, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
     if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
       // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
       const legacy = readJson(CANDIDATES_PATH, []);
@@ -446,7 +474,13 @@ export async function loadCandidates() {
         return legacy;
       }
     }
-    return rows.map((r) => parseRawRow(r.raw));
+    // url / greeted 独立列是权威字段：读取时覆盖回 raw 对象
+    return rows.map((r) => {
+      const job = parseRawRow(r.raw);
+      if (r.url) job.url = r.url;
+      job.greeted = Boolean(r.greeted);
+      return job;
+    });
   } finally {
     scheduleIdleClose();
   }
@@ -461,6 +495,8 @@ function jobRow(job) {
     String(job.title || '').slice(0, 250),
     String(job.salary || '').slice(0, 120),
     String(job.city || '').slice(0, 120),
+    String(job.url || '').slice(0, 760),
+    job.greeted ? 1 : 0,
     job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
     String(job.status || '').slice(0, 30),
     scanned && !Number.isNaN(scanned.getTime()) ? scanned : null,
@@ -482,7 +518,7 @@ export async function saveCandidates(jobs) {
       if (list.length) {
         const values = list.map(jobRow);
         await conn.query(
-          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, score, status, scanned_at, raw) VALUES ?`,
+          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, score, status, scanned_at, raw) VALUES ?`,
           [values],
         );
       }
@@ -506,4 +542,25 @@ export async function mergeIntoCandidates(incomingJobs) {
   const merged = mergeJobs(existing, incomingJobs);
   await saveCandidates(merged);
   return merged;
+}
+
+// 打招呼成功后打标：greeted 列置 1，同时同步进 raw，保证 JSON 备份镜像一致
+export async function markCandidatesGreeted(urls) {
+  const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
+  if (!list.length) return 0;
+  cancelIdleClose();
+  try {
+    await schemaReady();
+    const pool = dbPool();
+    const [res] = await pool.query(
+      `UPDATE ${BOSS_JOBS_TABLE}
+          SET greeted = 1,
+              raw = JSON_SET(raw, '$.greeted', CAST('true' AS JSON))
+        WHERE url IN (?)`,
+      [list],
+    );
+    return res.affectedRows;
+  } finally {
+    scheduleIdleClose();
+  }
 }
