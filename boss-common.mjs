@@ -489,12 +489,14 @@ export async function loadCandidates() {
 function jobRow(job) {
   const scanned = job.scanned_at ? new Date(job.scanned_at) : null;
   const scoreNum = Number(job.score);
+  // city 列存城市前缀（"杭州·滨江区·长河" → "杭州"）方便精确搜索；raw 里保留完整串
+  const cityPrefix = String(job.city || job.location || '').split('·')[0].slice(0, 120);
   return [
     candidateKeyHash(job),
     String(job.company || '').slice(0, 190),
     String(job.title || '').slice(0, 250),
     String(job.salary || '').slice(0, 120),
-    String(job.city || '').slice(0, 120),
+    cityPrefix,
     String(job.url || '').slice(0, 760),
     job.greeted ? 1 : 0,
     job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
