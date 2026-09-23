@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# boss-extract-3cities.sh — 三城各补 10 家公司提取（2026-09-22 用户要求）
-# 上海×大数据开发 / 杭州×数仓 / 南京×数据开发，完成后自动评分+强制过滤
+# boss-extract-3cities.sh — 按 config/profile.yml boss.daily_extract_queries 多城多关键词提取
+# 关键词单一来源 = profile.yml（每城第 1 个为主关键词，其余为补充关键词），城市自动含 无锡/常州
 #
 # 前置：BOSS Chrome 已启动（双击图标即可，自带 9222 调试端口）
-# 用法：bash boss-extract-3cities.sh
+# 用法：
+#   bash boss-extract-3cities.sh            # 只跑每城主关键词（--company-limit 40 --max-cards 200）
+#   bash boss-extract-3cities.sh --all      # 主关键词 + 补充关键词（补充轮 --company-limit 30 --max-cards 120）
 
 set -e
 cd "$(dirname "$0")"
@@ -13,23 +15,53 @@ if ! curl -s --max-time 3 http://127.0.0.1:9222/json/version >/dev/null 2>&1; th
   exit 1
 fi
 
-extract_city() {
-  local name="$1" code="$2" query_enc="$3"
-  echo ""
-  echo "=== [$name] 提取中（query=$query_enc, city=$code）==="
-  node boss-cdp.mjs --goto "https://www.zhipin.com/web/geek/jobs?query=${query_enc}&city=${code}"
-  sleep 3
-  npm run boss:chrome:extract -- --company-limit 10 --max-cards 60 --click-gap-ms 1800 --append
-  sleep 5   # 城市间隔，降低风控压力
+MODE="${1:-main}"   # main | all
+if [ "$MODE" != "main" ] && [ "$MODE" != "all" ]; then
+  echo "用法: bash boss-extract-3cities.sh [main|all]"; exit 1
+fi
+
+# 从 profile.yml 读 城市<TAB>关键词... 表（daily_extract_queries 的唯一消费方）
+mapfile -t ROWS < <(node -e '
+const yaml = require("js-yaml");
+const fs = require("fs");
+const q = (yaml.load(fs.readFileSync("config/profile.yml", "utf-8")) || {}).boss?.daily_extract_queries || {};
+if (!Object.keys(q).length) { console.error("config/profile.yml 缺少 boss.daily_extract_queries"); process.exit(1); }
+for (const [city, kws] of Object.entries(q)) console.log([city, ...kws].join("\t"));
+')
+
+city_code() {
+  node -e 'import("./boss-common.mjs").then(m => console.log(m.BOSS_CITY_CODES[process.argv[1]] || ""))' "$1"
 }
 
-extract_city "上海" "101020100" "%E5%A4%A7%E6%95%B0%E6%8D%AE%E5%BC%80%E5%8F%91"   # 大数据开发
-extract_city "杭州" "101210100" "%E6%95%B0%E4%BB%93"                              # 数仓
-extract_city "南京" "101190100" "%E6%95%B0%E6%8D%AE%E5%BC%80%E5%8F%91"            # 数据开发
+extract_one() {
+  local name="$1" code="$2" query="$3" company_limit="$4" max_cards="$5"
+  local enc; enc=$(node -e 'console.log(encodeURIComponent(process.argv[1]))' "$query")
+  echo ""
+  echo "=== [$name] 提取中（query=$query, city=$code, company-limit=$company_limit）==="
+  node boss-cdp.mjs --goto "https://www.zhipin.com/web/geek/jobs?query=${enc}&city=${code}"
+  sleep 3
+  npm run boss:chrome:extract -- --company-limit "$company_limit" --max-cards "$max_cards" --click-gap-ms 1800 --append
+  sleep 5   # 轮间隔，降低风控压力
+}
+
+for row in "${ROWS[@]}"; do
+  IFS=$'\t' read -r -a cols <<< "$row"
+  city="${cols[0]}"
+  code=$(city_code "$city")
+  if [ -z "$code" ]; then echo "⚠ 未知城市 [$city]，跳过（可在 boss-common.mjs BOSS_CITY_CODES 补城市码）"; continue; fi
+  # 主关键词 = 第 1 个
+  extract_one "$city" "$code" "${cols[1]}" 40 200
+  # 补充关键词 = 第 2..N 个（仅 --all）
+  if [ "$MODE" = "all" ]; then
+    for ((i = 2; i < ${#cols[@]}; i++)); do
+      extract_one "$city" "$code" "${cols[$i]}" 30 120
+    done
+  fi
+done
 
 echo ""
 echo "=== 提取完成，评分 + 强制过滤（校招/实习/外包/已发送）==="
-npm run boss:score -- --input data/boss-candidates.json --threshold 4.0
+npm run boss:score -- --input data/boss-candidates.json
 node boss-filter-queue.mjs
 echo ""
 echo "=== 完成。下一步：npm run boss:review 生成确认清单，人工确认后才可发送 ==="
