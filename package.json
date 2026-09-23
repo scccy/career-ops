@@ -17,6 +17,7 @@
     "boss:extract:daily": "bash boss-extract-3cities.sh",
     "boss:extract:daily:all": "bash boss-extract-3cities.sh --all",
     "boss:chrome:apply": "node boss-chrome-apply.mjs",
+    "boss:send:one": "node boss-chrome-apply.mjs",
     "boss:scan": "node boss-scan.mjs",
     "boss:scan:manual": "node boss-scan.mjs --manual",
     "boss:score": "node boss-score.mjs",

@@ -459,12 +459,21 @@ function parseRawRow(raw) {
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
+// 行 → 岗位对象：url / greeted / key_hash 独立列是权威字段，覆盖回 raw 对象
+function mapJobRow(r) {
+  const job = parseRawRow(r.raw);
+  if (r.url) job.url = r.url;
+  job.greeted = Boolean(r.greeted);
+  if (r.key_hash) job.key_hash = r.key_hash;
+  return job;
+}
+
 export async function loadCandidates() {
   cancelIdleClose();
   try {
     await schemaReady();
     const pool = dbPool();
-    const [rows] = await pool.query(`SELECT url, greeted, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    const [rows] = await pool.query(`SELECT key_hash, url, greeted, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
     if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
       // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
       const legacy = readJson(CANDIDATES_PATH, []);
@@ -475,12 +484,7 @@ export async function loadCandidates() {
       }
     }
     // url / greeted 独立列是权威字段：读取时覆盖回 raw 对象
-    return rows.map((r) => {
-      const job = parseRawRow(r.raw);
-      if (r.url) job.url = r.url;
-      job.greeted = Boolean(r.greeted);
-      return job;
-    });
+    return rows.map(mapJobRow);
   } finally {
     scheduleIdleClose();
   }
@@ -565,4 +569,30 @@ export async function markCandidatesGreeted(urls) {
   } finally {
     scheduleIdleClose();
   }
+}
+
+// 按 key_hash 批量取岗位（单发/点名模式入口，支持一个或多个）
+export async function loadCandidatesByKeyHashes(keyHashes) {
+  const list = (Array.isArray(keyHashes) ? keyHashes : String(keyHashes || '').split(/[,\s]+/))
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  if (!list.length) return [];
+  cancelIdleClose();
+  try {
+    await schemaReady();
+    const pool = dbPool();
+    const [rows] = await pool.query(
+      `SELECT key_hash, url, greeted, raw FROM ${BOSS_JOBS_TABLE} WHERE key_hash IN (?)`,
+      [list],
+    );
+    return rows.map(mapJobRow);
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+// 单个 key_hash 便捷封装（未命中返回 null）
+export async function loadCandidateByKeyHash(keyHash) {
+  const jobs = await loadCandidatesByKeyHashes([keyHash]);
+  return jobs[0] || null;
 }

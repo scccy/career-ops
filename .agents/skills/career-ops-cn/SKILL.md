@@ -77,6 +77,7 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 - `score`：`npm run boss:score -- --input data/boss-candidates.json（阈值默认读 config/profile.yml boss.send_threshold，现 3.0；仅用户当次要求时才加 --threshold 覆盖）`
 - 排队：`npm run boss:fill -- --input data/boss-candidates.json --prepare`
 - `apply`：先 `npm run boss:chrome:apply -- --threshold 3.0 --daily-limit 60 --dry-run（阈值/城市配额默认读 profile.yml：send_threshold 3.0、daily_limit_per_city 沪/宁/锡/常 各20、杭 40（2026-09-23 用户确认杭州再补20））`，确认后再 `--confirmed-review`
+- 点名单发：`npm run boss:send:one -- --key-hash <h1[,h2,...]> --dry-run`（按 boss_jobs.key_hash 直取 MySQL，支持多个，绕过配额/去重；greeted=1 拒绝重发需 --force-greeted）→ 用户确认后加 `--confirmed-review`；key_hash 用 SQL 查（city/greeted/score 组合筛选），详见 modes/_custom.md
 - 合并：发送/导入批次后 `node merge-tracker.mjs`
 - `deep`：读 `modes/deep.md`；天眼查优先 MCP，鉴权失败立即降级本机 `tyc-cli`；用户未授权时只用官网/新闻/BOSS JD
 

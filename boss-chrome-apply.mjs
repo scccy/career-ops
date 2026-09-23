@@ -12,6 +12,7 @@ import {
   loadProfile,
   loadSentCompanyKeys,
   loadSentKeys,
+  loadCandidatesByKeyHashes,
   markCandidatesGreeted,
   parseArgs,
   readJson,
@@ -413,33 +414,83 @@ JSON.stringify((() => {
 async function main() {
   const args = parseArgs();
   if (args.help) {
-    console.log('Usage: node boss-chrome-apply.mjs --threshold 4.0 --daily-limit 20 --confirmed-review [--dry-run]');
+    console.log('Usage: node boss-chrome-apply.mjs [--key-hash <h1,h2,...> | --threshold 3.0 --daily-limit 20] --confirmed-review [--dry-run]');
     return;
   }
   if (!args['dry-run'] && !args['confirmed-review']) {
-    throw new Error('真实发送前必须先向用户展示 data/boss-review.md 的前 20 家确认清单，并在用户明确确认后加 --confirmed-review。');
+    throw new Error('真实发送前必须先向用户展示岗位清单/打招呼文案，并在用户明确确认后加 --confirmed-review。');
   }
 
   const profile = loadProfile();
-  const queue = readJson(args.input || QUEUE_PATH, []);
   const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const cityLimits = profile?.boss?.daily_limit_per_city || null;
   const limitIsExplicit = args['daily-limit'] != null;
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
-  // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市
-  const urlCity = new Map(
-    cityLimits ? (await loadCandidates()).map((job) => [job.url, job.city || '']) : [],
-  );
-  const selection = candidatesFromQueue(queue, {
-    threshold,
-    limit,
-    limitIsExplicit,
-    cityLimits,
-    urlCity,
-  });
-  const { jobs, sentToday, remainingToday } = selection;
+
+  let jobs = [];
+  let sentToday = 0;
+  let remainingToday = 0;
+  let selection = null;
+
+  if (args['key-hash']) {
+    // 点名单发模式：--key-hash 直取 MySQL 岗位（支持逗号/空格分隔多个），绕过队列/城市配额/30天去重
+    const hashes = String(args['key-hash'] === true ? '' : args['key-hash']).split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+    if (!hashes.length) throw new Error('--key-hash 需要至少一个 key_hash 值（多个用逗号分隔）');
+    const found = await loadCandidatesByKeyHashes(hashes);
+    const missing = hashes.filter((h) => !found.some((job) => job.key_hash === h));
+    if (missing.length) throw new Error(`key_hash 未命中 ${missing.length} 个: ${missing.join(', ')}`);
+    const greetedJobs = found.filter((job) => job.greeted);
+    if (greetedJobs.length && !args['force-greeted']) {
+      throw new Error(
+        `以下 ${greetedJobs.length} 个岗位已打过招呼（greeted=1），确认重发请加 --force-greeted:\n` +
+        greetedJobs.map((j) => `- ${j.company} - ${j.title}`).join('\n'),
+      );
+    }
+    const noGreeting = found.filter((job) => !String(job.greeting || '').trim());
+    if (noGreeting.length) {
+      throw new Error(`以下岗位无 greeting 文案，先跑 npm run boss:score 生成:\n` +
+        noGreeting.map((j) => `- ${j.company} - ${j.title}`).join('\n'));
+    }
+    jobs = found;
+  } else {
+    const queue = readJson(args.input || QUEUE_PATH, []);
+    // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市
+    const urlCity = new Map(
+      cityLimits ? (await loadCandidates()).map((job) => [job.url, job.city || '']) : [],
+    );
+    selection = candidatesFromQueue(queue, {
+      threshold,
+      limit,
+      limitIsExplicit,
+      cityLimits,
+      urlCity,
+    });
+    jobs = selection.jobs;
+    sentToday = selection.sentToday;
+    remainingToday = selection.remainingToday;
+  }
 
   if (args['dry-run']) {
+    if (args['key-hash']) {
+      console.log(JSON.stringify({
+        dryRun: true,
+        singleMode: true,
+        keyHash: args['key-hash'],
+        total: jobs.length,
+        willSend: jobs.map((job) => ({
+          keyHash: job.key_hash,
+          company: job.company,
+          title: job.title,
+          salary: job.salary,
+          city: job.city,
+          score: job.score,
+          url: job.url,
+          greeted: Boolean(job.greeted),
+          greeting: job.greeting,
+        })),
+      }, null, 2));
+      return;
+    }
     console.log(JSON.stringify({
       dryRun: true,
       threshold,
@@ -512,7 +563,7 @@ async function main() {
   }
   const sentCount = results.filter((r) => r.status === 'sent').length;
   console.log(JSON.stringify({ sent: sentCount, results }, null, 2));
-  printPostSendGuidance({ sentCount, dailyLimit: limit });
+  printPostSendGuidance({ sentCount, dailyLimit: args['key-hash'] ? jobs.length : limit });
   if (sentCount > 0) console.log('📤 追踪表新增已写入 batch/tracker-additions/，运行 node merge-tracker.mjs 合并进 data/applications.md');
 }
 
