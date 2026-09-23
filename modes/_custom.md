@@ -68,7 +68,7 @@ Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + AppleScrip
 ### 日常标准（2026-09-23 用户确认）
 
 - **评分阈值 3.0**：`config/profile.yml` `boss.send_threshold` 是唯一阈值来源，boss-score / boss-fill / boss-chrome-apply 默认全部跟随；仅当用户当次明确要求时才用 `--threshold` 临时覆盖。
-- **每日标准提取关键词（`boss.daily_extract_queries`）**：每城 6 个查询——主关键词（上海×大数据开发、杭州×数仓、南京×数据开发、无锡/常州×大数据开发）+ 补充关键词（ETL / 数据工程师 / BI，用户确认均计入配额；必须用宽词 `BI` 而非 `BI开发`，否则会漏掉标题为"BI工程师"的数仓岗，如袋鼠先生）。执行方式：`bash boss-extract-3cities.sh [main|all]`——脚本是 `daily_extract_queries` 的唯一消费方，关键词改配置即生效、勿在脚本里硬编码；主关键词先跑一轮（`--company-limit 40 --max-cards 200`），`--all` 再跑补充关键词（`--company-limit 30 --max-cards 120`），每轮 `--append` 增量、轮间 `sleep 5` 降风控压力。
+- **每日标准提取关键词（`boss.daily_extract_queries`，2026-09-23 用户确认改为地点×岗位词笛卡尔积）**：统一词表 × 城市列表（`boss.daily_extract_cities`）全量组合，**不做每城定制主词**。词表 7 个——主关键词前 3（大数据开发/数仓/数据开发）+ 补充（数据仓库/ETL/数据工程师/BI，用户确认均计入配额；必须用宽词 `BI` 而非 `BI开发`，否则漏掉标题为"BI工程师"的数仓岗如袋鼠先生；"数仓"与"数据仓库"标题互不为子串、两者都要有）。执行方式：`bash boss-extract-3cities.sh [main|all]`——脚本是 cities×queries 的唯一消费方，改配置即生效、勿在脚本里硬编码；主轮每城 3 词（`--company-limit 40 --max-cards 200`），`--all` 再跑补充 4 词（`--company-limit 30 --max-cards 120`），每轮 `--append` 增量、轮间 `sleep 5` 降风控压力。
 - **每城每日配额**：`boss.daily_limit_per_city`（2026-09-23 起五城各 20：上海/杭州/南京/无锡/常州），城市缺口按 score 降序自动补齐；补发批次前先从队列剔除 `closed`/`failed` 公司（apply 的当日去重只算 sent，不剔除会反复重选同一批死岗位）。⚠️ 配额表之外的城市不会被 apply 排除——若本次只投部分城市，必须用只含目标城市岗位的临时队列（`--input data/boss-queue-<城市>.json`），否则其他城市的岗位会混入。
 - **质量红线**：标注「非开发岗，建议跳过」的岗位（产品/运营/测试/纯运维）即使凑不满配额也不发；补关键词（BI/数据工程师）只放宽岗位类型边界，不放宽跳过清单。
 
