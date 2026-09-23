@@ -63,7 +63,7 @@
 
 Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + AppleScript（仅 macOS + Chrome；需开启 视图→开发者→允许 Apple 事件中的 JavaScript）。不要用 Playwright 浏览器去访问 BOSS——会触发风控。
 
-流程：`npm run boss:chrome:extract`（用户已登录并打开搜索结果页；`--append` 增量）→ `npm run boss:score`（默认阈值读 `config/profile.yml` `boss.send_threshold`，现为 3.0）→ `npm run boss:fill -- --prepare`（每日城市配额 + 30 天公司去重）→ `npm run boss:review`（必须向用户展示清单并获得明确确认）→ `npm run boss:chrome:apply --dry-run` → `npm run boss:chrome:apply -- --confirmed-review`（真实发送）。
+流程：**主动搜索** `npm run boss:extract:daily[:all]`（仅需 BOSS Chrome 已启动并登录；脚本经 CDP 自行逐城逐词导航搜索页提取，关键词读 `boss.daily_extract_queries`，手动兜底 `npm run boss:chrome:extract --append` 需用户停在搜索页）→ `npm run boss:score`（默认阈值读 `config/profile.yml` `boss.send_threshold`，现为 3.0）→ `npm run boss:fill -- --prepare`（每日城市配额 + 30 天公司去重）→ `npm run boss:review`（必须向用户展示清单并获得明确确认）→ `npm run boss:chrome:apply --dry-run` → `npm run boss:chrome:apply -- --confirmed-review`（真实发送）。
 
 ### 日常标准（2026-09-23 用户确认）
 

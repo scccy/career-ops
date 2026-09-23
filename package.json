@@ -14,6 +14,8 @@
     "boss:import:detail": "node boss-import-detail.mjs",
     "boss:import:url": "node boss-import-url.mjs",
     "boss:chrome:extract": "node boss-chrome-extract.mjs",
+    "boss:extract:daily": "bash boss-extract-3cities.sh",
+    "boss:extract:daily:all": "bash boss-extract-3cities.sh --all",
     "boss:chrome:apply": "node boss-chrome-apply.mjs",
     "boss:scan": "node boss-scan.mjs",
     "boss:scan:manual": "node boss-scan.mjs --manual",
