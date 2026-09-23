@@ -63,7 +63,14 @@
 
 Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + AppleScript（仅 macOS + Chrome；需开启 视图→开发者→允许 Apple 事件中的 JavaScript）。不要用 Playwright 浏览器去访问 BOSS——会触发风控。
 
-流程：`npm run boss:chrome:extract`（用户已登录并打开搜索结果页；`--append` 增量）→ `npm run boss:score -- --threshold 4.0` → `npm run boss:fill -- --prepare`（每日 20 家企业配额 + 30 天公司去重）→ `npm run boss:review`（必须向用户展示前 20 家清单并获得明确确认）→ `npm run boss:chrome:apply --dry-run` → `npm run boss:chrome:apply -- --confirmed-review`（真实发送）。
+流程：`npm run boss:chrome:extract`（用户已登录并打开搜索结果页；`--append` 增量）→ `npm run boss:score`（默认阈值读 `config/profile.yml` `boss.send_threshold`，现为 3.0）→ `npm run boss:fill -- --prepare`（每日城市配额 + 30 天公司去重）→ `npm run boss:review`（必须向用户展示清单并获得明确确认）→ `npm run boss:chrome:apply --dry-run` → `npm run boss:chrome:apply -- --confirmed-review`（真实发送）。
+
+### 日常标准（2026-09-23 用户确认）
+
+- **评分阈值 3.0**：`config/profile.yml` `boss.send_threshold` 是唯一阈值来源，boss-score / boss-fill / boss-chrome-apply 默认全部跟随；仅当用户当次明确要求时才用 `--threshold` 临时覆盖。
+- **每日标准提取关键词（`boss.daily_extract_queries`）**：每城 6 个查询——主关键词（上海×大数据开发、杭州×数仓、南京×数据开发）+ 补充关键词（ETL / 数据工程师 / BI开发，用户确认均计入配额）。执行方式：主关键词先跑一轮（`--company-limit 40 --max-cards 200`），若三城未凑满配额再跑补充关键词（`--company-limit 30 --max-cards 120`），每轮 `--append` 增量、轮间 `sleep 4-5` 降风控压力。
+- **每城每日配额**：`boss.daily_limit_per_city`（2026-09-23 起五城各 20：上海/杭州/南京/无锡/常州），城市缺口按 score 降序自动补齐；补发批次前先从队列剔除 `closed`/`failed` 公司（apply 的当日去重只算 sent，不剔除会反复重选同一批死岗位）。⚠️ 配额表之外的城市不会被 apply 排除——若本次只投部分城市，必须用只含目标城市岗位的临时队列（`--input data/boss-queue-<城市>.json`），否则其他城市的岗位会混入。
+- **质量红线**：标注「非开发岗，建议跳过」的岗位（产品/运营/测试/纯运维）即使凑不满配额也不发；补关键词（BI/数据工程师）只放宽岗位类型边界，不放宽跳过清单。
 
 规则：
 - 每轮发送/导入批次后运行 `node merge-tracker.mjs`——发送记录以 TSV 写入 `batch/tracker-additions/`（状态 Applied），绝不直接写 `data/applications.md`。
