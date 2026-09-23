@@ -16,6 +16,8 @@ import {
   readJson,
   uniqueCompanyKey,
   uniqueJobKey,
+  isCandidatesPath,
+  loadCandidates,
 } from './boss-common.mjs';
 
 const RECENT_COMPANY_DEDUPE_DAYS = 30;
@@ -425,7 +427,7 @@ async function main() {
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
   // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市
   const urlCity = new Map(
-    cityLimits ? readJson(CANDIDATES_PATH, []).map((job) => [job.url, job.city || '']) : [],
+    cityLimits ? (await loadCandidates()).map((job) => [job.url, job.city || '']) : [],
   );
   const selection = candidatesFromQueue(queue, {
     threshold,

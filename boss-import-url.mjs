@@ -9,6 +9,9 @@ import {
   parseArgs,
   readJson,
   writeJson,
+  isCandidatesPath,
+  loadCandidates,
+  saveCandidates,
 } from './boss-common.mjs';
 
 const BOSS_SALARY_MAP = new Map([
@@ -154,9 +157,13 @@ node boss-import-url.mjs --url "https://www.zhipin.com/job_detail/..." --cookies
       throw new Error(`${job.jd_detail.reason}。请确认已登录 BOSS，或打开链接后复制完整页面文本，用 npm run boss:import:detail 导入。`);
     }
 
-    const before = readJson(output, []);
+    const useDb = isCandidatesPath(output);
+    const before = useDb ? await loadCandidates() : readJson(output, []);
     const finalJobs = args.append === false || args.replace ? [job] : mergeJobs(before, [job]);
-    if (!args['dry-run']) writeJson(output, finalJobs);
+    if (!args['dry-run']) {
+      if (useDb) await saveCandidates(finalJobs);
+      else writeJson(output, finalJobs);
+    }
 
     console.log(JSON.stringify({
       imported: 1,

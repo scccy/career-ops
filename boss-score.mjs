@@ -18,6 +18,8 @@ import {
   uniqueJobKey,
   writeJson,
   readJson,
+  isCandidatesPath,
+  loadCandidates,
 } from './boss-common.mjs';
 
 const RISK_KEYWORDS = [
@@ -369,7 +371,7 @@ function writeReport(job) {
   return path;
 }
 
-function main() {
+async function main() {
   const args = parseArgs();
   const input = args.input || CANDIDATES_PATH;
   const allowUnconfirmed = Boolean(args['allow-unconfirmed']);
@@ -400,13 +402,13 @@ function main() {
     console.log('boss-score self-test OK');
     return;
   }
-  if (!existsSync(input)) throw new Error(`input not found: ${input}`);
+  if (!isCandidatesPath(input) && !existsSync(input)) throw new Error(`input not found: ${input}`);
   const profile = loadProfile({ allowUnconfirmed });
   // 2026-09-23 用户确认：日常评分阈值标准 3.0，统一由 config/profile.yml boss.send_threshold 控制（--threshold 参数可临时覆盖）
   const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const jobs = readJson(input, []);
+  const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
     if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
@@ -437,5 +439,5 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  main().catch((err) => { console.error(err); process.exit(1); });
 }

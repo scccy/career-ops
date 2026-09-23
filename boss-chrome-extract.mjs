@@ -11,6 +11,10 @@ import {
   uniqueCompanyKey,
   uniqueCandidateKey,
   writeJson,
+  isCandidatesPath,
+  loadCandidates,
+  mergeIntoCandidates,
+  saveCandidates,
 } from './boss-common.mjs';
 
 const BASE_URL = 'https://www.zhipin.com';
@@ -222,8 +226,16 @@ async function main() {
   const clickGapMs = Number(args['click-gap-ms'] || 1400);
   const output = args.output || CANDIDATES_PATH;
   const { jobs, scannedCards } = await extractJobs({ targetCompanies: companyLimit, maxCards, clickGapMs });
-  const finalJobs = args.append ? mergeJobs(readJson(output, []), jobs) : jobs;
-  if (!args['dry-run']) writeJson(output, finalJobs);
+  let finalJobs;
+  if (isCandidatesPath(output)) {
+    // 职位池走 MySQL（2026-09-23 用户确认）：dry-run 只读不写；append 库内合并，非 append 整池重写；saveCandidates 落 JSON 备份镜像
+    finalJobs = args['dry-run']
+      ? (args.append ? mergeJobs(await loadCandidates(), jobs) : jobs)
+      : (args.append ? await mergeIntoCandidates(jobs) : await saveCandidates(jobs));
+  } else {
+    finalJobs = args.append ? mergeJobs(readJson(output, []), jobs) : jobs;
+    if (!args['dry-run']) writeJson(output, finalJobs);
+  }
 
   console.log(JSON.stringify({
     extracted: jobs.length,
