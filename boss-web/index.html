@@ -575,8 +575,10 @@ async function saveQuota(){
 }
 
 // 删除城市：从当前表格收集除该城外的配额/关键词，整表覆盖写回（对称删除）
+// 删除城市：从当前表格收集除该城外的配额/关键词，整表覆盖写回（对称删除），
+// 并清掉该城在池中的遗留岗位（已抓取数据一并移除，重新添加城市后可再扫描）
 async function delCity(city){
-  if(!confirm(`确定从控制台移除城市「${city}」吗？\n\n将删除该城的每日配额与关键词配置；\n已抓取的岗位数据保留在候选池中不受影响。`)) return;
+  if(!confirm(`确定从控制台移除城市「${city}」吗？\n\n将删除该城的每日配额与关键词配置，\n并清空池中该城的岗位数据（不可恢复，重新添加城市后可再扫描）。`)) return;
   const limits={};
   document.querySelectorAll('.qlimit').forEach(i=>{ if(i.dataset.city!==city) limits[i.dataset.city]=Number(i.value); });
   if(!Object.keys(limits).length){ alert('至少保留一个城市'); return; }
@@ -586,7 +588,13 @@ async function delCity(city){
     const v=i.value.trim();
     if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
   });
-  if(await postConfig(limits, kwByCity)) loadOverview();
+  if(!(await postConfig(limits, kwByCity))) return;
+  try{
+    const r=await postJson('/api/city/purge',{city});
+    const d=await r.json();
+    if(d.ok) console.log(`[city] 已清除 ${city} 池中岗位 ${d.deleted} 条`);
+  }catch(e){ /* 清理失败不阻断流程 */ }
+  loadOverview();
 }
 
 function addCity(){
