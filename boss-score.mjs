@@ -20,6 +20,7 @@ import {
   readJson,
   isCandidatesPath,
   loadCandidates,
+  persistJobScores,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 
@@ -415,12 +416,24 @@ async function main() {
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
+    // 评分规则的原始判定（发送日志 30 天去重覆盖前）——决定是否回写数据库
+    result.db_eligible = Boolean(result.eligible);
     if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
     if (recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
     if (result.score < threshold) result.eligible = false;
     if (!args['dry-run']) result.report = writeReport(result);
     return result;
   });
+  // 评分结果回写数据库：此前只写队列文件，boss_jobs.score 恒为 NULL，
+  // 「发新扫/发送」按 score>=阈值 从库里筛就看不到新扫描岗位
+  if (isCandidatesPath(input) && !args['dry-run']) {
+    try {
+      const updated = await persistJobScores(scored);
+      console.log(`[boss-db] 评分已回写 boss_jobs：${updated} 条（其中可发送 ${scored.filter((j) => j.db_eligible).length} 条）`);
+    } catch (err) {
+      console.error(`[boss-db] 评分回写失败（不影响队列输出）: ${err.message}`);
+    }
+  }
   const seen = new Set();
   const queue = scored
     .filter((job) => job.eligible)
