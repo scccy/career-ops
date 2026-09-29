@@ -18,6 +18,7 @@ import {
   readJson,
   uniqueCompanyKey,
   uniqueJobKey,
+  urlPathname,
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
@@ -302,13 +303,13 @@ function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false,
   };
 }
 
-function printPostSendGuidance({ sentCount, dailyLimit }) {
+function printPostSendGuidance({ sentCount, quotaLine }) {
   if (sentCount <= 0) return;
   console.log('');
   console.log(`已投递成功：本轮已向 ${sentCount} 家公司发送 BOSS 打招呼。`);
   console.log(`如果对方要求发送简历，或者你自己投递的公司要求发送简历，请把公司名称或 BOSS 直聘岗位链接发给我。`);
   console.log(`我会根据该岗位 JD 和你的原始简历，定制一版匹配该岗位的 cv.md 和中文 PDF 简历；只优化表达和重点，不编造经历、技能、证书或薪资。`);
-  console.log(`今日发送上限：${dailyLimit} 家。`);
+  console.log(quotaLine || '本轮发送完成。');
 }
 
 async function sendOne(job, { gapMs = 1200 } = {}) {
@@ -458,9 +459,11 @@ async function main() {
     jobs = found;
   } else {
     const queue = readJson(args.input || QUEUE_PATH, []);
-    // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市
+    // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市。
+    // 键用 pathname（job_detail/<id>.html）——securityId 每次扫描都变，
+    // 完整 URL 匹配会让重扫后历史发送记录对不上城市、配额扣减失灵。
     const urlCity = new Map(
-      cityLimits ? (await loadCandidates()).map((job) => [job.url, job.city || '']) : [],
+      cityLimits ? (await loadCandidates()).map((job) => [urlPathname(job.url), job.city || '']) : [],
     );
     selection = candidatesFromQueue(queue, {
       threshold,
@@ -567,7 +570,17 @@ async function main() {
   }
   const sentCount = results.filter((r) => r.status === 'sent').length;
   console.log(JSON.stringify({ sent: sentCount, results }, null, 2));
-  printPostSendGuidance({ sentCount, dailyLimit: args['key-hash'] ? jobs.length : limit });
+  // 打印真实生效的城市配额（已发/上限），而不是误导性的全局兜底值
+  let quotaLine = '';
+  if (cityLimits) {
+    const sentByCity = countSentCompaniesTodayByCity({ urlCity });
+    quotaLine = '今日各城配额（已发/上限）：' + Object.entries(cityLimits)
+      .map(([city, cap]) => `${city} ${sentByCity[city] || 0}/${Number(cap)}`)
+      .join('，');
+  } else {
+    quotaLine = `今日发送上限：${limit} 家。`;
+  }
+  printPostSendGuidance({ sentCount, quotaLine });
   if (sentCount > 0) console.log('📤 追踪表新增已写入 batch/tracker-additions/，运行 node merge-tracker.mjs 合并进 data/applications.md');
 }
 

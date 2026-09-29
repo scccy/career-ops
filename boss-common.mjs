@@ -279,6 +279,15 @@ export function countSentCompaniesToday(date = todayIso()) {
 
 // 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）
 // 城市由发送记录 URL 反查候选池得到（发送日志本身无城市列）；无法匹配的 URL 归入"未知"。
+// URL 指纹：只取 pathname（job_detail/<id>.html），剥掉 query。
+// BOSS 每次扫描同一岗位都换新 securityId，若用完整 URL 匹配，重扫后
+// 发送日志里的历史 URL 就对不上池子，按城配额扣减会失灵（#2026-09-29）。
+export function urlPathname(url) {
+  const s = String(url || '');
+  if (!s) return '';
+  try { return new URL(s).pathname; } catch { return s; }
+}
+
 export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new Map() } = {}) {
   const byCity = new Map();
   if (!existsSync(SENT_LOG_PATH)) return {};
@@ -288,10 +297,11 @@ export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new
     if (!line.trim()) continue;
     const [sentDate, , company, , url, status] = line.split('\t');
     if (sentDate !== date || !countedStatuses.has(status)) continue;
-    const dedupeKey = url || normalizeText(company);
+    const path = urlPathname(url);
+    const dedupeKey = path || normalizeText(company);
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    const city = String(urlCity.get(url) || '').split('·')[0] || '未知';
+    const city = String(urlCity.get(path) || '').split('·')[0] || '未知';
     if (!byCity.has(city)) byCity.set(city, new Set());
     byCity.get(city).add(normalizeText(company));
   }
