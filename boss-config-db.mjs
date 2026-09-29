@@ -34,8 +34,9 @@ const FALLBACK = {
   daily_limit_per_city: { 上海: 20, 杭州: 40, 南京: 20, 无锡: 20, 常州: 20 },
   daily_extract_queries: [],
   daily_extract_keywords_by_city: {},
-  // BOSS 平台级每日沟通上限（与城市配额无关，全城合计）
-  platform_daily_limit: 150,
+  // BOSS 平台级每日沟通上限：0 = 不启用（用户自行通过城市配额管理，
+  // 会员可解除平台限制）。仅在显式配置 >0 时才参与封顶。
+  platform_daily_limit: 0,
 };
 
 function normalize(v = {}) {
@@ -51,7 +52,9 @@ function normalize(v = {}) {
         ? v.daily_extract_keywords_by_city
         : {},
     platform_daily_limit:
-      Number(v.platform_daily_limit) > 0 ? Number(v.platform_daily_limit) : FALLBACK.platform_daily_limit,
+      Number.isFinite(Number(v.platform_daily_limit)) && Number(v.platform_daily_limit) > 0
+        ? Number(v.platform_daily_limit)
+        : 0,
   };
 }
 
