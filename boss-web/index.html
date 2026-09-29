@@ -597,6 +597,7 @@ document.getElementById('autoRefresh').onchange=(e)=>setAuto(e.target.checked);
 
 renderFlow();
 loadOverview().then(()=>loadJobs(1));
+setAuto(document.getElementById('autoRefresh').checked); // 默认勾选则立即启动 60s 自动刷新
 setAuto(true);
 </script>
 </body>
