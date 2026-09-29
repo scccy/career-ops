@@ -45,7 +45,7 @@ async function loadBossConfig() {
         ? c.daily_extract_keywords_by_city
         : {},
     platformDailyLimit:
-      Number(c.platform_daily_limit) > 0 ? Number(c.platform_daily_limit) : 150,
+      Number(c.platform_daily_limit) > 0 ? Number(c.platform_daily_limit) : 0,
   };
 }
 
@@ -180,13 +180,14 @@ async function getOverview() {
   const cityRows = await q('SELECT city, COUNT(*) AS n FROM boss_jobs GROUP BY city ORDER BY n DESC');
   const salRows = await q('SELECT MIN(salary_min) AS lo, MAX(salary_max) AS hi FROM boss_jobs');
 
-  // BOSS 平台级每日上限（全城合计，150 默认）：城市配额之和可能超过它
-  const platformLimit = cfg.platformDailyLimit || 150;
+  // BOSS 平台级每日上限：可选开关（0=不启用，用户自行用城市配额管理/会员解除）
+  const platformLimit = cfg.platformDailyLimit || 0;
   const platformSentToday = Object.values(byCity).reduce((s, n) => s + n, 0);
   const platform = {
+    enabled: platformLimit > 0,
     limit: platformLimit,
     sentToday: platformSentToday,
-    remaining: Math.max(0, platformLimit - platformSentToday),
+    remaining: platformLimit > 0 ? Math.max(0, platformLimit - platformSentToday) : null,
   };
 
   return {
