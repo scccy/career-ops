@@ -492,6 +492,7 @@ function renderCityTable(d){
         <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="一键准备②③④：抓取该城全部关键词 → 全局评分 → 排队，完成后可直接点「发送/发新扫」">扫描</button>
         <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：清空该城待发池（greeted=0 且 score≥阈值），分数降序，配额按城强制">发送</button>
         <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="⑦的变体：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），时间降序；是发送不是抓取">发新扫</button>
+        <button class="btn sm ghost" data-act="del_city" data-city="${esc(c.city)}" title="从控制台移除该城市（配额与关键词一并删除；岗位数据保留）">删除</button>
       </td>`;
     tb.appendChild(tr);
   });
@@ -554,6 +555,21 @@ async function saveQuota(){
   document.querySelectorAll('.qlimit').forEach(i=>{ limits[i.dataset.city]=Number(i.value); });
   const kwByCity={};
   document.querySelectorAll('.kwcity').forEach(i=>{
+    const v=i.value.trim();
+    if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
+  });
+  if(await postConfig(limits, kwByCity)) loadOverview();
+}
+
+// 删除城市：从当前表格收集除该城外的配额/关键词，整表覆盖写回（对称删除）
+async function delCity(city){
+  if(!confirm(`确定从控制台移除城市「${city}」吗？\n\n将删除该城的每日配额与关键词配置；\n已抓取的岗位数据保留在候选池中不受影响。`)) return;
+  const limits={};
+  document.querySelectorAll('.qlimit').forEach(i=>{ if(i.dataset.city!==city) limits[i.dataset.city]=Number(i.value); });
+  if(!Object.keys(limits).length){ alert('至少保留一个城市'); return; }
+  const kwByCity={};
+  document.querySelectorAll('.kwcity').forEach(i=>{
+    if(i.dataset.city===city) return;
     const v=i.value.trim();
     if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
   });
@@ -756,6 +772,7 @@ document.getElementById('cityBody').addEventListener('click',(e)=>{
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act, city=el.dataset.city;
   if(act==='lk'){ applyPreset({city, greeted:'0', minScore:'THR'}); return; }
+  if(act==='del_city'){ delCity(city); return; }
   doRun(act,{city});
 });
 // 城市筛选：仅隐藏不匹配行，不重建、不丢编辑
