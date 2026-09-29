@@ -44,18 +44,25 @@ async function loadBossConfig() {
       c.daily_extract_keywords_by_city && typeof c.daily_extract_keywords_by_city === 'object'
         ? c.daily_extract_keywords_by_city
         : {},
+    platformDailyLimit:
+      Number(c.platform_daily_limit) > 0 ? Number(c.platform_daily_limit) : 150,
   };
 }
 
 // ---- 写回 boss 配置到数据库（阈值 / 每城配额 / 关键词）----
 // 前端每次提交完整的 daily_limit_per_city 映射，与 DB 现有值合并后整体覆盖，天然支持「移除城市」。
 async function saveBossConfig(body = {}) {
-  const { send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city } = body;
+  const { send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city, platform_daily_limit } = body;
   const partial = {};
   if (send_threshold != null) {
     const n = Number(send_threshold);
     if (!Number.isFinite(n) || n <= 0) throw new Error('评分阈值非法：必须为正数');
     partial.send_threshold = n;
+  }
+  if (platform_daily_limit != null) {
+    const n = Number(platform_daily_limit);
+    if (!Number.isFinite(n) || n <= 0) throw new Error('平台每日上限非法：必须为正数');
+    partial.platform_daily_limit = n;
   }
   if (daily_limit_per_city && typeof daily_limit_per_city === 'object') partial.daily_limit_per_city = daily_limit_per_city;
   if (Array.isArray(daily_extract_queries)) partial.daily_extract_queries = daily_extract_queries;
@@ -173,6 +180,15 @@ async function getOverview() {
   const cityRows = await q('SELECT city, COUNT(*) AS n FROM boss_jobs GROUP BY city ORDER BY n DESC');
   const salRows = await q('SELECT MIN(salary_min) AS lo, MAX(salary_max) AS hi FROM boss_jobs');
 
+  // BOSS 平台级每日上限（全城合计，150 默认）：城市配额之和可能超过它
+  const platformLimit = cfg.platformDailyLimit || 150;
+  const platformSentToday = Object.values(byCity).reduce((s, n) => s + n, 0);
+  const platform = {
+    limit: platformLimit,
+    sentToday: platformSentToday,
+    remaining: Math.max(0, platformLimit - platformSentToday),
+  };
+
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
@@ -187,6 +203,7 @@ async function getOverview() {
     pending: pending,
     todaySent: todayInfo.todaySent,
     unknownCitySent,
+    platform,
     lastScanAt: getLastScanAt(),
     quota: quotaData,
     cities: cityRows.map((r) => ({ city: String(r.city || '未知'), n: Number(r.n) })),

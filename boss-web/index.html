@@ -222,6 +222,7 @@
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
+      <span class="hint" id="platformInfo" style="margin:0"></span>
       <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（清空该城待发池，分数降序）/ <b>发新扫</b>（只发最近一次扫描的新增，时间降序）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
     </div>
     <div class="city-add">
@@ -473,6 +474,11 @@ async function loadOverview(){
 function renderCityTable(d){
   const tb=document.getElementById('cityBody'); tb.innerHTML='';
   const fc=document.getElementById('cityFilter').value.trim();
+  if(d.platform){
+    const p=d.platform;
+    const el=document.getElementById('platformInfo');
+    if(el){ el.innerHTML=`BOSS 平台今日沟通：<b>${p.sentToday}/${p.limit}</b>，剩余 <b>${p.remaining}</b>${p.remaining<=0?'（已达上限，明天再发）':''}`; }
+  }
   d.quota.forEach(c=>{
     if(fc && !c.city.includes(fc)) return;
     const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
