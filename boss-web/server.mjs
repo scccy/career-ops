@@ -439,8 +439,8 @@ const server = http.createServer(async (req, res) => {
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
         const cfg = await loadBossConfig();
         const rows = await q(
-          'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? ORDER BY score DESC',
-          [city, cfg.threshold],
+          'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? AND (status IS NULL OR status <> ?) ORDER BY score DESC',
+          [city, cfg.threshold, 'closed'],
         );
         if (!rows.length) return json({ ok: false, error: `${city} 没有「待发」岗位（greeted=0 且 score≥${cfg.threshold}）` }, 400);
         const jobs = rows.map((r) => {
@@ -486,8 +486,8 @@ const server = http.createServer(async (req, res) => {
         const cfg = await loadBossConfig();
         const last = getLastScanAt();
         if (!last) return json({ ok: false, error: '尚未执行过扫描，无法确定「新扫描」范围。请先扫描此城。' }, 400);
-        let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? AND scanned_at >= ? ORDER BY scanned_at DESC';
-        const args = [city, cfg.threshold, last];
+        let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? AND (status IS NULL OR status <> ?) AND scanned_at >= ? ORDER BY scanned_at DESC';
+        const args = [city, cfg.threshold, 'closed', last];
         const rows = await q(sql, args);
         if (!rows.length) {
           // 新扫描岗位可能尚未评分（score NULL 会被 ≥阈值 过滤），给出可执行的下一步

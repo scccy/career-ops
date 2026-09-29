@@ -657,6 +657,25 @@ export async function markCandidatesGreeted(urls) {
   }
 }
 
+// 职位已关闭（JOB_CLOSED）的岗位标记出局：status='closed'，
+// 发送队列 SQL 排除之，避免每次运行都白占一个配额名额反复重试（2026-09-29）。
+export async function markJobsClosed(keyHashes) {
+  const list = (Array.isArray(keyHashes) ? keyHashes : [keyHashes]).filter(Boolean);
+  if (!list.length) return 0;
+  cancelIdleClose();
+  try {
+    await schemaReady();
+    const pool = dbPool();
+    const [res] = await pool.query(
+      `UPDATE ${BOSS_JOBS_TABLE} SET status = 'closed' WHERE key_hash IN (?)`,
+      [list],
+    );
+    return res.affectedRows;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
 // 按 key_hash 批量取岗位（单发/点名模式入口，支持一个或多个）
 export async function loadCandidatesByKeyHashes(keyHashes) {
   const list = (Array.isArray(keyHashes) ? keyHashes : String(keyHashes || '').split(/[,\s]+/))
