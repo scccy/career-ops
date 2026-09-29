@@ -222,7 +222,7 @@
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
-      <span class="hint" style="margin:0">每城按钮 = 主流程的单城直通版：<b>扫描/全词</b> 已一键跑完 ②抓取→③评分→④排队（除发送外全部自动），之后直接点 <b>发送</b>（清空该城待发池，分数降序）或 <b>发新扫</b>（只发最近一次扫描的新增，时间降序）；<b>预演</b>=⑥ 文案预演。⑤复核/⑥预演仍是人工检查点；发送配额按城强制。</span>
+      <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（清空该城待发池，分数降序）/ <b>发新扫</b>（只发最近一次扫描的新增，时间降序）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
     </div>
     <div class="city-add">
       <input id="addCityName" placeholder="城市名，如 苏州" />
@@ -489,9 +489,7 @@ function renderCityTable(d){
         <div class="meta">今日 ${c.sentToday} / 剩余 ${c.remaining}</div>
       </td>
       <td class="cops">
-        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="一键准备②③④：抓取该城岗位 → 全局评分 → 排队，完成后可直接点「发送/发新扫」">扫描</button>
-        <button class="btn sm ghost" data-act="scan_city_all" data-city="${esc(c.city)}" title="同「扫描」但用主+补充关键词全量抓取（②③④一键，更全更慢）">全词</button>
-        <button class="btn sm ghost" data-act="send_city_dry" data-city="${esc(c.city)}" title="对应主流程⑥dry-run·单城版：真实 Chrome 预览打招呼文案，不真发">预演</button>
+        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="一键准备②③④：抓取该城全部关键词 → 全局评分 → 排队，完成后可直接点「发送/发新扫」">扫描</button>
         <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：清空该城待发池（greeted=0 且 score≥阈值），分数降序，配额按城强制">发送</button>
         <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="⑦的变体：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），时间降序；是发送不是抓取">发新扫</button>
       </td>`;
