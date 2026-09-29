@@ -140,6 +140,16 @@
   .pager .info{font-size:12.5px;color:var(--muted)}
   .empty{color:var(--muted);font-size:13px;padding:18px 2px}
 
+  /* 候选池批量操作 */
+  .bulkbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;padding:11px 14px;background:var(--indigo-soft);border:1px solid #e3deff;border-radius:12px}
+  .bulkbar .lbl{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .bulkbar .selinfo{font-size:12.5px;color:var(--muted);font-weight:600}
+  .bulkbar .sp{flex:1}
+  .bulkbar button{box-shadow:none}
+  .chkcol{width:38px;text-align:center}
+  table td.chkcol{text-align:center}
+  table th.chkcol input,table td.chkcol input{width:16px;height:16px;accent-color:var(--indigo);cursor:pointer}
+
   /* 执行控制台 */
   .console{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);background:#fff}
   .chead{display:flex;align-items:center;gap:12px;padding:11px 14px;background:#f8fafc;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -258,6 +268,7 @@
           <option value="">全部</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
         </select></div>
         <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
+        <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
         <div class="f"><label>排序</label><select id="fSort">
           <option value="score_desc">分数 ↓</option><option value="salary_desc">薪资 ↓</option>
           <option value="recent">最近扫描</option><option value="company">公司名</option>
@@ -271,6 +282,15 @@
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
       <div class="hint">薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="bulkbar" id="bulkbar">
+        <span class="lbl">批量操作</span>
+        <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
+        <span class="selinfo" id="selInfo">已选 0</span>
+        <span class="sp"></span>
+        <button class="btn sm" id="bulkMark">标记已发（移出待发池）</button>
+        <button class="btn danger sm" id="bulkDelete">删除</button>
+        <button class="btn sm" id="presetCampus">一键剔除校招/应届/实习/校园/毕业生</button>
+      </div>
       <div id="result"></div>
       <div class="pager" id="pager" style="display:none">
         <button class="btn ghost sm" id="prev">← 上一页</button>
@@ -341,6 +361,8 @@ const STAGE_RUNS = {
 
 let THRESHOLD = 3.0;
 let currentPage = 1;
+let selected = new Set();        // 勾选的 key_hash
+let allFilterSelected = false;   // 是否"全选过滤结果"（发送 filter 而非逐条 keyHash）
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -566,6 +588,7 @@ function buildQuery(page){
   if(v('fSalMax')) p.set('salaryMax',v('fSalMax'));
   if(v('fGreeted')) p.set('greeted',v('fGreeted'));
   if(v('fMinScore')) p.set('minScore',v('fMinScore'));
+  if(v('fKeyword')) p.set('keyword',v('fKeyword'));
   p.set('sort',document.getElementById('fSort').value);
   return p.toString();
 }
@@ -587,7 +610,9 @@ async function loadJobs(page){
         ? `<span class="salary-mini">${m.salary_min!=null?m.salary_min:'?'}–${m.salary_max!=null?m.salary_max:'?'}K/月</span>` : '';
       const st = m.greeted ? '<span class="st no">已发</span>'
         : (m.score!=null && m.score>=d.threshold ? '<span class="st ok">可发</span>' : '<span class="st pend">低分</span>');
+      const chk = selected.has(m.key_hash) ? 'checked' : '';
       return `<tr>
+        <td class="chkcol"><input type="checkbox" class="rowchk" data-key="${esc(m.key_hash)}" ${chk}></td>
         <td>${esc(m.company||'—')}</td>
         <td>${esc(m.title||'—')}</td>
         <td>${esc(m.city||'—')}</td>
@@ -597,9 +622,15 @@ async function loadJobs(page){
         <td>${link}</td>
       </tr>`;
     }).join('');
-    out.innerHTML=`<table><thead><tr>
+    out.innerHTML=`<table id="jobsTable"><thead><tr>
+      <th class="chkcol"><input type="checkbox" id="selAllPage" title="全选本页"></th>
       <th>公司</th><th>岗位</th><th>城市</th><th>薪资</th><th>分数</th><th>状态</th><th>BOSS 地址</th>
       </tr></thead><tbody>${rows}</tbody></table>`;
+    // 本页全选框初始态：仅当本页所有行都已选时勾上
+    const pageRows = document.querySelectorAll('#jobsTable .rowchk');
+    const allOn = pageRows.length && [...pageRows].every((cb) => selected.has(cb.dataset.key));
+    const sap = document.getElementById('selAllPage'); if (sap) sap.checked = !!allOn;
+    updateSelInfo();
     const pg=document.getElementById('pager'); pg.style.display='flex';
     document.getElementById('pagerInfo').textContent=`第 ${d.page} / ${d.totalPages} 页 · 共 ${d.total} 条`;
     document.getElementById('prev').disabled = d.page<=1;
@@ -607,6 +638,41 @@ async function loadJobs(page){
   }catch(e){
     out.innerHTML='<div class="empty">查询失败：'+esc(e.message)+'</div>';
   }
+}
+
+function updateSelInfo(){
+  const el=document.getElementById('selInfo');
+  if(el) el.textContent = allFilterSelected ? '已选：过滤结果全部' : `已选 ${selected.size}`;
+}
+function currentFilter(){
+  const v=id=>document.getElementById(id).value.trim();
+  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), minScore:v('fMinScore'), keyword:v('fKeyword') };
+}
+async function bulkAction(action){
+  const useFilter = allFilterSelected;
+  if(!useFilter && !selected.size){ alert('请先勾选岗位，或点「全选过滤结果」。'); return; }
+  if(action==='delete'){
+    const n = useFilter ? '当前过滤结果（可能很多条）' : selected.size+' 条';
+    if(!confirm(`确认删除 ${n}？此操作不可恢复，建议用「标记已发」替代。`)) return;
+  }
+  const body = useFilter ? { action, filter: currentFilter() } : { action, keyHashes: [...selected] };
+  try{
+    const r=await postJson('/api/jobs/bulk', body); const d=await r.json();
+    if(!d.ok) return alert('失败：'+(d.error||''));
+    alert(`已处理 ${d.affected} 条（${action==='mark_greeted'?'标记已发（移出待发池）':'删除'}）`);
+    selected.clear(); allFilterSelected=false; updateSelInfo();
+    loadJobs(currentPage); refreshStats();
+  }catch(e){ alert('请求失败：'+e.message); }
+}
+async function presetCampus(){
+  if(!confirm('将把标题/正文含 校招/应届/实习/校园/毕业生 的岗位全部「标记已发」(greeted=1)：移出待发池、不再进入发送队列，数据保留可还原。继续？')) return;
+  try{
+    const r=await postJson('/api/jobs/bulk', { action:'mark_greeted', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
+    const d=await r.json();
+    if(!d.ok) return alert('失败：'+(d.error||''));
+    alert(`已标记 ${d.affected} 条校招/应届等岗位为已发（移出待发池）`);
+    loadJobs(currentPage); refreshStats();
+  }catch(e){ alert('请求失败：'+e.message); }
 }
 
 // ===== 执行引擎（前端）=====
@@ -662,8 +728,26 @@ async function pollRun(){
 }
 
 document.getElementById('refresh').onclick=loadOverview;
-document.getElementById('btnSearch').onclick=()=>{currentPage=1;loadJobs(1);};
-document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore'].forEach(i=>document.getElementById(i).value='');currentPage=1;loadJobs(1);};
+document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
+document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword'].forEach(i=>document.getElementById(i).value='');currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
+document.getElementById('bulkMark').onclick=()=>bulkAction('mark_greeted');
+document.getElementById('bulkDelete').onclick=()=>bulkAction('delete');
+document.getElementById('selAllFilter').onclick=()=>{ allFilterSelected=true; updateSelInfo(); };
+document.getElementById('presetCampus').onclick=presetCampus;
+// 行勾选 / 本页全选（#result 内的复选框随每次渲染重建，用事件委托）
+document.getElementById('result').addEventListener('change',(e)=>{
+  if(e.target.id==='selAllPage'){
+    const on=e.target.checked;
+    document.querySelectorAll('#jobsTable .rowchk').forEach(cb=>{
+      const k=cb.dataset.key; if(on) selected.add(k); else selected.delete(k); cb.checked=on;
+    });
+    updateSelInfo();
+  } else if(e.target.classList.contains('rowchk')){
+    const k=e.target.dataset.key;
+    if(e.target.checked) selected.add(k); else selected.delete(k);
+    updateSelInfo();
+  }
+});
 document.getElementById('btnSaveQuota').onclick=saveQuota;
 document.getElementById('btnAddCity').onclick=addCity;
 document.getElementById('btnKill').onclick=()=>{if(currentJobId)postJson('/api/run/kill',{id:currentJobId});};
