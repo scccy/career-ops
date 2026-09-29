@@ -489,12 +489,12 @@ function renderCityTable(d){
         <div class="meta">今日 ${c.sentToday} / 剩余 ${c.remaining}</div>
       </td>
       <td class="cops">
-        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}">扫描</button>
-        <button class="btn sm ghost" data-act="scan_city_all" data-city="${esc(c.city)}">全词</button>
-        <button class="btn sm ghost" data-act="send_city_dry" data-city="${esc(c.city)}">预演</button>
-        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}">发送</button>
-        <button class="btn sm" data-act="send_city_time" data-city="${esc(c.city)}">按时间</button>
-        <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}">新扫描</button>
+        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="抓取：用该城主关键词扫描岗位写入候选池，并重置「扫描基准时间」">扫描</button>
+        <button class="btn sm ghost" data-act="scan_city_all" data-city="${esc(c.city)}" title="全词抓取：主+补充关键词全量扫描">全词</button>
+        <button class="btn sm ghost" data-act="send_city_dry" data-city="${esc(c.city)}" title="预演：逐岗位预览打招呼文案，不直接发送">预演</button>
+        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="发送：该城池中全部待发（greeted=0 且 score≥阈值），分数降序">发送</button>
+        <button class="btn sm" data-act="send_city_time" data-city="${esc(c.city)}" title="按时间发：只发该城待发，按扫描时间倒序（先发最新）">按时间发</button>
+        <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="发新扫：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），是发送不是抓取">发新扫</button>
       </td>`;
     tb.appendChild(tr);
   });
