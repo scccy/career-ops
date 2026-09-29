@@ -436,6 +436,7 @@ async function main() {
   let sentToday = 0;
   let remainingToday = 0;
   let selection = null;
+  let urlCity = new Map(); // URL(pathname)→城市，供发送后打印各城配额；queue 模式下填充
 
   if (args['key-hash']) {
     // 点名单发模式：--key-hash 直取 MySQL 岗位（支持逗号/空格分隔多个），绕过队列/城市配额/30天去重
@@ -462,7 +463,7 @@ async function main() {
     // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市。
     // 键用 pathname（job_detail/<id>.html）——securityId 每次扫描都变，
     // 完整 URL 匹配会让重扫后历史发送记录对不上城市、配额扣减失灵。
-    const urlCity = new Map(
+    urlCity = new Map(
       cityLimits ? (await loadCandidates()).map((job) => [urlPathname(job.url), job.city || '']) : [],
     );
     selection = candidatesFromQueue(queue, {
