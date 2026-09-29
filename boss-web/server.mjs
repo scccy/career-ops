@@ -244,37 +244,52 @@ async function getOverview() {
   };
 }
 
-// ---- 候选池分页查询（城市 / 薪资 / 状态 / 分数 过滤） ----
+// ---- 候选池分页查询（城市 / 薪资 / 状态 / 分数 / 关键词 过滤） ----
+// 统一的过滤条件构造，供 getJobs 与批量操作(/api/jobs/bulk) 复用。
+function buildJobFilter(f) {
+  const where = [];
+  const args = [];
+  if (f.city) { where.push('city = ?'); args.push(f.city); }
+  // 薪资区间按"重叠"匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限
+  if (f.salaryMin !== '' && f.salaryMin != null && Number.isFinite(Number(f.salaryMin))) {
+    where.push('salary_max >= ?'); args.push(Number(f.salaryMin));
+  }
+  if (f.salaryMax !== '' && f.salaryMax != null && Number.isFinite(Number(f.salaryMax))) {
+    where.push('salary_min <= ?'); args.push(Number(f.salaryMax));
+  }
+  if (f.greeted === '0' || f.greeted === '1') { where.push('greeted = ?'); args.push(Number(f.greeted)); }
+  if (f.scored === '1') where.push('score IS NOT NULL');
+  if (f.scored === '0') where.push('score IS NULL');
+  if (f.minScore !== '' && f.minScore != null && Number.isFinite(Number(f.minScore))) {
+    where.push('score >= ?'); args.push(Number(f.minScore));
+  }
+  if (f.keyword) {
+    const terms = String(f.keyword).split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean);
+    if (terms.length) {
+      const ors = terms.map(() => '(title LIKE ? OR raw LIKE ?)');
+      where.push('(' + ors.join(' OR ') + ')');
+      terms.forEach((t) => { args.push('%' + t + '%', '%' + t + '%'); });
+    }
+  }
+  return { whereSql: where.length ? 'WHERE ' + where.join(' AND ') : '', args };
+}
+
 async function getJobs(sp) {
   const cfg = loadBossConfig();
   const page = Math.max(1, Number(sp.get('page') || 1));
   const pageSize = Math.min(200, Math.max(1, Number(sp.get('pageSize') || 20)));
-  const city = String(sp.get('city') || '').trim();
-  const salMinRaw = sp.get('salaryMin');
-  const salMaxRaw = sp.get('salaryMax');
-  const greeted = String(sp.get('greeted') || '');
-  const scored = String(sp.get('scored') || '');
-  const minScoreRaw = sp.get('minScore');
+  const f = {
+    city: String(sp.get('city') || '').trim(),
+    salaryMin: sp.get('salaryMin'),
+    salaryMax: sp.get('salaryMax'),
+    greeted: String(sp.get('greeted') || ''),
+    scored: String(sp.get('scored') || ''),
+    minScore: sp.get('minScore'),
+    keyword: String(sp.get('keyword') || '').trim(),
+  };
   const sort = String(sp.get('sort') || 'score_desc');
 
-  const where = [];
-  const args = [];
-  if (city) { where.push('city = ?'); args.push(city); }
-  // 薪资区间按"重叠"匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限
-  if (salMinRaw !== '' && salMinRaw != null && Number.isFinite(Number(salMinRaw))) {
-    where.push('salary_max >= ?'); args.push(Number(salMinRaw));
-  }
-  if (salMaxRaw !== '' && salMaxRaw != null && Number.isFinite(Number(salMaxRaw))) {
-    where.push('salary_min <= ?'); args.push(Number(salMaxRaw));
-  }
-  if (greeted === '0' || greeted === '1') { where.push('greeted = ?'); args.push(Number(greeted)); }
-  if (scored === '1') where.push('score IS NOT NULL');
-  if (scored === '0') where.push('score IS NULL');
-  if (minScoreRaw !== '' && minScoreRaw != null && Number.isFinite(Number(minScoreRaw))) {
-    where.push('score >= ?'); args.push(Number(minScoreRaw));
-  }
-
-  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const { whereSql, args } = buildJobFilter(f);
   const countRows = await q(`SELECT COUNT(*) AS n FROM boss_jobs ${whereSql}`, args);
   const total = Number(countRows[0].n);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -398,6 +413,44 @@ const server = http.createServer(async (req, res) => {
       const data = await getJobs(url.searchParams);
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify(data));
+    }
+
+    // ---- 批量操作：标记已发(greeted=1) / 删除（keyHashes 或 filter 指定范围）----
+    if (url.pathname === '/api/jobs/bulk' && req.method === 'POST') {
+      const body = await readBody(req);
+      const action = String(body.action || '');
+      if (action !== 'mark_greeted' && action !== 'delete') {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: '不支持的操作：' + action }));
+      }
+      let target;
+      if (Array.isArray(body.keyHashes) && body.keyHashes.length) {
+        const hashes = body.keyHashes.map(String).filter((h) => /^[A-Za-z0-9+/=_\-]{8,512}$/.test(h));
+        if (!hashes.length) {
+          res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+          return res.end(JSON.stringify({ ok: false, error: '无有效的 key_hash' }));
+        }
+        target = { whereSql: 'WHERE key_hash IN (' + hashes.map(() => '?').join(',') + ')', args: hashes };
+      } else if (body.filter && typeof body.filter === 'object') {
+        target = buildJobFilter(body.filter);
+        if (!target.whereSql) {
+          res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+          return res.end(JSON.stringify({ ok: false, error: 'filter 为空，禁止对全表执行' }));
+        }
+      } else {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: '需提供 keyHashes 或 filter' }));
+      }
+      try {
+        const r = action === 'mark_greeted'
+          ? await q('UPDATE boss_jobs SET greeted=1 ' + target.whereSql, target.args)
+          : await q('DELETE FROM boss_jobs ' + target.whereSql, target.args);
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: true, action, affected: r.affectedRows }));
+      } catch (e) {
+        res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
     }
 
     // ---- 配额写回（可编辑每日城市配额 + 评分阈值）----
