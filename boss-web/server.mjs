@@ -129,7 +129,7 @@ async function getOverview() {
   const scored = Number(scoredRows[0].n);
   const pending = Number(pendingRows[0].n);
 
-  const cities = await q(
+  const citiesAll = await q(
     `SELECT city,
             COUNT(*) AS total,
             SUM(greeted=1) AS greeted,
@@ -137,6 +137,9 @@ async function getOverview() {
      FROM boss_jobs GROUP BY city`,
     [thr],
   );
+  // 城市下拉只显示控制台配置中的城市（被删除城市的遗留岗位不在下拉出现）
+  const configuredSet = new Set(Object.keys(cfg.dailyLimitPerCity));
+  const cities = citiesAll.filter((r) => configuredSet.has(String(r.city).split('·')[0]));
 
   const urlRows = await q("SELECT url, city FROM boss_jobs WHERE url<>''");
   const urlCity = new Map(urlRows.map((r) => [urlPathname(r.url), String(r.city || '').split('·')[0]]));
@@ -425,6 +428,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- 批量操作：标记已发(greeted=1) / 删除（keyHashes 或 filter 指定范围）----
+    if (url.pathname === '/api/city/purge' && req.method === 'POST') {
+      // 删除城市后清掉其遗留岗位（城市表「删除」按钮配套动作）
+      const body = await readBody(req);
+      const city = String(body.city || '').trim();
+      if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) {
+        res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: '城市名非法' }));
+      }
+      const [ret] = await q('DELETE FROM boss_jobs WHERE city = ?', [city]);
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({ ok: true, deleted: Number(ret.affectedRows || 0) }));
+    }
     if (url.pathname === '/api/jobs/bulk' && req.method === 'POST') {
       const body = await readBody(req);
       const action = String(body.action || '');
