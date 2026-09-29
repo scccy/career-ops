@@ -14,6 +14,10 @@ import {
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
+import { loadBossControl } from './boss-config-db.mjs';
+
+// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
+const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 import { evaluateJob } from './boss-score.mjs';
 
 const DEFAULT_TARGET_COMPANIES = 20;
@@ -117,7 +121,7 @@ async function main() {
   const plan = planQuota(jobs, profile, {
     targetCompanies: Number(args['target-companies'] ?? profile?.boss?.daily_limit ?? DEFAULT_TARGET_COMPANIES),
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
-    threshold: Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0),
+    threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0),
     sentJobs: loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
     recentSentCompanies: loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
   });
