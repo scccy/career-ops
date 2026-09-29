@@ -509,6 +509,10 @@ function mapJobRow(r) {
   if (r.url) job.url = r.url;
   job.greeted = Boolean(r.greeted);
   if (r.key_hash) job.key_hash = r.key_hash;
+  // score/status 列是权威字段：必须回读，否则扫描整池重写时
+  // 评分与「职位已关闭」标记会被抹掉（2026-09-29）
+  if (r.score != null) job.score = Number(r.score);
+  if (r.status) job.status = r.status;
   return job;
 }
 
@@ -517,7 +521,7 @@ export async function loadCandidates() {
   try {
     await schemaReady();
     const pool = dbPool();
-    const [rows] = await pool.query(`SELECT key_hash, url, greeted, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    const [rows] = await pool.query(`SELECT key_hash, url, greeted, score, status, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
     if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
       // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
       const legacy = readJson(CANDIDATES_PATH, []);
