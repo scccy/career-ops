@@ -14,6 +14,7 @@ import {
   loadSentKeys,
   loadCandidatesByKeyHashes,
   markCandidatesGreeted,
+  markJobsClosed,
   parseArgs,
   readJson,
   uniqueCompanyKey,
@@ -562,6 +563,21 @@ async function main() {
       console.error(`${closed ? 'closed' : 'failed'}: ${job.company} - ${job.title}: ${err.message}`);
       results.push({ company: job.company, title: job.title, status: closed ? 'closed' : 'failed', error: err.message });
       if (!closed) break;
+    }
+  }
+
+  // 职位已关闭的岗位标记出局（status='closed'），发送队列 SQL 会排除，
+  // 避免每次运行都反复重试、白占一个配额名额
+  const closedHashes = results
+    .filter((r) => r.status === 'closed')
+    .map((r) => jobs.find((j) => j.company === r.company && j.title === r.title)?.key_hash)
+    .filter(Boolean);
+  if (closedHashes.length) {
+    try {
+      const marked = await markJobsClosed(closedHashes);
+      console.log(`[boss-db] 已标记 ${marked} 条职位关闭（closed），后续队列不再收录`);
+    } catch (err) {
+      console.error(`[boss-db] closed 标记失败（不影响发送结果）: ${err.message}`);
     }
   }
 
