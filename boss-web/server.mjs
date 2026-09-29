@@ -230,6 +230,16 @@ function buildJobFilter(f, { threshold } = {}) {
     where.push('score IS NULL');
   } else if (f.greeted === '0' || f.greeted === '1') { where.push('greeted = ?'); args.push(Number(f.greeted)); }
   if (f.city) { where.push('city = ?'); args.push(f.city); }
+  // 岗位类型快捷筛选：与批量剔除按钮同一套词表（title/raw 匹配）
+  const typePatterns = {
+    intern: ['实习'],
+    campus: ['校招', '应届', '校园', '毕业生'],
+  };
+  if (f.jobType && typePatterns[f.jobType]) {
+    const likes = typePatterns[f.jobType].map(() => '(title LIKE ? OR raw LIKE ?)').join(' OR ');
+    typePatterns[f.jobType].forEach((kw) => args.push(`%${kw}%`, `%${kw}%`));
+    where.push('(' + likes + ')');
+  }
   // 薪资区间按"重叠"匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限
   if (f.salaryMin !== '' && f.salaryMin != null && Number.isFinite(Number(f.salaryMin))) {
     where.push('salary_max >= ?'); args.push(Number(f.salaryMin));
@@ -266,6 +276,7 @@ async function getJobs(sp) {
     scored: String(sp.get('scored') || ''),
     minScore: sp.get('minScore'),
     keyword: String(sp.get('keyword') || '').trim(),
+    jobType: String(sp.get('jobType') || ''),
   };
   const sort = String(sp.get('sort') || 'score_desc');
 
