@@ -474,7 +474,7 @@ async function loadOverview(){
 function renderCityTable(d){
   const tb=document.getElementById('cityBody'); tb.innerHTML='';
   const fc=document.getElementById('cityFilter').value.trim();
-  if(d.platform){
+  if(d.platform && d.platform.limit > 0){
     const p=d.platform;
     const el=document.getElementById('platformInfo');
     if(el){ el.innerHTML=`BOSS 平台今日沟通：<b>${p.sentToday}/${p.limit}</b>，剩余 <b>${p.remaining}</b>${p.remaining<=0?'（已达上限，明天再发）':''}`; }
