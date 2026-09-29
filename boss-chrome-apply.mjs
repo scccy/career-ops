@@ -272,19 +272,20 @@ function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false,
     : globalRemaining;
   const cityRemainingBefore = Object.fromEntries(cityRemaining);
   const seenCompanies = new Set();
+  const stats = { total: queue.length, belowThreshold: 0, alreadySent: 0, recentCompany: 0, cityQuota: 0 };
   const jobs = queue
     .slice()
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .filter((job) => Number(job.score) >= threshold)
-    .filter((job) => !sentJobs.has(uniqueJobKey(job)))
     .filter((job) => {
+      if (Number(job.score) < threshold) { stats.belowThreshold++; return false; }
+      if (sentJobs.has(uniqueJobKey(job))) { stats.alreadySent++; return false; }
       const key = uniqueCompanyKey(job);
-      if (recentSentCompanies.has(key) || seenCompanies.has(key)) return false;
+      if (recentSentCompanies.has(key) || seenCompanies.has(key)) { stats.recentCompany++; return false; }
       if (cityLimits) {
         const city = String(job.city || '').split('·')[0];
         if (cityRemaining.has(city)) {
           const left = cityRemaining.get(city);
-          if (left <= 0) return false;
+          if (left <= 0) { stats.cityQuota++; return false; }
           cityRemaining.set(city, left - 1);
         }
       }
@@ -292,6 +293,7 @@ function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false,
       return true;
     })
     .slice(0, remainingToday);
+  stats.selected = jobs.length;
   return {
     jobs,
     sentToday,
@@ -300,6 +302,7 @@ function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false,
     cityRemaining: cityRemainingBefore,
     cityRemainingAfterSelection: Object.fromEntries(cityRemaining),
     cityLimits,
+    stats,
   };
 }
 
@@ -476,6 +479,11 @@ async function main() {
     jobs = selection.jobs;
     sentToday = selection.sentToday;
     remainingToday = selection.remainingToday;
+    const st = selection.stats;
+    console.log(
+      `[过滤统计] 队列 ${st.total} 条：低于阈值 ${st.belowThreshold}，30天内已发同岗位 ${st.alreadySent}，` +
+      `30天内已发同公司 ${st.recentCompany}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
+    );
   }
 
   if (args['dry-run']) {
