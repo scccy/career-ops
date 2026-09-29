@@ -133,7 +133,7 @@ async function getOverview() {
     `SELECT city,
             COUNT(*) AS total,
             SUM(greeted=1) AS greeted,
-            SUM(greeted=0 AND score>=?) AS pending
+            SUM(greeted=0 AND score>=? AND (status IS NULL OR status <> 'closed')) AS pending
      FROM boss_jobs GROUP BY city`,
     [thr],
   );
@@ -220,6 +220,8 @@ async function getOverview() {
 function buildJobFilter(f) {
   const where = [];
   const args = [];
+  // 已关闭岗位（发送时发现 JOB_CLOSED 并标记）默认从检索中排除——它们是死岗位
+  if (!f.includeClosed) { where.push("(status IS NULL OR status <> 'closed')"); }
   if (f.city) { where.push('city = ?'); args.push(f.city); }
   // 薪资区间按"重叠"匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限
   if (f.salaryMin !== '' && f.salaryMin != null && Number.isFinite(Number(f.salaryMin))) {
