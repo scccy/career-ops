@@ -436,7 +436,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
         return res.end(JSON.stringify({ ok: false, error: '城市名非法' }));
       }
-      const [ret] = await q('DELETE FROM boss_jobs WHERE city = ?', [city]);
+      const ret = await q('DELETE FROM boss_jobs WHERE city = ?', [city]);
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify({ ok: true, deleted: Number(ret.affectedRows || 0) }));
     }
