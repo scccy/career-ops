@@ -448,7 +448,8 @@ const server = http.createServer(async (req, res) => {
         return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
       }
 
-      // 动态命令：单城隔离扫描。extract 脚本加 --city 后只跑该城，不影响其他城。
+      // 动态命令：单城一键准备 = ②扫描 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
+      // extract 加 --city 只跑该城，不影响其他城；评分/排队为全局步骤。
       if (key === 'scan_city' || key === 'scan_city_all') {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
@@ -456,38 +457,32 @@ const server = http.createServer(async (req, res) => {
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         try { mkdirSync(join(ROOT, 'data'), { recursive: true }); writeFileSync(LAST_SCAN_FILE, new Date().toISOString()); } catch { /* ignore */ }
         const extra = key === 'scan_city_all' ? ' --all' : '';
-        const cmd = `bash boss-extract-3cities.sh --city "${city}"${extra}`;
+        const cmd = `bash boss-extract-3cities.sh --city "${city}"${extra} && npm run boss:score && npm run boss:fill -- --prepare`;
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'safe';
-        return json({ ok: true, job: publicJob(startRun(key)), note: `仅扫描 ${city}（不影响其他城市）` });
+        return json({ ok: true, job: publicJob(startRun(key)), note: `一键准备：扫描 ${city} → 评分 → 排队（不影响其他城市，完成后可直接发送/发新扫）` });
       }
 
-      // 动态命令：按时间 / 仅新扫描 发送（都要求 greeted=0 且 score≥阈值；走单城临时队列）
-      if (key === 'send_city_time' || key === 'send_city_new') {
+      // 动态命令：发新扫——只发「最近一次扫描才开始出现」的岗位（greeted=0 且 score≥阈值，时间降序；走单城临时队列）
+      if (key === 'send_city_new') {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
         const cfg = await loadBossConfig();
-        let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=?';
-        const args = [city, cfg.threshold];
-        if (key === 'send_city_new') {
-          const last = getLastScanAt();
-          if (!last) return json({ ok: false, error: '尚未执行过扫描，无法确定「新扫描」范围。请先扫描此城。' }, 400);
-          sql += ' AND scanned_at >= ?'; args.push(last);
-        }
-        sql += ' ORDER BY scanned_at DESC';
+        const last = getLastScanAt();
+        if (!last) return json({ ok: false, error: '尚未执行过扫描，无法确定「新扫描」范围。请先扫描此城。' }, 400);
+        let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? AND scanned_at >= ? ORDER BY scanned_at DESC';
+        const args = [city, cfg.threshold, last];
         const rows = await q(sql, args);
         if (!rows.length) {
+          // 新扫描岗位可能尚未评分（score NULL 会被 ≥阈值 过滤），给出可执行的下一步
           let hint = '';
-          if (key === 'send_city_new') {
-            // 新扫描岗位可能尚未评分（score NULL 会被 ≥阈值 过滤），给出可执行的下一步
-            const [uns] = await q(
-              'SELECT COUNT(*) AS n FROM boss_jobs WHERE city=? AND greeted=0 AND score IS NULL AND scanned_at >= ?',
-              [city, last],
-            );
-            if (uns.n > 0) hint = `检测到 ${city} 有 ${uns.n} 条新扫描岗位尚未评分，请先执行主流程③评分（boss:score）再发新扫。`;
-          }
-          return json({ ok: false, error: `${city} 没有符合条件的待发岗位（greeted=0 且 score≥${cfg.threshold}${key === 'send_city_new' ? ' 且为最近扫描新增' : ''}）${hint}` }, 400);
+          const [uns] = await q(
+            'SELECT COUNT(*) AS n FROM boss_jobs WHERE city=? AND greeted=0 AND score IS NULL AND scanned_at >= ?',
+            [city, last],
+          );
+          if (uns.n > 0) hint = `检测到 ${city} 有 ${uns.n} 条新扫描岗位尚未评分，请先执行主流程③评分（boss:score）再发新扫。`;
+          return json({ ok: false, error: `${city} 没有符合条件的待发岗位（greeted=0 且 score≥${cfg.threshold} 且为最近扫描新增）${hint}` }, 400);
         }
         const jobs = rows.map((r) => {
           const job = typeof r.raw === 'string' ? JSON.parse(r.raw) : r.raw;
@@ -502,7 +497,7 @@ const server = http.createServer(async (req, res) => {
         const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review`;
         if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
-            message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），按${key === 'send_city_new' ? '最近扫描新增、' : ''}时间降序真实发送。` }, 409);
+            message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），只发最近扫描新增、按时间降序真实发送。` }, 409);
         }
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         RUN_ALLOWED[key] = cmd;
