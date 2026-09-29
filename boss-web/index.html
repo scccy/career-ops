@@ -222,6 +222,7 @@
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
+      <button class="btn sm" id="btnCheckClosed" title="逐个打开池中待发岗位页，检查是否已在 BOSS 下线（职位已关闭）；命中的标记出局，不再占用发送名额">检查关闭岗位</button>
       <span class="hint" id="platformInfo" style="margin:0"></span>
       <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（清空该城待发池，分数降序）/ <b>发新扫</b>（只发最近一次扫描的新增，时间降序）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
     </div>
@@ -771,6 +772,7 @@ document.getElementById('result').addEventListener('change',(e)=>{
   }
 });
 document.getElementById('btnSaveQuota').onclick=saveQuota;
+document.getElementById('btnCheckClosed').onclick=()=>doRun('check_closed');
 document.getElementById('btnAddCity').onclick=addCity;
 document.getElementById('btnKill').onclick=()=>{if(currentJobId)postJson('/api/run/kill',{id:currentJobId});};
 document.getElementById('mCancel').onclick=()=>{document.getElementById('mask').style.display='none';};
