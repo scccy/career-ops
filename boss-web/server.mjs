@@ -311,16 +311,19 @@ function startRun(key) {
   // 用登录 shell 启动，保证 PATH 与用户终端一致（否则 node 可能落到别的版本，
   // 如 WorkBuddy 内置 v22 在此沙箱下会 WebAssembly.instantiate(): Out of memory）。
   // 同时把服务自身的 node 目录前置到 PATH 兜底。
+  // detached: 独立进程组 —— 终止时才能整组杀掉（否则只杀 bash 外壳，
+  // extract/node/npm 子进程照跑，任务状态永远 running=「终止失败」）。
   const nodeDir = dirname(process.execPath);
   const proc = spawn('/bin/bash', ['-lc', cmd], {
     cwd: ROOT,
     env: { ...process.env, PATH: `${nodeDir}:${process.env.PATH || ''}` },
+    detached: true,
   });
   job.proc = proc;
   const push = (t) => { job.output += t; if (job.output.length > 120000) job.output = job.output.slice(-120000); };
   proc.stdout.on('data', (d) => push(d.toString()));
   proc.stderr.on('data', (d) => push(d.toString()));
-  const timer = setTimeout(() => { try { proc.kill('SIGKILL'); } catch { /* ignore */ } }, 20 * 60 * 1000);
+  const timer = setTimeout(() => { try { process.kill(-proc.pid, 'SIGKILL'); } catch { try { proc.kill('SIGKILL'); } catch { /* ignore */ } } }, 20 * 60 * 1000);
   const finish = (status, code) => {
     clearTimeout(timer);
     job.status = status; job.code = code; job.endedAt = Date.now();
@@ -329,6 +332,20 @@ function startRun(key) {
   proc.on('close', (code) => finish(code === 0 ? 'done' : 'failed', code));
   proc.on('error', (e) => { push('\n[spawn error] ' + e.message + '\n'); finish('failed', -1); });
   return job;
+}
+
+// 整组终止：先 SIGTERM 进程组（-pid），3 秒后仍在则 SIGKILL 兜底。
+// 只杀 bash 外壳时 extract/node/npm 子进程会变成孤儿继续跑，任务状态永远 running。
+function killRunJob(job) {
+  if (!job || !job.proc || job.status !== 'running') return false;
+  const pid = job.proc.pid;
+  try { process.kill(-pid, 'SIGTERM'); } catch { try { job.proc.kill('SIGTERM'); } catch { /* ignore */ } }
+  setTimeout(() => {
+    if (job.status !== 'running') return;
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* ignore */ }
+    try { job.proc.kill('SIGKILL'); } catch { /* ignore */ }
+  }, 3000);
+  return true;
 }
 
 function readBody(req) {
@@ -519,10 +536,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/run/kill' && req.method === 'POST') {
       const body = await readBody(req);
-      const job = RUN_JOBS.get(Number(body.id));
-      if (job && job.proc && job.status === 'running') { try { job.proc.kill('SIGTERM'); } catch { /* ignore */ } }
+      const job = RUN_JOBS.get(Number(body.id)) || (runningId !== null ? RUN_JOBS.get(runningId) : null);
+      const killed = killRunJob(job);
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-      return res.end(JSON.stringify({ ok: true }));
+      return res.end(JSON.stringify({ ok: true, killed, id: job ? job.id : null }));
     }
     if (url.pathname === '/' || url.pathname === '/index.html') {
       const html = await readFile(HTML_PATH);
