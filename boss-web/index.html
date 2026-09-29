@@ -324,7 +324,7 @@ const STAGES = [
    note:'CDP 驱动真实 Chrome 逐城逐词提取（禁 Playwright）。单条补 JD：boss:import:url / boss:import:detail。',
    preset:{}, viewLabel:'查看扫描到的候选池（全部）'},
   {n:3, t:'评分 score', cmd:'npm run boss:score', type:'normal',
-   note:'阈值默认 boss.send_threshold；输出 opportunity_legitimacy，可疑/面议不进队列。',
+   note:'阈值默认来自数据库配置 boss_city_control（原 profile.yml boss.send_threshold）；输出 opportunity_legitimacy，可疑/面议不进队列。',
    preset:{scored:'1'}, viewLabel:'查看已评分岗位'},
   {n:4, t:'排队 fill', cmd:'npm run boss:fill -- --prepare', type:'normal',
    note:'每日城市配额 + 30 天公司去重。重跑 score 会重建队列，须重新剔除已发/外包/校招等公司。',

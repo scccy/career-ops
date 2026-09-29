@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import mysql from 'mysql2/promise';
 import * as yaml from 'js-yaml';
+import { loadBossControl, saveBossControl } from '../boss-config-db.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.BOSS_DASHBOARD_PORT || 4173);
@@ -24,103 +25,44 @@ function getLastScanAt() {
   try { const t = readFileSync(LAST_SCAN_FILE, 'utf-8').trim(); return t || null; } catch { return null; }
 }
 
-// ---- 读取 boss 配置（阈值 / 每城配额），与 config/profile.yml 同步 ----
-function loadBossConfig() {
+// ---- 读取 boss 配置（阈值 / 每城配额 / 关键词），统一来自数据库 boss_config 表 ----
+async function loadBossConfig() {
+  const c = (await loadBossControl().catch(() => null)) || {};
   const fallback = {
     threshold: 3.0,
     dailyLimitPerCity: { 上海: 20, 杭州: 40, 南京: 20, 无锡: 20, 常州: 20 },
   };
-  try {
-    const raw = readFileSync(PROFILE, 'utf-8');
-    const cfg = yaml.load(raw) || {};
-    const boss = cfg.boss || {};
-    return {
-      threshold: Number(boss.send_threshold) || fallback.threshold,
-      dailyLimitPerCity: boss.daily_limit_per_city || fallback.dailyLimitPerCity,
-      greetingStyle: boss.greeting_style || '',
-      dailyExtractQueries: Array.isArray(boss.daily_extract_queries) ? boss.daily_extract_queries : [],
-      dailyExtractKeywordsByCity: boss.daily_extract_keywords_by_city && typeof boss.daily_extract_keywords_by_city === 'object' ? boss.daily_extract_keywords_by_city : {},
-    };
-  } catch {
-    return fallback;
-  }
+  return {
+    threshold: Number(c.send_threshold) > 0 ? Number(c.send_threshold) : fallback.threshold,
+    dailyLimitPerCity:
+      c.daily_limit_per_city && typeof c.daily_limit_per_city === 'object'
+        ? c.daily_limit_per_city
+        : fallback.dailyLimitPerCity,
+    greetingStyle: '',
+    dailyExtractQueries: Array.isArray(c.daily_extract_queries) ? c.daily_extract_queries : [],
+    dailyExtractKeywordsByCity:
+      c.daily_extract_keywords_by_city && typeof c.daily_extract_keywords_by_city === 'object'
+        ? c.daily_extract_keywords_by_city
+        : {},
+  };
 }
 
-// ---- 写回 boss 配置（精准文本替换，保留注释与其他字段）----
-function replaceKeywordsBlock(text, map) {
-  const lines = text.split('\n');
-  const out = [];
-  let i = 0, replaced = false;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (/^\s*daily_extract_keywords_by_city:\s*(\[.*\])?$/.test(line)) {
-      out.push('  daily_extract_keywords_by_city:');
-      for (const [city, kws] of Object.entries(map)) {
-        const arr = Array.isArray(kws) ? kws : [];
-        out.push(`    ${city}: [${arr.map((k) => JSON.stringify(String(k))).join(', ')}]`);
-      }
-      replaced = true;
-      i++;
-      // 跳过原有子行（4 空格起的条目）
-      while (i < lines.length && /^ {4,}\S/.test(lines[i])) i++;
-      continue;
-    }
-    out.push(line);
-    i++;
-  }
-  if (!replaced) {
-    const idx = out.findIndex((l) => /^\s*daily_extract_queries:/.test(l));
-    const block = ['  daily_extract_keywords_by_city:'];
-    for (const [city, kws] of Object.entries(map)) {
-      const arr = Array.isArray(kws) ? kws : [];
-      block.push(`    ${city}: [${arr.map((k) => JSON.stringify(String(k))).join(', ')}]`);
-    }
-    if (idx >= 0) out.splice(idx + 1, 0, ...block);
-    else out.push(...block);
-  }
-  return out.join('\n');
-}
-
-function saveBossConfig({ send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city } = {}) {
-  let text = readFileSync(PROFILE, 'utf-8');
+// ---- 写回 boss 配置到数据库（阈值 / 每城配额 / 关键词）----
+// 前端每次提交完整的 daily_limit_per_city 映射，与 DB 现有值合并后整体覆盖，天然支持「移除城市」。
+async function saveBossConfig(body = {}) {
+  const { send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city } = body;
+  const partial = {};
   if (send_threshold != null) {
     const n = Number(send_threshold);
     if (!Number.isFinite(n) || n <= 0) throw new Error('评分阈值非法：必须为正数');
-    text = text.replace(/^(\s*send_threshold:\s*)\S+.*$/m, `$1${n}`);
+    partial.send_threshold = n;
   }
-  if (daily_limit_per_city && typeof daily_limit_per_city === 'object') {
-    // 对称同步：删除 profile 中不在传入列表里的城市行（支持「移除城市」）
-    const inputCities = new Set(Object.keys(daily_limit_per_city));
-    const existing = loadBossConfig().dailyLimitPerCity || {};
-    for (const city of Object.keys(existing)) {
-      if (inputCities.has(city)) continue;
-      const esc = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      text = text.replace(new RegExp('^\\s*' + esc + ':\\s*\\d+.*\\n', 'm'), '');
-    }
-    const toInsert = [];
-    for (const [city, val] of Object.entries(daily_limit_per_city)) {
-      const n = Number(val);
-      if (!Number.isFinite(n) || n < 0) continue; // 非法值跳过，避免破坏文件
-      const esc = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // 仅匹配 daily_limit_per_city 下、4 空格缩进的城市行（\d+ 不会误命中关键词块里的 [数组]）
-      const re = new RegExp('^(\\s*' + esc + ':\\s*)\\d+(\\s*(?:#.*)?)\\s*$', 'm');
-      if (re.test(text)) text = text.replace(re, `$1${n}$2`);
-      else toInsert.push(`    ${city}: ${n}`); // 新城市：块内追加
-    }
-    if (toInsert.length) {
-      const idx = text.indexOf('\n  send_threshold:');
-      const ins = '\n' + toInsert.join('\n');
-      text = idx >= 0 ? text.slice(0, idx) + ins + text.slice(idx) : text + ins + '\n';
-    }
-  }
-  if (Array.isArray(daily_extract_queries)) {
-    const arr = daily_extract_queries.map((k) => JSON.stringify(String(k)));
-    text = text.replace(/^(\s*daily_extract_queries:\s*).*$/m, `$1[${arr.join(', ')}]`);
-  }
+  if (daily_limit_per_city && typeof daily_limit_per_city === 'object') partial.daily_limit_per_city = daily_limit_per_city;
+  if (Array.isArray(daily_extract_queries)) partial.daily_extract_queries = daily_extract_queries;
   if (daily_extract_keywords_by_city && typeof daily_extract_keywords_by_city === 'object') {
-    text = replaceKeywordsBlock(text, daily_extract_keywords_by_city);
+    partial.daily_extract_keywords_by_city = daily_extract_keywords_by_city;
   }
-  writeFileSync(PROFILE, text, 'utf-8');
+  await saveBossControl(partial);
   return loadBossConfig();
 }
 
@@ -161,7 +103,7 @@ function countTodayByCity() {
 }
 
 async function getOverview() {
-  const cfg = loadBossConfig();
+  const cfg = await loadBossConfig();
   const thr = cfg.threshold;
   const totalRows = await q('SELECT COUNT(*) AS n FROM boss_jobs');
   const greetedRows = await q('SELECT COUNT(*) AS n FROM boss_jobs WHERE greeted=1');
@@ -275,7 +217,7 @@ function buildJobFilter(f) {
 }
 
 async function getJobs(sp) {
-  const cfg = loadBossConfig();
+  const cfg = await loadBossConfig();
   const page = Math.max(1, Number(sp.get('page') || 1));
   const pageSize = Math.min(200, Math.max(1, Number(sp.get('pageSize') || 20)));
   const f = {
@@ -457,7 +399,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/quota' && req.method === 'POST') {
       const body = await readBody(req);
       try {
-        const cfg = saveBossConfig(body);
+        const cfg = await saveBossConfig(body);
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
         return res.end(JSON.stringify({ ok: true, threshold: cfg.threshold, dailyLimitPerCity: cfg.dailyLimitPerCity }));
       } catch (e) {
@@ -478,7 +420,7 @@ const server = http.createServer(async (req, res) => {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
-        const cfg = loadBossConfig();
+        const cfg = await loadBossConfig();
         const rows = await q(
           'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=? ORDER BY score DESC',
           [city, cfg.threshold],
@@ -525,7 +467,7 @@ const server = http.createServer(async (req, res) => {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
-        const cfg = loadBossConfig();
+        const cfg = await loadBossConfig();
         let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=?';
         const args = [city, cfg.threshold];
         if (key === 'send_city_new') {
