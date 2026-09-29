@@ -746,6 +746,7 @@ async function pollRun(){
     const log=document.getElementById('cLog');
     log.textContent=j.output||'（等待输出…）';
     log.scrollTop=log.scrollHeight;
+    document.getElementById('btnKill').style.display = j.status==='running' ? '' : 'none';
     if(j.status!=='running'&&runTimer){clearInterval(runTimer);runTimer=null;loadOverview();}
   }catch(e){ /* 轮询失败忽略 */ }
 }
@@ -801,6 +802,14 @@ document.getElementById('autoRefresh').onchange=(e)=>setAuto(e.target.checked);
 renderFlow();
 loadOverview().then(()=>loadJobs(1));
 setAuto(true); // 默认勾选则立即启动 60s 自动刷新（仅刷新统计数字，不重置编辑）
+
+// 页面加载时检测是否有运行中的任务（含页面刷新前启动/外部触发的）：
+// 有则自动展开任务日志面板——终止按钮就在那里，别让运行中的任务"隐身"
+(async()=>{ try{
+  const r=await fetch('/api/run');
+  const d=await r.json();
+  if(d.job && d.job.status==='running') startPoll(d.job);
+}catch(e){ /* 忽略 */ } })();
 </script>
 </body>
 </html>
