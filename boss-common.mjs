@@ -194,7 +194,11 @@ export function uniqueJobKey(job) {
 }
 
 export function uniqueCandidateKey(job) {
-  return `${uniqueJobKey(job)}::${normalizeText(job.url || job.salary || job.city)}`;
+  // 公司+岗位名 = 岗位唯一身份。URL 不参与：BOSS 每次扫描同一岗位都会带新的
+  // securityId 查询参数，旧键含 URL 导致同一岗位每次扫描都算新哈希、重复入库
+  // （2026-09-29 实测 245 组 745 行重复）。且发送日志去重 loadSentKeys 本就是
+  // company::title，两处键保持一致。
+  return uniqueJobKey(job);
 }
 
 export function uniqueCompanyKey(job) {
