@@ -234,11 +234,17 @@ function buildJobFilter(f, { threshold } = {}) {
   } else if (f.greeted === '0' || f.greeted === '1') { where.push('greeted = ?'); args.push(Number(f.greeted)); }
   if (f.city) { where.push('city = ?'); args.push(f.city); }
   // 岗位类型快捷筛选：与批量剔除按钮同一套词表（title/raw 匹配）
+  // clean = 排除校招/应届/实习/校园/毕业生（社招正向池）
   const typePatterns = {
     intern: ['实习'],
     campus: ['校招', '应届', '校园', '毕业生'],
   };
-  if (f.jobType && typePatterns[f.jobType]) {
+  if (f.jobType === 'clean') {
+    const kws = ['实习', '校招', '应届', '校园', '毕业生'];
+    const likes = kws.map(() => '(title LIKE ? OR raw LIKE ?)').join(' OR ');
+    kws.forEach((kw) => args.push(`%${kw}%`, `%${kw}%`));
+    where.push('NOT (' + likes + ')');
+  } else if (typePatterns[f.jobType]) {
     const likes = typePatterns[f.jobType].map(() => '(title LIKE ? OR raw LIKE ?)').join(' OR ');
     typePatterns[f.jobType].forEach((kw) => args.push(`%${kw}%`, `%${kw}%`));
     where.push('(' + likes + ')');
