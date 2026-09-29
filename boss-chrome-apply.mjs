@@ -257,7 +257,7 @@ JSON.stringify((() => {
   if (!verified) throw new Error(`点击发送后未在${context}聊天记录中验证到自定义文案，未记为成功`);
 }
 
-function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false, cityLimits = null, urlCity = new Map() }) {
+function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false, cityLimits = null, platformLimit = 150, urlCity = new Map() }) {
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const sentToday = countSentCompaniesToday();
@@ -268,9 +268,15 @@ function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false,
   );
   const globalRemaining = Math.max(0, limit - sentToday);
   const perCityTotal = [...cityRemaining.values()].reduce((sum, n) => sum + n, 0);
-  const remainingToday = cityLimits
+  // BOSS 平台级每日上限（150 默认）：城市配额之和可能超过它，先到先停
+  const platformRemaining = Math.max(0, platformLimit - sentToday);
+  let remainingToday = cityLimits
     ? (limitIsExplicit ? Math.min(globalRemaining, perCityTotal) : perCityTotal)
     : globalRemaining;
+  if (remainingToday > platformRemaining) {
+    console.log(`[平台限额] 今日平台剩余 ${platformRemaining} 次（已沟通 ${sentToday}/${platformLimit}），本轮封顶。`);
+    remainingToday = platformRemaining;
+  }
   const cityRemainingBefore = Object.fromEntries(cityRemaining);
   const seenCompanies = new Set();
   const stats = { total: queue.length, belowThreshold: 0, alreadySent: 0, recentCompany: 0, cityQuota: 0 };
@@ -475,6 +481,7 @@ async function main() {
       limit,
       limitIsExplicit,
       cityLimits,
+      platformLimit: Number(BOSS_CONTROL.platform_daily_limit ?? 150),
       urlCity,
     });
     jobs = selection.jobs;
@@ -599,9 +606,12 @@ async function main() {
   let quotaLine = '';
   if (cityLimits) {
     const sentByCity = countSentCompaniesTodayByCity({ urlCity });
+    const platformLimit = Number(BOSS_CONTROL.platform_daily_limit ?? 150);
+    const platformSent = countSentCompaniesToday();
     quotaLine = '今日各城配额（已发/上限）：' + Object.entries(cityLimits)
       .map(([city, cap]) => `${city} ${sentByCity[city] || 0}/${Number(cap)}`)
-      .join('，');
+      .join('，')
+      + `；平台剩余 ${Math.max(0, platformLimit - platformSent)}/${platformLimit}`;
   } else {
     quotaLine = `今日发送上限：${limit} 家。`;
   }
