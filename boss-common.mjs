@@ -557,6 +557,45 @@ function jobRow(job) {
   ];
 }
 
+// 评分结果回写：boss-score 此前只写队列文件，boss_jobs.score 永远为 NULL，
+// 「发新扫/发送」按 score>=阈值 从库里筛就永远看不到新扫描岗位（2026-09-29）。
+// 仅回写评分规则判定可发送的岗位（完整JD/无硬风险/非可疑/薪资明确）；
+// 不合格的保持 score NULL（与历史语义一致：NULL=不可发）。
+// greeting/recommendation 一并写入 raw，供发送队列直接使用。
+export async function persistJobScores(scoredJobs) {
+  cancelIdleClose();
+  const pool = dbPool();
+  const conn = await pool.getConnection();
+  let updated = 0;
+  try {
+    for (const job of scoredJobs) {
+      if (!job || !job.key_hash) continue;
+      const eligible = job.db_eligible ? 1 : 0;
+      const [ret] = await conn.query(
+        `UPDATE ${BOSS_JOBS_TABLE} SET
+           score = ?,
+           raw = JSON_SET(COALESCE(raw, JSON_OBJECT()),
+             '$.greeting', ?,
+             '$.recommendation', ?,
+             '$.score_eligible', ?)
+         WHERE key_hash = ?`,
+        [
+          job.db_eligible && Number.isFinite(Number(job.score)) ? Number(job.score) : null,
+          String(job.greeting || ''),
+          String(job.recommendation || ''),
+          eligible,
+          job.key_hash,
+        ],
+      );
+      updated += ret.affectedRows;
+    }
+  } finally {
+    conn.release();
+    scheduleIdleClose();
+  }
+  return updated;
+}
+
 // 语义对齐原 writeJson(CANDIDATES_PATH, jobs)：整池重写；同时落 JSON 备份镜像
 export async function saveCandidates(jobs) {
   cancelIdleClose();
