@@ -17,6 +17,12 @@ const ROOT = join(__dirname, '..');
 const SENT_LOG = join(ROOT, 'data', 'boss-sent-log.tsv');
 const PROFILE = join(ROOT, 'config', 'profile.yml');
 const HTML_PATH = join(__dirname, 'index.html');
+const LAST_SCAN_FILE = join(ROOT, 'data', 'last-scan.txt');
+
+// 读取「最近一次扫描」的起始时间戳（由扫描任务启动时写入），用于「发送新扫描的」范围界定。
+function getLastScanAt() {
+  try { const t = readFileSync(LAST_SCAN_FILE, 'utf-8').trim(); return t || null; } catch { return null; }
+}
 
 // ---- 读取 boss 配置（阈值 / 每城配额），与 config/profile.yml 同步 ----
 function loadBossConfig() {
@@ -83,6 +89,15 @@ function saveBossConfig({ send_threshold, daily_limit_per_city, daily_extract_qu
     text = text.replace(/^(\s*send_threshold:\s*)\S+.*$/m, `$1${n}`);
   }
   if (daily_limit_per_city && typeof daily_limit_per_city === 'object') {
+    // 对称同步：删除 profile 中不在传入列表里的城市行（支持「移除城市」）
+    const inputCities = new Set(Object.keys(daily_limit_per_city));
+    const existing = loadBossConfig().dailyLimitPerCity || {};
+    for (const city of Object.keys(existing)) {
+      if (inputCities.has(city)) continue;
+      const esc = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      text = text.replace(new RegExp('^\\s*' + esc + ':\\s*\\d+.*\\n', 'm'), '');
+    }
+    const toInsert = [];
     for (const [city, val] of Object.entries(daily_limit_per_city)) {
       const n = Number(val);
       if (!Number.isFinite(n) || n < 0) continue; // 非法值跳过，避免破坏文件
@@ -90,6 +105,12 @@ function saveBossConfig({ send_threshold, daily_limit_per_city, daily_extract_qu
       // 仅匹配 daily_limit_per_city 下、4 空格缩进的城市行（\d+ 不会误命中关键词块里的 [数组]）
       const re = new RegExp('^(\\s*' + esc + ':\\s*)\\d+(\\s*(?:#.*)?)\\s*$', 'm');
       if (re.test(text)) text = text.replace(re, `$1${n}$2`);
+      else toInsert.push(`    ${city}: ${n}`); // 新城市：块内追加
+    }
+    if (toInsert.length) {
+      const idx = text.indexOf('\n  send_threshold:');
+      const ins = '\n' + toInsert.join('\n');
+      text = idx >= 0 ? text.slice(0, idx) + ins + text.slice(idx) : text + ins + '\n';
     }
   }
   if (Array.isArray(daily_extract_queries)) {
@@ -213,6 +234,7 @@ async function getOverview() {
     pending: pending,
     todaySent: todayInfo.todaySent,
     unknownCitySent,
+    lastScanAt: getLastScanAt(),
     quota: quotaData,
     cities: cityRows.map((r) => ({ city: String(r.city || '未知'), n: Number(r.n) })),
     salaryBounds: {
@@ -437,11 +459,49 @@ const server = http.createServer(async (req, res) => {
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
+        try { mkdirSync(join(ROOT, 'data'), { recursive: true }); writeFileSync(LAST_SCAN_FILE, new Date().toISOString()); } catch { /* ignore */ }
         const extra = key === 'scan_city_all' ? ' --all' : '';
         const cmd = `bash boss-extract-3cities.sh --city "${city}"${extra}`;
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'safe';
         return json({ ok: true, job: publicJob(startRun(key)), note: `仅扫描 ${city}（不影响其他城市）` });
+      }
+
+      // 动态命令：按时间 / 仅新扫描 发送（都要求 greeted=0 且 score≥阈值；走单城临时队列）
+      if (key === 'send_city_time' || key === 'send_city_new') {
+        const city = String(body.city || '').trim();
+        if (!city) return json({ ok: false, error: '缺少城市' }, 400);
+        if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
+        const cfg = loadBossConfig();
+        let sql = 'SELECT key_hash, url, greeted, raw FROM boss_jobs WHERE city=? AND greeted=0 AND score>=?';
+        const args = [city, cfg.threshold];
+        if (key === 'send_city_new') {
+          const last = getLastScanAt();
+          if (!last) return json({ ok: false, error: '尚未执行过扫描，无法确定「新扫描」范围。请先扫描此城。' }, 400);
+          sql += ' AND scanned_at >= ?'; args.push(last);
+        }
+        sql += ' ORDER BY scanned_at DESC';
+        const rows = await q(sql, args);
+        if (!rows.length) return json({ ok: false, error: `${city} 没有符合条件的待发岗位（greeted=0 且 score≥${cfg.threshold}${key === 'send_city_new' ? ' 且为最近扫描新增' : ''}）` }, 400);
+        const jobs = rows.map((r) => {
+          const job = typeof r.raw === 'string' ? JSON.parse(r.raw) : r.raw;
+          if (r.url) job.url = r.url;
+          job.greeted = Boolean(r.greeted);
+          if (r.key_hash) job.key_hash = r.key_hash;
+          return job;
+        });
+        mkdirSync(join(ROOT, 'data'), { recursive: true });
+        const rel = `data/boss-queue-${city}.json`;
+        writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
+        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review`;
+        if (body.confirm !== true) {
+          return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
+            message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），按${key === 'send_city_new' ? '最近扫描新增、' : ''}时间降序真实发送。` }, 409);
+        }
+        if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
+        RUN_ALLOWED[key] = cmd;
+        RUN_TIER[key] = 'confirm';
+        return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
       }
 
       if (!RUN_ALLOWED[key]) return json({ ok: false, error: `命令不在白名单：${key}` }, 400);
