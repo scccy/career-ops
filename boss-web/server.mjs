@@ -416,7 +416,7 @@ const server = http.createServer(async (req, res) => {
 
       // 动态命令：单城发送。apply 无 --city 参数，必须先写一份只含该城岗位的临时队列
       // （否则其他城市岗位会混入，且配额表外城市不被排除）。
-      if (key === 'send_city' || key === 'send_city_dry') {
+      if (key === 'send_city') {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
@@ -436,31 +436,29 @@ const server = http.createServer(async (req, res) => {
         mkdirSync(join(ROOT, 'data'), { recursive: true });
         const rel = `data/boss-queue-${city}.json`;
         writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
-        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} ` +
-          (key === 'send_city' ? '--confirmed-review' : '--dry-run');
-        if (key === 'send_city' && body.confirm !== true) {
+        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review`;
+        if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
             message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），将按该城当日剩余配额真实发送。` }, 409);
         }
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         RUN_ALLOWED[key] = cmd;
-        RUN_TIER[key] = key === 'send_city' ? 'confirm' : 'safe';
+        RUN_TIER[key] = 'confirm';
         return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
       }
 
-      // 动态命令：单城一键准备 = ②扫描 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
-      // extract 加 --city 只跑该城，不影响其他城；评分/排队为全局步骤。
-      if (key === 'scan_city' || key === 'scan_city_all') {
+      // 动态命令：单城一键准备 = ②扫描该城全部关键词 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
+      // extract 加 --city 只跑该城，不影响其他城；评分/排队为全局步骤。关键词量由每城词表自行控制。
+      if (key === 'scan_city') {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         try { mkdirSync(join(ROOT, 'data'), { recursive: true }); writeFileSync(LAST_SCAN_FILE, new Date().toISOString()); } catch { /* ignore */ }
-        const extra = key === 'scan_city_all' ? ' --all' : '';
-        const cmd = `bash boss-extract-3cities.sh --city "${city}"${extra} && npm run boss:score && npm run boss:fill -- --prepare`;
+        const cmd = `bash boss-extract-3cities.sh --city "${city}" --all && npm run boss:score && npm run boss:fill -- --prepare`;
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'safe';
-        return json({ ok: true, job: publicJob(startRun(key)), note: `一键准备：扫描 ${city} → 评分 → 排队（不影响其他城市，完成后可直接发送/发新扫）` });
+        return json({ ok: true, job: publicJob(startRun(key)), note: `一键准备：扫描 ${city} 全部关键词 → 评分 → 排队（不影响其他城市，完成后可直接发送/发新扫）` });
       }
 
       // 动态命令：发新扫——只发「最近一次扫描才开始出现」的岗位（greeted=0 且 score≥阈值，时间降序；走单城临时队列）
