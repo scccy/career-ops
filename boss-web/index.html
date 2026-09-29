@@ -78,6 +78,19 @@
   .globalkw label{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
   .globalkw input{flex:1;min-width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
   .globalkw input:focus{border-color:var(--indigo)}
+  /* 城市操作列表（表格） */
+  .city-add{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .city-add input{padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
+  .city-add input#addCityName{width:150px}
+  .city-add input#addCityQuota{width:78px}
+  .city-add input#cityFilter{width:140px;margin-left:auto}
+  .city-table td,.city-table th{vertical-align:top}
+  .cpool a{font-weight:700}
+  .csent{min-width:130px}
+  .csent .bar{margin-bottom:4px}
+  .csent .meta{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .cops{display:flex;gap:5px;flex-wrap:wrap;max-width:330px}
+  .city-table .kwcity{margin:0}
 
   /* 流程 */
   .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 16px}
@@ -188,9 +201,9 @@
     </div>
   </section>
 
-  <!-- 每日城市操作流程控制 -->
+  <!-- 每日城市操作流程控制（列表形式，可添加城市、内联编辑） -->
   <section>
-    <p class="sec-title">每日城市操作流程控制</p>
+    <p class="sec-title">每日城市操作流程控制（列表 · 可添加城市）</p>
     <div class="globalkw">
       <label>统一搜索关键词（默认词表）</label>
       <input id="fGlobalKw" placeholder="逗号分隔，如 大数据开发,数仓,数据开发" />
@@ -201,8 +214,24 @@
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
       <span class="hint" style="margin:0">每城可独立覆盖关键词与每日配额；「扫描此城」只跑该城、「发送此城」只发该城；评分/排队/复核仍为全局。</span>
     </div>
-    <div class="quota-grid" id="quota"></div>
-    <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。</div>
+    <div class="city-add">
+      <input id="addCityName" placeholder="城市名，如 苏州" />
+      <input id="addCityQuota" type="number" min="0" placeholder="配额" value="20" />
+      <button class="btn sm" id="btnAddCity">＋ 添加城市</button>
+      <input id="cityFilter" placeholder="筛选城市…" />
+    </div>
+    <table class="city-table" id="cityTable">
+      <thead><tr>
+        <th>城市</th>
+        <th>搜索关键词（逗号分隔，留空=统一词表）</th>
+        <th>每日配额</th>
+        <th>池中待发</th>
+        <th>今日已发 / 剩余</th>
+        <th>操作</th>
+      </tr></thead>
+      <tbody id="cityBody"></tbody>
+    </table>
+    <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。自动刷新只更新数字、不重置你的编辑。</div>
   </section>
 
   <!-- 实时概览（紧凑状态条） -->
@@ -406,41 +435,7 @@ async function loadOverview(){
       d.cities.map(c=>`<option value="${esc(c.city)}">${esc(c.city)}（${c.n}）</option>`).join('');
     if(keep) sel.value=keep;
 
-    const q=document.getElementById('quota'); q.innerHTML='';
-    d.quota.forEach(c=>{
-      const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
-      const full=c.sentToday>=c.quota;
-      const kwStr=(c.keywords||[]).join(', ');
-      const div=document.createElement('div'); div.className='quota';
-      div.innerHTML=`<h4>${esc(c.city)} <span class="q">配额 <input class="qlimit" type="number" min="0" data-city="${esc(c.city)}" value="${c.quota}"> /日</span></h4>
-        <label class="kwlabel">搜索关键词（逗号分隔，留空=用统一词表）</label>
-        <input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=用统一词表">
-        <div class="bar ${full?'full':''}"><i style="width:${pct}%"></i></div>
-        <div class="meta"><span>今日已发 ${c.sentToday}</span><span>剩余 ${c.remaining}</span></div>
-        <div class="meta"><span class="lk" data-city="${esc(c.city)}">池中待发 ${c.poolPending} ↗</span><span>池总量 ${c.poolTotal}</span></div>
-        <div class="qacts">
-          <button class="btn sm ghost qscan" data-city="${esc(c.city)}">扫描此城</button>
-          <button class="btn sm ghost qscanall" data-city="${esc(c.city)}">全词</button>
-          <button class="btn sm ghost qdry" data-city="${esc(c.city)}">预演</button>
-          <button class="btn sm danger qsend" data-city="${esc(c.city)}">▶ 发送此城</button>
-        </div>`;
-      q.appendChild(div);
-    });
-    q.querySelectorAll('.lk').forEach(el=>{
-      el.onclick=()=>applyPreset({city:el.dataset.city, greeted:'0', minScore:'THR'});
-    });
-    q.querySelectorAll('.qscan').forEach(b=>{
-      b.onclick=()=>doRun('scan_city',{city:b.dataset.city});
-    });
-    q.querySelectorAll('.qscanall').forEach(b=>{
-      b.onclick=()=>doRun('scan_city_all',{city:b.dataset.city});
-    });
-    q.querySelectorAll('.qdry').forEach(b=>{
-      b.onclick=()=>doRun('send_city_dry',{city:b.dataset.city});
-    });
-    q.querySelectorAll('.qsend').forEach(b=>{
-      b.onclick=()=>doRun('send_city',{city:b.dataset.city});
-    });
+    renderCityTable(d);
     b.className='banner ok';
     const ts=new Date(d.generatedAt).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
     b.textContent=`已连接 · 阈值 ${d.threshold} · 风格「${d.greetingStyle||'—'}」 · 更新于 ${ts}`;
@@ -452,14 +447,72 @@ async function loadOverview(){
   }
 }
 
-async function saveQuota(){
-  const limits={};
-  document.querySelectorAll('.qlimit').forEach(i=>{ limits[i.dataset.city]=Number(i.value); });
-  const kwByCity={};
-  document.querySelectorAll('.kwcity').forEach(i=>{
-    const v=i.value.trim();
-    if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
+// ---- 城市操作列表：渲染 / 局部刷新统计 / 自动刷新 ----
+function renderCityTable(d){
+  const tb=document.getElementById('cityBody'); tb.innerHTML='';
+  const fc=document.getElementById('cityFilter').value.trim();
+  d.quota.forEach(c=>{
+    if(fc && !c.city.includes(fc)) return;
+    const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
+    const full=c.sentToday>=c.quota;
+    const kwStr=(c.keywords||[]).join(', ');
+    const tr=document.createElement('tr'); tr.dataset.city=c.city;
+    tr.innerHTML=`
+      <td class="ccity">${esc(c.city)}</td>
+      <td><input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=统一词表"></td>
+      <td><input class="qlimit" type="number" min="0" data-city="${esc(c.city)}" value="${c.quota}"></td>
+      <td class="cpool" data-city="${esc(c.city)}"><a class="lk" data-act="lk" data-city="${esc(c.city)}">池中待发 ${c.poolPending} ↗</a></td>
+      <td class="csent" data-city="${esc(c.city)}">
+        <div class="bar ${full?'full':''}"><i style="width:${pct}%"></i></div>
+        <div class="meta">今日 ${c.sentToday} / 剩余 ${c.remaining}</div>
+      </td>
+      <td class="cops">
+        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}">扫描</button>
+        <button class="btn sm ghost" data-act="scan_city_all" data-city="${esc(c.city)}">全词</button>
+        <button class="btn sm ghost" data-act="send_city_dry" data-city="${esc(c.city)}">预演</button>
+        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}">发送</button>
+        <button class="btn sm" data-act="send_city_time" data-city="${esc(c.city)}">按时间</button>
+        <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}">新扫描</button>
+      </td>`;
+    tb.appendChild(tr);
   });
+}
+
+// 自动刷新只更新统计数字，不重建输入框（避免编辑被重置）
+function updateCityStats(d){
+  d.quota.forEach(c=>{
+    const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
+    const full=c.sentToday>=c.quota;
+    const pool=document.querySelector(`#cityBody .cpool[data-city="${CSS.escape(c.city)}"] .lk`);
+    if(pool) pool.textContent=`池中待发 ${c.poolPending} ↗`;
+    const sent=document.querySelector(`#cityBody .csent[data-city="${CSS.escape(c.city)}"]`);
+    if(sent){
+      const bar=sent.querySelector('.bar');
+      bar.classList.toggle('full',full);
+      bar.querySelector('i').style.width=pct+'%';
+      sent.querySelector('.meta').textContent=`今日 ${c.sentToday} / 剩余 ${c.remaining}`;
+    }
+  });
+}
+
+// 自动刷新：只更新概览卡片 + 城市统计，不重建表格 / 不重置检索区
+async function refreshStats(){
+  try{
+    const r=await fetch('/api/overview'); const d=await r.json();
+    if(!d.ok) return;
+    THRESHOLD=d.threshold;
+    document.getElementById('cTotal').textContent=d.total;
+    document.getElementById('cGreeted').textContent=d.greeted;
+    document.getElementById('cPending').textContent=d.pending;
+    document.getElementById('cToday').textContent=d.todaySent;
+    document.getElementById('cUnscored').textContent=d.unscored;
+    document.getElementById('cPendingX').textContent=`score≥${d.threshold} & 未发`;
+    document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
+    updateCityStats(d);
+  }catch(e){ /* 忽略刷新失败 */ }
+}
+
+async function postConfig(limits, kwByCity){
   const thr=Number(document.getElementById('fThreshold').value);
   const globalKw=document.getElementById('fGlobalKw').value.trim()
     .split(/[,，、\s]+/).filter(Boolean);
@@ -471,10 +524,36 @@ async function saveQuota(){
       daily_extract_keywords_by_city:kwByCity,
     })});
   const d=await r.json();
-  if(!d.ok){alert('保存失败：'+(d.error||''));return;}
+  if(!d.ok){alert('保存失败：'+(d.error||''));return false;}
   document.getElementById('quotaSaved').textContent='已保存 ✓';
   setTimeout(()=>document.getElementById('quotaSaved').textContent='',2500);
-  loadOverview();
+  return true;
+}
+
+async function saveQuota(){
+  const limits={};
+  document.querySelectorAll('.qlimit').forEach(i=>{ limits[i.dataset.city]=Number(i.value); });
+  const kwByCity={};
+  document.querySelectorAll('.kwcity').forEach(i=>{
+    const v=i.value.trim();
+    if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
+  });
+  if(await postConfig(limits, kwByCity)) loadOverview();
+}
+
+function addCity(){
+  const name=document.getElementById('addCityName').value.trim();
+  const quota=Number(document.getElementById('addCityQuota').value)||20;
+  if(!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(name)){alert('城市名非法（1-20 位中文/字母/数字 / · / -）');return;}
+  if(document.querySelector(`#cityBody tr[data-city="${CSS.escape(name)}"]`)){alert('该城市已存在');return;}
+  const limits={}, kwByCity={};
+  document.querySelectorAll('.qlimit').forEach(i=>{ limits[i.dataset.city]=Number(i.value); });
+  document.querySelectorAll('.kwcity').forEach(i=>{
+    const v=i.value.trim();
+    if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
+  });
+  limits[name]=quota;
+  postConfig(limits, kwByCity).then(ok=>{ if(ok){ document.getElementById('addCityName').value=''; document.getElementById('addCityQuota').value=20; loadOverview(); } });
 }
 
 function buildQuery(page){
@@ -586,19 +665,33 @@ document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;loadJobs(1);};
 document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore'].forEach(i=>document.getElementById(i).value='');currentPage=1;loadJobs(1);};
 document.getElementById('btnSaveQuota').onclick=saveQuota;
+document.getElementById('btnAddCity').onclick=addCity;
 document.getElementById('btnKill').onclick=()=>{if(currentJobId)postJson('/api/run/kill',{id:currentJobId});};
 document.getElementById('mCancel').onclick=()=>{document.getElementById('mask').style.display='none';};
 document.getElementById('prev').onclick=()=>{if(currentPage>1)loadJobs(currentPage-1);};
 document.getElementById('next').onclick=()=>loadJobs(currentPage+1);
+// 城市列表操作：事件委托（含「池中待发」跳检索）
+document.getElementById('cityBody').addEventListener('click',(e)=>{
+  const el=e.target.closest('[data-act]'); if(!el) return;
+  const act=el.dataset.act, city=el.dataset.city;
+  if(act==='lk'){ applyPreset({city, greeted:'0', minScore:'THR'}); return; }
+  doRun(act,{city});
+});
+// 城市筛选：仅隐藏不匹配行，不重建、不丢编辑
+document.getElementById('cityFilter').addEventListener('input',()=>{
+  const fc=document.getElementById('cityFilter').value.trim();
+  document.querySelectorAll('#cityBody tr').forEach(tr=>{
+    tr.style.display = (!fc || tr.dataset.city.includes(fc)) ? '' : 'none';
+  });
+});
 
 let autoTimer=null;
-function setAuto(on){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} if(on) autoTimer=setInterval(loadOverview,60000); }
+function setAuto(on){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} if(on) autoTimer=setInterval(refreshStats,60000); }
 document.getElementById('autoRefresh').onchange=(e)=>setAuto(e.target.checked);
 
 renderFlow();
 loadOverview().then(()=>loadJobs(1));
-setAuto(document.getElementById('autoRefresh').checked); // 默认勾选则立即启动 60s 自动刷新
-setAuto(true);
+setAuto(true); // 默认勾选则立即启动 60s 自动刷新（仅刷新统计数字，不重置编辑）
 </script>
 </body>
 </html>
