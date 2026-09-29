@@ -83,6 +83,14 @@ async function q(sql, params) {
 }
 
 // ---- 今日各城市已发送公司数（来自发送日志，URL 反查候选池城市） ----
+// URL 指纹：只取 pathname（job_detail/<id>.html）。BOSS 每次扫描同一岗位都换
+// 新 securityId，用完整 URL 匹配会让重扫后历史发送记录对不上城市（少算配额）。
+function urlPathname(u) {
+  const s = String(u || '');
+  if (!s) return '';
+  try { return new URL(s).pathname; } catch { return s; }
+}
+
 function countTodayByCity() {
   const today = new Date().toISOString().slice(0, 10);
   const result = { todaySent: 0, byCity: {} };
@@ -124,7 +132,7 @@ async function getOverview() {
   );
 
   const urlRows = await q("SELECT url, city FROM boss_jobs WHERE url<>''");
-  const urlCity = new Map(urlRows.map((r) => [r.url, String(r.city || '').split('·')[0]]));
+  const urlCity = new Map(urlRows.map((r) => [urlPathname(r.url), String(r.city || '').split('·')[0]]));
   const todayInfo = countTodayByCity();
   const byCity = {};
   if (existsSync(SENT_LOG)) {
@@ -135,10 +143,10 @@ async function getOverview() {
       if (!line.trim()) continue;
       const [date, , company, , url, status] = line.split('\t');
       if (date !== today || (status !== 'sent' && status !== 'auto_sent')) continue;
-      const key = url || (company || '').trim();
+      const key = (url && urlPathname(url)) || (company || '').trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      const city = (url && urlCity.get(url)) || '未知';
+      const city = (url && urlCity.get(urlPathname(url))) || '未知';
       byCity[city] = (byCity[city] || 0) + 1;
     }
   }
