@@ -32,6 +32,8 @@ function loadBossConfig() {
       threshold: Number(boss.send_threshold) || fallback.threshold,
       dailyLimitPerCity: boss.daily_limit_per_city || fallback.dailyLimitPerCity,
       greetingStyle: boss.greeting_style || '',
+      dailyExtractQueries: Array.isArray(boss.daily_extract_queries) ? boss.daily_extract_queries : [],
+      dailyExtractKeywordsByCity: boss.daily_extract_keywords_by_city && typeof boss.daily_extract_keywords_by_city === 'object' ? boss.daily_extract_keywords_by_city : {},
     };
   } catch {
     return fallback;
@@ -39,7 +41,41 @@ function loadBossConfig() {
 }
 
 // ---- 写回 boss 配置（精准文本替换，保留注释与其他字段）----
-function saveBossConfig({ send_threshold, daily_limit_per_city } = {}) {
+function replaceKeywordsBlock(text, map) {
+  const lines = text.split('\n');
+  const out = [];
+  let i = 0, replaced = false;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*daily_extract_keywords_by_city:\s*(\[.*\])?$/.test(line)) {
+      out.push('  daily_extract_keywords_by_city:');
+      for (const [city, kws] of Object.entries(map)) {
+        const arr = Array.isArray(kws) ? kws : [];
+        out.push(`    ${city}: [${arr.map((k) => JSON.stringify(String(k))).join(', ')}]`);
+      }
+      replaced = true;
+      i++;
+      // 跳过原有子行（4 空格起的条目）
+      while (i < lines.length && /^ {4,}\S/.test(lines[i])) i++;
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  if (!replaced) {
+    const idx = out.findIndex((l) => /^\s*daily_extract_queries:/.test(l));
+    const block = ['  daily_extract_keywords_by_city:'];
+    for (const [city, kws] of Object.entries(map)) {
+      const arr = Array.isArray(kws) ? kws : [];
+      block.push(`    ${city}: [${arr.map((k) => JSON.stringify(String(k))).join(', ')}]`);
+    }
+    if (idx >= 0) out.splice(idx + 1, 0, ...block);
+    else out.push(...block);
+  }
+  return out.join('\n');
+}
+
+function saveBossConfig({ send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city } = {}) {
   let text = readFileSync(PROFILE, 'utf-8');
   if (send_threshold != null) {
     const n = Number(send_threshold);
@@ -51,10 +87,17 @@ function saveBossConfig({ send_threshold, daily_limit_per_city } = {}) {
       const n = Number(val);
       if (!Number.isFinite(n) || n < 0) continue; // 非法值跳过，避免破坏文件
       const esc = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // 仅匹配 daily_limit_per_city 下、4 空格缩进的城市行，保留末尾可能存在的注释
+      // 仅匹配 daily_limit_per_city 下、4 空格缩进的城市行（\d+ 不会误命中关键词块里的 [数组]）
       const re = new RegExp('^(\\s*' + esc + ':\\s*)\\d+(\\s*(?:#.*)?)\\s*$', 'm');
       if (re.test(text)) text = text.replace(re, `$1${n}$2`);
     }
+  }
+  if (Array.isArray(daily_extract_queries)) {
+    const arr = daily_extract_queries.map((k) => JSON.stringify(String(k)));
+    text = text.replace(/^(\s*daily_extract_queries:\s*).*$/m, `$1[${arr.join(', ')}]`);
+  }
+  if (daily_extract_keywords_by_city && typeof daily_extract_keywords_by_city === 'object') {
+    text = replaceKeywordsBlock(text, daily_extract_keywords_by_city);
   }
   writeFileSync(PROFILE, text, 'utf-8');
   return loadBossConfig();
@@ -140,6 +183,7 @@ async function getOverview() {
   const quotaData = Object.entries(cfg.dailyLimitPerCity).map(([city, quota]) => {
     const row = cities.find((c) => String(c.city).split('·')[0] === city) || { total: 0, greeted: 0, pending: 0 };
     const sentToday = byCity[city] || 0;
+    const perCityKw = cfg.dailyExtractKeywordsByCity[city];
     return {
       city,
       quota,
@@ -147,6 +191,7 @@ async function getOverview() {
       remaining: Math.max(0, quota - sentToday),
       poolTotal: Number(row.total || 0),
       poolPending: Number(row.pending || 0),
+      keywords: Array.isArray(perCityKw) && perCityKw.length ? perCityKw : cfg.dailyExtractQueries,
     };
   });
 
@@ -159,6 +204,7 @@ async function getOverview() {
     generatedAt: new Date().toISOString(),
     threshold: thr,
     greetingStyle: cfg.greetingStyle,
+    dailyExtractQueries: cfg.dailyExtractQueries,
     total: total,
     greeted: greeted,
     notGreeted: total - greeted,
@@ -383,6 +429,19 @@ const server = http.createServer(async (req, res) => {
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = key === 'send_city' ? 'confirm' : 'safe';
         return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
+      }
+
+      // 动态命令：单城隔离扫描。extract 脚本加 --city 后只跑该城，不影响其他城。
+      if (key === 'scan_city' || key === 'scan_city_all') {
+        const city = String(body.city || '').trim();
+        if (!city) return json({ ok: false, error: '缺少城市' }, 400);
+        if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
+        if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
+        const extra = key === 'scan_city_all' ? ' --all' : '';
+        const cmd = `bash boss-extract-3cities.sh --city "${city}"${extra}`;
+        RUN_ALLOWED[key] = cmd;
+        RUN_TIER[key] = 'safe';
+        return json({ ok: true, job: publicJob(startRun(key)), note: `仅扫描 ${city}（不影响其他城市）` });
       }
 
       if (!RUN_ALLOWED[key]) return json({ ok: false, error: `命令不在白名单：${key}` }, 400);

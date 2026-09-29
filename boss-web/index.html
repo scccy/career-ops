@@ -68,8 +68,16 @@
   .quota .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:7px}
   .quota .lk{color:var(--indigo);font-weight:700;cursor:pointer}
   .quota .lk:hover{text-decoration:underline}
-  .qacts{display:flex;gap:6px;margin-top:10px}
+  .qacts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
   .qacts .btn{padding:4px 10px;font-size:11.5px;border-radius:8px;box-shadow:none}
+  .kwlabel{display:block;font-size:11px;color:var(--muted);margin:11px 0 4px;font-weight:600}
+  .kwcity{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;outline:none;background:#fff;color:var(--ink)}
+  .kwcity:focus{border-color:var(--indigo)}
+  /* 统一词表编辑器 */
+  .globalkw{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;background:var(--indigo-soft);padding:12px 14px;border-radius:12px}
+  .globalkw label{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
+  .globalkw input{flex:1;min-width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
+  .globalkw input:focus{border-color:var(--indigo)}
 
   /* 流程 */
   .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 16px}
@@ -148,7 +156,7 @@
       <div class="logo">B</div>
       <div>
         <h1>BOSS 直聘 · 流程操作控制台</h1>
-        <div class="sub">career-ops · 一键执行 扫描 / 评分 / 排队 / 发送 · 配额可自调</div>
+        <div class="sub">career-ops · 一键执行 扫描 / 评分 / 排队 / 发送 · 每城配额与关键词可自调</div>
       </div>
     </div>
     <div class="status">
@@ -180,13 +188,18 @@
     </div>
   </section>
 
-  <!-- 配额可编辑 -->
+  <!-- 每日城市操作流程控制 -->
   <section>
-    <p class="sec-title">每日城市配额（可编辑）</p>
+    <p class="sec-title">每日城市操作流程控制</p>
+    <div class="globalkw">
+      <label>统一搜索关键词（默认词表）</label>
+      <input id="fGlobalKw" placeholder="逗号分隔，如 大数据开发,数仓,数据开发" />
+      <span class="saved" id="quotaSaved"></span>
+    </div>
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
-      <span class="saved" id="quotaSaved"></span>
+      <span class="hint" style="margin:0">每城可独立覆盖关键词与每日配额；「扫描此城」只跑该城、「发送此城」只发该城；评分/排队/复核仍为全局。</span>
     </div>
     <div class="quota-grid" id="quota"></div>
     <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。</div>
@@ -386,6 +399,7 @@ async function loadOverview(){
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
 
     document.getElementById('fThreshold').value=d.threshold;
+    document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
     sel.innerHTML='<option value="">全部城市</option>'+
@@ -396,12 +410,17 @@ async function loadOverview(){
     d.quota.forEach(c=>{
       const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
       const full=c.sentToday>=c.quota;
+      const kwStr=(c.keywords||[]).join(', ');
       const div=document.createElement('div'); div.className='quota';
       div.innerHTML=`<h4>${esc(c.city)} <span class="q">配额 <input class="qlimit" type="number" min="0" data-city="${esc(c.city)}" value="${c.quota}"> /日</span></h4>
+        <label class="kwlabel">搜索关键词（逗号分隔，留空=用统一词表）</label>
+        <input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=用统一词表">
         <div class="bar ${full?'full':''}"><i style="width:${pct}%"></i></div>
         <div class="meta"><span>今日已发 ${c.sentToday}</span><span>剩余 ${c.remaining}</span></div>
         <div class="meta"><span class="lk" data-city="${esc(c.city)}">池中待发 ${c.poolPending} ↗</span><span>池总量 ${c.poolTotal}</span></div>
         <div class="qacts">
+          <button class="btn sm ghost qscan" data-city="${esc(c.city)}">扫描此城</button>
+          <button class="btn sm ghost qscanall" data-city="${esc(c.city)}">全词</button>
           <button class="btn sm ghost qdry" data-city="${esc(c.city)}">预演</button>
           <button class="btn sm danger qsend" data-city="${esc(c.city)}">▶ 发送此城</button>
         </div>`;
@@ -409,6 +428,12 @@ async function loadOverview(){
     });
     q.querySelectorAll('.lk').forEach(el=>{
       el.onclick=()=>applyPreset({city:el.dataset.city, greeted:'0', minScore:'THR'});
+    });
+    q.querySelectorAll('.qscan').forEach(b=>{
+      b.onclick=()=>doRun('scan_city',{city:b.dataset.city});
+    });
+    q.querySelectorAll('.qscanall').forEach(b=>{
+      b.onclick=()=>doRun('scan_city_all',{city:b.dataset.city});
     });
     q.querySelectorAll('.qdry').forEach(b=>{
       b.onclick=()=>doRun('send_city_dry',{city:b.dataset.city});
@@ -430,9 +455,21 @@ async function loadOverview(){
 async function saveQuota(){
   const limits={};
   document.querySelectorAll('.qlimit').forEach(i=>{ limits[i.dataset.city]=Number(i.value); });
+  const kwByCity={};
+  document.querySelectorAll('.kwcity').forEach(i=>{
+    const v=i.value.trim();
+    if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
+  });
   const thr=Number(document.getElementById('fThreshold').value);
+  const globalKw=document.getElementById('fGlobalKw').value.trim()
+    .split(/[,，、\s]+/).filter(Boolean);
   const r=await fetch('/api/quota',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({send_threshold:thr, daily_limit_per_city:limits})});
+    body:JSON.stringify({
+      send_threshold:thr,
+      daily_limit_per_city:limits,
+      daily_extract_queries:globalKw,
+      daily_extract_keywords_by_city:kwByCity,
+    })});
   const d=await r.json();
   if(!d.ok){alert('保存失败：'+(d.error||''));return;}
   document.getElementById('quotaSaved').textContent='已保存 ✓';
