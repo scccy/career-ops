@@ -270,6 +270,9 @@
           <option value="">全部</option><option value="pending">池中待发（可发送）</option><option value="unscored">未评分（待评分）</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
         </select></div>
         <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
+        <div class="f"><label>岗位类型</label><select id="fJobType">
+          <option value="">全部</option><option value="intern">实习</option><option value="campus">校招/应届</option>
+        </select></div>
         <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
         <span class="hint" style="margin:0">「未打招呼」= 仅未发送，<b>含未评分/低于阈值/已关闭</b>；只看可发送的，请把最低分数填成阈值（3）——与城市表「池中待发」同口径。</span>
         <div class="f"><label>排序</label><select id="fSort">
@@ -613,6 +616,7 @@ function buildQuery(page){
   if(v('fGreeted')) p.set('greeted',v('fGreeted'));
   if(v('fMinScore')) p.set('minScore',v('fMinScore'));
   if(v('fKeyword')) p.set('keyword',v('fKeyword'));
+  if(v('fJobType')) p.set('jobType',v('fJobType'));
   p.set('sort',document.getElementById('fSort').value);
   return p.toString();
 }
@@ -754,7 +758,7 @@ async function pollRun(){
 
 document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
-document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword'].forEach(i=>document.getElementById(i).value='');currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
+document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
 document.getElementById('bulkMark').onclick=()=>bulkAction('mark_greeted');
 document.getElementById('bulkDelete').onclick=()=>bulkAction('delete');
 document.getElementById('selAllFilter').onclick=()=>{ allFilterSelected=true; updateSelInfo(); };
