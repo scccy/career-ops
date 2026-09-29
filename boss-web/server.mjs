@@ -477,7 +477,18 @@ const server = http.createServer(async (req, res) => {
         }
         sql += ' ORDER BY scanned_at DESC';
         const rows = await q(sql, args);
-        if (!rows.length) return json({ ok: false, error: `${city} 没有符合条件的待发岗位（greeted=0 且 score≥${cfg.threshold}${key === 'send_city_new' ? ' 且为最近扫描新增' : ''}）` }, 400);
+        if (!rows.length) {
+          let hint = '';
+          if (key === 'send_city_new') {
+            // 新扫描岗位可能尚未评分（score NULL 会被 ≥阈值 过滤），给出可执行的下一步
+            const [uns] = await q(
+              'SELECT COUNT(*) AS n FROM boss_jobs WHERE city=? AND greeted=0 AND score IS NULL AND scanned_at >= ?',
+              [city, last],
+            );
+            if (uns.n > 0) hint = `检测到 ${city} 有 ${uns.n} 条新扫描岗位尚未评分，请先执行主流程③评分（boss:score）再发新扫。`;
+          }
+          return json({ ok: false, error: `${city} 没有符合条件的待发岗位（greeted=0 且 score≥${cfg.threshold}${key === 'send_city_new' ? ' 且为最近扫描新增' : ''}）${hint}` }, 400);
+        }
         const jobs = rows.map((r) => {
           const job = typeof r.raw === 'string' ? JSON.parse(r.raw) : r.raw;
           if (r.url) job.url = r.url;
