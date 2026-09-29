@@ -436,7 +436,7 @@ const server = http.createServer(async (req, res) => {
         mkdirSync(join(ROOT, 'data'), { recursive: true });
         const rel = `data/boss-queue-${city}.json`;
         writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
-        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review`;
+        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
         if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
             message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），将按该城当日剩余配额真实发送。` }, 409);
@@ -492,7 +492,7 @@ const server = http.createServer(async (req, res) => {
         mkdirSync(join(ROOT, 'data'), { recursive: true });
         const rel = `data/boss-queue-${city}.json`;
         writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
-        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review`;
+        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
         if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
             message: `已生成 ${city} 临时队列（${jobs.length} 个待发岗位），只发最近扫描新增、按时间降序真实发送。` }, 409);
