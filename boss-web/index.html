@@ -477,11 +477,14 @@ function renderCityTable(d){
     if(fc && !c.city.includes(fc)) return;
     const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
     const full=c.sentToday>=c.quota;
-    const kwStr=(c.keywords||[]).join(', ');
+    // 每城词表输入框只显示「显式覆盖」；未覆盖的城市留空（placeholder 提示跟随统一词表）。
+    // 之前把生效词表(含全局回退)填进 value，导致两个框显示一模一样，
+    // 且保存一次就会把全局词表冻结成每城的独立覆盖
+    const kwStr=(c.keywordsCustom||[]).join(', ');
     const tr=document.createElement('tr'); tr.dataset.city=c.city;
     tr.innerHTML=`
       <td class="ccity">${esc(c.city)}</td>
-      <td><input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=统一词表"></td>
+      <td><input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=用统一词表"></td>
       <td><input class="qlimit" type="number" min="0" data-city="${esc(c.city)}" value="${c.quota}"></td>
       <td class="cpool" data-city="${esc(c.city)}"><a class="lk" data-act="lk" data-city="${esc(c.city)}">池中待发 ${c.poolPending} ↗</a></td>
       <td class="csent" data-city="${esc(c.city)}">

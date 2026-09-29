@@ -154,7 +154,9 @@ async function getOverview() {
   const quotaData = Object.entries(cfg.dailyLimitPerCity).map(([city, quota]) => {
     const row = cities.find((c) => String(c.city).split('·')[0] === city) || { total: 0, greeted: 0, pending: 0 };
     const sentToday = byCity[city] || 0;
-    const perCityKw = cfg.dailyExtractKeywordsByCity[city];
+    // keywordsCustom = 该城显式覆盖的词表（空=未覆盖，跟随统一词表）；keywords = 实际生效词表
+    const keywordsCustom = Array.isArray(cfg.dailyExtractKeywordsByCity[city]) ? cfg.dailyExtractKeywordsByCity[city] : [];
+    const perCityKw = keywordsCustom.length ? keywordsCustom : cfg.dailyExtractQueries;
     return {
       city,
       quota,
@@ -162,7 +164,8 @@ async function getOverview() {
       remaining: Math.max(0, quota - sentToday),
       poolTotal: Number(row.total || 0),
       poolPending: Number(row.pending || 0),
-      keywords: Array.isArray(perCityKw) && perCityKw.length ? perCityKw : cfg.dailyExtractQueries,
+      keywordsCustom,
+      keywords: perCityKw,
     };
   });
 
