@@ -57,15 +57,16 @@ city_code() {
   node -e 'import("./boss-common.mjs").then(m => console.log(m.BOSS_CITY_CODES[process.argv[1]] || ""))' "$1"
 }
 
-# 取某城的搜索关键词：优先每城独立词表，否则回退全局统一词表
+# 取某城的搜索关键词：优先每城独立词表（数据库），否则回退全局统一词表（数据库）
 city_keywords() {
   node -e '
-  const yaml = require("js-yaml");
-  const fs = require("fs");
-  const boss = (yaml.load(fs.readFileSync("config/profile.yml", "utf-8")) || {}).boss || {};
-  const kw = boss.daily_extract_keywords_by_city || {};
-  const list = (kw[process.argv[1]] && kw[process.argv[1]].length) ? kw[process.argv[1]] : (boss.daily_extract_queries || []);
-  console.log(list.join("\t"));
+  (async () => {
+    const { loadBossControl } = await import("./boss-config-db.mjs");
+    const cfg = await loadBossControl().catch(() => ({}));
+    const kw = cfg.daily_extract_keywords_by_city || {};
+    const list = (kw[process.argv[1]] && kw[process.argv[1]].length) ? kw[process.argv[1]] : (cfg.daily_extract_queries || []);
+    console.log(list.join("\t"));
+  })();
   ' "$1"
 }
 

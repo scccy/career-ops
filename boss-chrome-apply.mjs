@@ -21,6 +21,10 @@ import {
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
+import { loadBossControl } from './boss-config-db.mjs';
+
+// 城市操作流程配置（阈值 / 每城配额）统一来自数据库；DB 不可用时退化到 profile.yml 默认值。
+const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 
 const RECENT_COMPANY_DEDUPE_DAYS = 30;
 const CHAT_URL = 'https://www.zhipin.com/web/geek/chat';
@@ -422,8 +426,8 @@ async function main() {
   }
 
   const profile = loadProfile();
-  const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
-  const cityLimits = profile?.boss?.daily_limit_per_city || null;
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
+  const cityLimits = BOSS_CONTROL.daily_limit_per_city || profile?.boss?.daily_limit_per_city || null;
   const limitIsExplicit = args['daily-limit'] != null;
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
 

@@ -21,6 +21,10 @@ import {
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
+import { loadBossControl } from './boss-config-db.mjs';
+
+// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
+const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 
 const RISK_KEYWORDS = [
   '外包', '派遣', '猎头', '驻场', '外派', '长期出差', '大小周', '单休', '无社保', '不缴社保', '培训贷',
@@ -405,7 +409,7 @@ async function main() {
   if (!isCandidatesPath(input) && !existsSync(input)) throw new Error(`input not found: ${input}`);
   const profile = loadProfile({ allowUnconfirmed });
   // 2026-09-23 用户确认：日常评分阈值标准 3.0，统一由 config/profile.yml boss.send_threshold 控制（--threshold 参数可临时覆盖）
-  const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);

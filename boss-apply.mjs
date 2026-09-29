@@ -14,6 +14,10 @@ import {
   uniqueCompanyKey,
   uniqueJobKey,
 } from './boss-common.mjs';
+import { loadBossControl } from './boss-config-db.mjs';
+
+// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
+const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 
@@ -54,7 +58,7 @@ async function main() {
   }
   const profile = loadProfile();
   const queue = readJson(args.input || QUEUE_PATH, []);
-  const threshold = Number(args.threshold ?? profile?.boss?.send_threshold ?? 4.0);
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
   const cookiesPath = args.cookies || profile?.boss?.cookies_path || 'data/boss-cookies.json';
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
