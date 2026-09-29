@@ -319,6 +319,7 @@ const RUN_ALLOWED = {
   dryrun:  'npm run boss:chrome:apply -- --dry-run',
   send:    'npm run boss:chrome:apply -- --confirmed-review',
   merge:   'node merge-tracker.mjs',
+  check_closed: 'node boss-check-closed.mjs',
 };
 const RUN_TIER = { send: 'confirm' };
 const RUN_JOBS = new Map();
