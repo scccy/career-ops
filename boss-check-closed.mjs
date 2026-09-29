@@ -97,6 +97,15 @@ async function main() {
 
   const closedKeys = [];
   let checked = 0, closedCount = 0, errCount = 0;
+  const flush = async () => {
+    if (!closedKeys.length) return;
+    try {
+      const marked = await markJobsClosed(closedKeys.splice(0));
+      console.log(`[boss-db] 已标记 ${marked} 条 closed 出局（增量）`);
+    } catch (err) {
+      console.error(`[boss-db] closed 标记失败: ${err.message}`);
+    }
+  };
   for (const job of capped) {
     try {
       execJs(`location.href = ${JSON.stringify(job.url)}; 'navigating'`);
@@ -113,6 +122,7 @@ async function main() {
         closedCount++;
         closedKeys.push(job.key_hash);
         console.log(`closed: ${job.company} - ${job.title}`);
+        if (closedKeys.length >= 10) await flush(); // 增量入库：中途终止/崩溃不丢发现
       } else {
         console.log(`ok: ${job.company} - ${job.title} (score=${job.score})`);
       }
@@ -121,15 +131,7 @@ async function main() {
       console.log(`error: ${job.company} - ${job.title}: ${err.message}`);
     }
   }
-
-  if (closedKeys.length) {
-    try {
-      const marked = await markJobsClosed(closedKeys);
-      console.log(`[boss-db] 已标记 ${marked} 条 closed 出局`);
-    } catch (err) {
-      console.error(`[boss-db] closed 标记失败: ${err.message}`);
-    }
-  }
+  await flush();
   const summary = { checked, closed: closedCount, errors: errCount, unchecked: targets.length - capped.length };
   console.log(JSON.stringify(summary, null, 2));
 }
