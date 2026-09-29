@@ -217,11 +217,18 @@ async function getOverview() {
 
 // ---- 候选池分页查询（城市 / 薪资 / 状态 / 分数 / 关键词 过滤） ----
 // 统一的过滤条件构造，供 getJobs 与批量操作(/api/jobs/bulk) 复用。
-function buildJobFilter(f) {
+function buildJobFilter(f, { threshold } = {}) {
   const where = [];
   const args = [];
   // 已关闭岗位（发送时发现 JOB_CLOSED 并标记）默认从检索中排除——它们是死岗位
   if (!f.includeClosed) { where.push("(status IS NULL OR status <> 'closed')"); }
+  // 池中待发：与城市表「池中待发」同口径（greeted=0 + score≥阈值 + 非closed）
+  if (f.greeted === 'pending') {
+    where.push('greeted = 0');
+    if (Number(threshold) > 0) { where.push('score >= ?'); args.push(Number(threshold)); }
+  } else if (f.greeted === 'unscored') {
+    where.push('score IS NULL');
+  } else if (f.greeted === '0' || f.greeted === '1') { where.push('greeted = ?'); args.push(Number(f.greeted)); }
   if (f.city) { where.push('city = ?'); args.push(f.city); }
   // 薪资区间按"重叠"匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限
   if (f.salaryMin !== '' && f.salaryMin != null && Number.isFinite(Number(f.salaryMin))) {
@@ -262,7 +269,7 @@ async function getJobs(sp) {
   };
   const sort = String(sp.get('sort') || 'score_desc');
 
-  const { whereSql, args } = buildJobFilter(f);
+  const { whereSql, args } = buildJobFilter(f, { threshold: cfg.threshold });
   const countRows = await q(`SELECT COUNT(*) AS n FROM boss_jobs ${whereSql}`, args);
   const total = Number(countRows[0].n);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -423,7 +430,8 @@ const server = http.createServer(async (req, res) => {
         }
         target = { whereSql: 'WHERE key_hash IN (' + hashes.map(() => '?').join(',') + ')', args: hashes };
       } else if (body.filter && typeof body.filter === 'object') {
-        target = buildJobFilter(body.filter);
+        const cfgBulk = await loadBossConfig();
+        target = buildJobFilter(body.filter, { threshold: cfgBulk.threshold });
         if (!target.whereSql) {
           res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
           return res.end(JSON.stringify({ ok: false, error: 'filter 为空，禁止对全表执行' }));

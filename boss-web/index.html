@@ -267,7 +267,7 @@
         <div class="f"><label>薪资 ≥（K/月）</label><input id="fSalMin" type="number" step="1" placeholder="最低" /></div>
         <div class="f"><label>薪资 ≤（K/月）</label><input id="fSalMax" type="number" step="1" placeholder="最高" /></div>
         <div class="f"><label>打招呼状态</label><select id="fGreeted">
-          <option value="">全部</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
+          <option value="">全部</option><option value="pending">池中待发（可发送）</option><option value="unscored">未评分（待评分）</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
         </select></div>
         <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
         <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
@@ -784,7 +784,7 @@ document.getElementById('next').onclick=()=>loadJobs(currentPage+1);
 document.getElementById('cityBody').addEventListener('click',(e)=>{
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act, city=el.dataset.city;
-  if(act==='lk'){ applyPreset({city, greeted:'0', minScore:'THR'}); return; }
+  if(act==='lk'){ applyPreset({city, greeted:'pending', minScore:''}); return; }
   if(act==='del_city'){ delCity(city); return; }
   doRun(act,{city});
 });
