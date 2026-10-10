@@ -1,29 +1,31 @@
 # 项目脚本索引（PROJECT_MAP）
 
-> 根目录 156 个 .mjs 按用途索引。文件位置保持扁平（上游架构约定，doctor/test-all 按路径自检），**找文件看这里，不要挪文件**。
+> 根目录 139 个 .mjs 按用途索引。文件位置保持扁平（上游架构约定，doctor/test-all 按路径自检），**找文件看这里，不要挪文件**。唯一例外：BOSS 投递流水线已整体收入 `boss/` 子目录（2026-09-29 用户确认与上游根目录分离），全部脚本路径带 `boss/` 前缀，数据仍在 `data/boss-*`、配置仍在 `config/profile.yml`（以仓库根为 CWD）。
 
 
-## 🚀 BOSS 投递流水线（日常高频）
+## 🚀 BOSS 投递流水线（日常高频，位于 boss/ 子目录）
 
-- `boss-web/server.mjs`
-- `boss-web/index.html`
-- `boss-common.mjs`
-- `boss-config-db.mjs`
-- `boss-cdp.mjs`
-- `boss-extract-3cities.sh`
-- `boss-chrome-extract.mjs`
-- `boss-chrome-apply.mjs`
-- `boss-check-closed.mjs`
-- `boss-score.mjs`
-- `boss-fill.mjs`
-- `boss-review.mjs`
-- `boss-apply.mjs`
-- `boss-scan.mjs`
-- `boss-quota.mjs`
-- `boss-filter-queue.mjs`
-- `boss-import-url.mjs`
-- `boss-import-detail.mjs`
-- `boss-import-text.mjs`
+- `boss/boss-web/server.mjs` — 操作控制台（http://127.0.0.1:4173）。**不要前台裸跑**：进程会把 `__dirname` 固化，脚本搬家后旧进程仍读旧路径而报 ENOENT。已注册 systemd 用户服务 `boss-web.service`（WorkingDirectory=仓库根、`Restart=always`、已 enable + linger 开机自启）：`systemctl --user {start|stop|restart|status} boss-web.service`，日志 `journalctl --user -u boss-web -f`（亦写 `/tmp/boss-web.log`）。改脚本后需 `systemctl --user restart boss-web.service` 才生效。
+- `boss/boss-web/index.html`
+- `boss/boss-common.mjs`
+- `boss/boss-config-db.mjs`
+- `boss/boss-cdp.mjs`
+- `boss/china-profile.mjs`
+- `boss/boss-extract-3cities.sh`
+- `boss/boss-chrome-start.sh`
+- `boss/boss-chrome-extract.mjs`
+- `boss/boss-chrome-apply.mjs`
+- `boss/boss-check-closed.mjs`
+- `boss/boss-score.mjs`
+- `boss/boss-fill.mjs`
+- `boss/boss-review.mjs`
+- `boss/boss-apply.mjs`
+- `boss/boss-scan.mjs`
+- `boss/boss-quota.mjs`
+- `boss/boss-filter-queue.mjs`
+- `boss/boss-import-url.mjs`
+- `boss/boss-import-detail.mjs`
+- `boss/boss-import-text.mjs`
 
 ## 📚 追踪表（applications.md 读写/合并/校验）
 
@@ -176,7 +178,6 @@
 
 - `add-entry.mjs`
 - `check-liveness.mjs`
-- `china-profile.mjs`
 - `clean-markers.mjs`
 - `company-funded.mjs`
 - `company-history.mjs`
@@ -193,4 +194,4 @@
 - `story-provenance-check.mjs`
 
 ---
-共 159 条 = 156 个根目录 .mjs 全覆盖 + 3 个子目录/脚本入口（boss-web/server.mjs、boss-web/index.html、boss-extract-3cities.sh）
+共 160 条 = 139 个根目录 .mjs + boss/ 子目录 17 个 .mjs + 4 个子目录/脚本入口（boss/boss-web/server.mjs、boss/boss-web/index.html、boss/boss-extract-3cities.sh、boss/boss-chrome-start.sh）

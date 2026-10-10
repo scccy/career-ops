@@ -76,12 +76,12 @@ compensation:
   minimum: "22 万"   # 低于此值基本不考虑,作为 walk-away 参考
   location_flexibility: "优先杭州;接受上海;接受远程(视公司而定)"
 
-# BOSS 直聘通道(boss-*.mjs 评分/打招呼读取;关键词全部提炼自本文件与 cv.md,未新增事实)
+# BOSS 直聘通道(boss/boss-*.mjs 评分/打招呼读取;关键词全部提炼自本文件与 cv.md,未新增事实)
 boss:
   # 可选:简洁直接 / 偏岗位匹配 / 积极主动 / 偏技术细节 / 偏业务价值( fork 无"稳重专业"分支,会落兜底模板)
   greeting_style: "偏岗位匹配"
   # 2026-09-22 用户确认最新要求:每日配额按城市计(非全局),三城各 20 家
-  # boss-chrome-apply.mjs 读取此配置逐城市扣减当日已发送数;发送日志无城市列,由 URL 反查候选池
+  # boss/boss-chrome-apply.mjs 读取此配置逐城市扣减当日已发送数;发送日志无城市列,由 URL 反查候选池
   daily_limit_per_city:
     上海: 60
     # 2026-09-23 用户确认:杭州每日配额再补 20（20 → 40）
@@ -91,14 +91,14 @@ boss:
     无锡: 0
     常州: 0
   # 2026-09-23 用户确认:日常评分阈值标准 3.0(原 4.0 过严,三城凑不满配额)
-  # boss-score.mjs / boss-fill.mjs / boss-chrome-apply.mjs 均默认读取此值;--threshold 参数可临时覆盖
+  # boss/boss-score.mjs / boss/boss-fill.mjs / boss/boss-chrome-apply.mjs 均默认读取此值;--threshold 参数可临时覆盖
   send_threshold: 3
   # 2026-09-23 用户确认:地点×岗位词 笛卡尔积 — 统一词表全量跑每城, 不做每城定制主词(那是 9-22 手工补提取的历史残留)
   # 执行分两轮: 主关键词 = 前 3 词(大数据开发/数仓/数据开发); 补充关键词 = 其余(数据仓库/ETL/数据工程师/BI, 用户确认均计入配额)
   daily_extract_cities: ["上海", "杭州", "南京", "无锡", "常州"]
   daily_extract_queries: ["大数据开发", "数仓", "数据开发", "数据仓库", "ETL", "数据工程师", "BI"]
   # 2026-09-29 新增：每城独立搜索关键词。某城在此有定义则扫描该城用此词表，否则回退上面统一词表。
-  # 在 boss-web 控制台的「每日城市操作流程控制」里可逐城编辑并写回本配置。
+  # 在 boss/boss-web 控制台的「每日城市操作流程控制」里可逐城编辑并写回本配置。
   daily_extract_keywords_by_city:
     上海: ["大数据开发", "数仓", "数据开发", "数据仓库", "ETL", "数据工程师", "BI"]
     杭州: ["大数据开发", "数仓", "数据开发", "数据仓库", "ETL", "数据工程师", "BI"]

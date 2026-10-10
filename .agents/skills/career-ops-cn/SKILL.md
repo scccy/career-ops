@@ -20,7 +20,7 @@ cd /Volumes/project/career-ops
 
 ## BOSS 通道（先读）
 
-BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**（用户 Chrome 带 9222 调试端口启动）。**禁止用 Playwright 浏览器访问 BOSS**——会触发风控。**主动搜索（默认）**：`npm run boss:extract:daily[:all]`（boss-extract-3cities.sh）由脚本经 CDP 自行逐城逐词导航到搜索页并提取，前置条件仅要求 BOSS Chrome 已启动且已登录，无需用户手动停在搜索页。手动兜底（`npm run boss:chrome:extract --append`）才要求前台停在搜索结果页。若页面被重置为 about:blank，说明风控介入——停止重试，让用户手动搜索后重新 extract。
+BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**（用户 Chrome 带 9222 调试端口启动）。**禁止用 Playwright 浏览器访问 BOSS**——会触发风控。**主动搜索（默认）**：`npm run boss:extract:daily[:all]`（boss/boss-extract-3cities.sh）由脚本经 CDP 自行逐城逐词导航到搜索页并提取，前置条件仅要求 BOSS Chrome 已启动且已登录，无需用户手动停在搜索页。手动兜底（`npm run boss:chrome:extract --append`）才要求前台停在搜索结果页。若页面被重置为 about:blank，说明风控介入——停止重试，让用户手动搜索后重新 extract。
 
 ## 默认主线
 
@@ -45,7 +45,7 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 
 ## 冷启动 Gate
 
-先运行 `npm run doctor`。主项目已完成 onboarding（cv.md 与 config/profile.yml 已对齐）。画像确认判定与 `boss-common.mjs` 的 `loadProfile` 一致：`profile.confirmed: true`，**或**主项目 schema（`candidate` + `target_roles`/`narrative`）齐全即视为已确认。画像未就绪时不评分、不发送。
+先运行 `npm run doctor`。主项目已完成 onboarding（cv.md 与 config/profile.yml 已对齐）。画像确认判定与 `boss/boss-common.mjs` 的 `loadProfile` 一致：`profile.confirmed: true`，**或**主项目 schema（`candidate` + `target_roles`/`narrative`）齐全即视为已确认。画像未就绪时不评分、不发送。
 
 如用户明确要求从简历重建中文画像，运行 `npm run china:profile -- --input cv.md`（profile.yml / modes/_profile.md 已存在时会拒绝覆盖，需 `--force`；重建会覆盖主项目画像结构，须再次向用户确认后才执行）。
 
@@ -83,7 +83,7 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 
 ## Hard Gates
 
-- 追踪表新增一律走 `batch/tracker-additions/` TSV（boss-common.mjs 已内置），状态用 canonical `Applied`；绝不直接编辑 `data/applications.md`，绝不绕过 `merge-tracker.mjs`。
+- 追踪表新增一律走 `batch/tracker-additions/` TSV（boss/boss-common.mjs 已内置），状态用 canonical `Applied`；绝不直接编辑 `data/applications.md`，绝不绕过 `merge-tracker.mjs`。
 - 评分必须基于完整 JD（`jd_detail.ok=true`，含职责/要求结构）；岗位标题或列表卡片文本不得作为评分依据。
 - 评分必须输出机会可信度 `opportunity_legitimacy`：`Suspicious / 可疑机会` 不进入发送队列；薪资不明确或"面议"只记录不发送。
 - 每个岗位的打招呼文案基于该岗位 JD 和确认版画像单独生成，不复用模板。
