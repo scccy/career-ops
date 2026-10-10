@@ -6,11 +6,14 @@
 <title>BOSS 直聘 · 流程操作控制台</title>
 <style>
   :root{
-    --bg:#f6f9fc; --card:#ffffff; --ink:#0a2540; --muted:#425466; --line:#e6ebf1;
+    --bg:#f6f9fc; --card:#ffffff; --ink:#0a2540; --muted:#425466; --muted-2:#697386;
+    --line:#e6ebf1; --line-2:#f0f3f8;
     --indigo:#635bff; --indigo-2:#7a73ff; --indigo-soft:#f5f3ff;
     --red:#df1b41; --red-soft:#fff0f3; --amber:#b25e09; --amber-soft:#fff7ed;
-    --green:#00a86b; --green-soft:#e9f9f1;
+    --green:#00a86b; --green-soft:#e9f9f1; --green-ink:#067a4f;
+    --neutral-soft:#eef1f6;
     --shadow:0 2px 5px rgba(50,50,93,.1),0 1px 3px rgba(0,0,0,.07);
+    --shadow-lift:0 8px 18px rgba(50,50,93,.13),0 2px 5px rgba(0,0,0,.06);
     --radius:14px;
   }
   *{box-sizing:border-box}
@@ -38,17 +41,36 @@
   .banner.ok{display:block;background:var(--green-soft);color:#067a4f;border:1px solid #bfe9d3}
 
   section{margin-top:30px}
-  .sec-title{font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:0 0 14px 2px;display:flex;align-items:center;gap:8px}
-  .sec-title::before{content:"";width:4px;height:16px;border-radius:3px;background:var(--indigo)}
+  section.tight{margin-top:16px}
+  .sec-title{font-size:13.5px;font-weight:700;color:var(--ink);letter-spacing:.2px;margin:0 0 12px 2px;display:flex;align-items:center;gap:8px}
+  .sec-title::before{content:"";width:4px;height:15px;border-radius:3px;background:var(--indigo);flex:0 0 auto}
+  .sec-title .more{font-size:12px;font-weight:600;color:var(--muted-2);margin-left:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 12px 2px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+  .legend .lg-gate{background:var(--amber-soft);border:1px solid #f0d3a8}
+  .legend .lg-check{background:var(--red-soft);border:1px solid #f3c0cb}
+  .legend .lg-normal{background:#fff;border:1px solid var(--line)}
+  .legend .lg-done{background:var(--green);border-radius:50%}
+  .legend .lg-run{background:var(--indigo);border-radius:50%;box-shadow:0 0 0 3px var(--indigo-soft)}
+  .legend .lg-idle{background:#d5dae3;border-radius:50%}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;box-shadow:var(--shadow)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px}
+  .card{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px 14px;box-shadow:var(--shadow);transition:box-shadow .18s,transform .18s}
+  .card:hover{box-shadow:var(--shadow-lift);transform:translateY(-1px)}
+  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--line)}
+  .card.accent::before{background:linear-gradient(90deg,#635bff,#9b8cff)}
+  .card.good::before{background:var(--green)}
+  .card.warn::before{background:var(--amber)}
   .card .k{font-size:12px;color:var(--muted);font-weight:600}
-  .card .v{font-size:25px;font-weight:750;margin-top:4px;letter-spacing:-.5px}
-  .card .x{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .card .v{font-size:26px;font-weight:750;margin-top:5px;letter-spacing:-.5px;line-height:1.15}
+  .card .x{font-size:11.5px;color:var(--muted);margin-top:3px;min-height:17px;line-height:1.45}
   .card.accent .v{color:var(--indigo)}
-  .card.good .v{color:var(--green)}
+  .card.good .v{color:var(--green-ink)}
   .card.warn .v{color:var(--amber)}
+  @keyframes vflash{0%{opacity:.35}100%{opacity:1}}
+  .card .v.flash{animation:vflash .45s ease-out}
 
   /* 配额可编辑 */
   .cfgbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
@@ -91,23 +113,50 @@
   .csent .meta{font-size:11.5px;color:var(--muted);white-space:nowrap}
   .cops{display:flex;gap:5px;flex-wrap:wrap;max-width:330px}
   .city-table .kwcity{margin:0}
+  /* 未保存改动提示（避免"改了但从未写库"的假保存） */
+  input.dirty{border-color:var(--amber)!important;background:#fffdf6!important}
+  #cityBody tr.dirty-row > td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+  .unsaved{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;
+    border-radius:10px;background:var(--amber-soft);border:1px solid #f0d3a8;font-size:12.5px;color:var(--amber);font-weight:600}
+  .unsaved.show{display:flex}
+  .unsaved .sp{flex:1}
+  .table-scroll{overflow-x:auto}
+  .table-scroll > table{min-width:780px}
+  /* 骨架屏 */
+  @keyframes shimmer{0%,100%{opacity:.5}50%{opacity:.9}}
+  .skel{padding:4px 0 2px}
+  .skel-row{height:36px;border-radius:8px;background:var(--line-2);margin-bottom:8px;animation:shimmer 1.1s ease-in-out infinite}
 
-  /* 流程 */
-  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 16px}
-  .stage{flex:0 0 auto;width:162px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 13px 14px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
-  .stage:hover{transform:translateY(-3px);border-color:var(--indigo)}
+  /* 流程（等高分栏，不再横向滚动） */
+  .flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  @media(max-width:960px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:640px){.flow{grid-template-columns:1fr}}
+  .stage{position:relative;display:flex;flex-direction:column;min-height:134px;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:13px 34px 13px 13px;box-shadow:var(--shadow);cursor:pointer;
+    transition:border-color .18s,box-shadow .18s,transform .18s}
+  .stage:hover{transform:translateY(-2px);border-color:var(--indigo);box-shadow:var(--shadow-lift)}
   .stage.active{border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft),var(--shadow)}
+  .stage .stdot{position:absolute;top:14px;right:13px;width:9px;height:9px;border-radius:50%;background:#d5dae3;transition:background .2s,box-shadow .2s}
+  .stage.running{border-color:var(--indigo)}
+  .stage.running .stdot{background:var(--indigo);box-shadow:0 0 0 4px var(--indigo-soft)}
+  .stage.done .stdot{background:var(--green)}
   .stage .num{display:inline-flex;width:22px;height:22px;border-radius:7px;background:var(--indigo-soft);color:var(--indigo);font-weight:700;font-size:12px;align-items:center;justify-content:center;margin-bottom:8px}
-  .stage .t{font-weight:700;font-size:14px;line-height:1.3}
-  .stage .c{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--muted);margin-top:7px;background:#f3f6fb;border-radius:6px;padding:5px 6px;word-break:break-all}
-  .stage .go{margin-top:9px;font-size:11.5px;font-weight:700;color:var(--indigo)}
+  .stage .t{font-weight:700;font-size:14px;line-height:1.35}
+  .stage .tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:1px}
+  .stage.checkpoint .tag{background:#fbd3db;color:var(--red)}
+  .stage.gate .tag{background:#fbe6c8;color:var(--amber)}
+  .stage .c{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted);margin-top:7px;background:#f3f6fb;border-radius:6px;padding:5px 7px;word-break:break-all}
+  .stage .go{margin-top:auto;padding-top:10px;font-size:11.5px;font-weight:700;color:var(--indigo)}
   .runs{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .runs .btn{padding:4px 9px;font-size:11.5px;border-radius:8px;box-shadow:none}
   .stage.checkpoint{border-color:#f3c0cb;background:var(--red-soft)}
   .stage.checkpoint .num{background:#fbd3db;color:var(--red)}
   .stage.gate{border-color:#f0d3a8;background:var(--amber-soft)}
   .stage.gate .num{background:#fbe6c8;color:var(--amber)}
-  .arrow{flex:0 0 auto;align-self:center;color:var(--indigo);font-size:22px;padding:0 4px;font-weight:700}
+  .stage.running::after{content:"";position:absolute;inset:-1px;border-radius:12px;border:1px solid var(--indigo);opacity:0;pointer-events:none}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px var(--indigo-soft)}50%{box-shadow:0 0 0 7px rgba(99,91,255,.14)}}
+  @media(prefers-reduced-motion:no-preference){.stage.running .stdot{animation:pulse 1.6s ease-in-out infinite}}
 
   #detail{margin-top:14px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--indigo);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);display:none}
   #detail.show{display:block}
@@ -118,7 +167,13 @@
 
   /* 查询面板 */
   .q{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  .fgroup{padding-top:13px;margin-top:13px;border-top:1px solid var(--line-2)}
+  .fgroup:first-of-type{padding-top:0;margin-top:0;border-top:none}
+  .fgroup > .gt{font-size:11.5px;font-weight:700;color:var(--muted-2);margin:0 0 10px 2px;display:flex;align-items:center;gap:6px}
+  .fgroup > .gt::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--line)}
   .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 14px;align-items:end}
+  #result{overflow-x:auto}
+  #result table{min-width:920px}
   .f label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
   .f input,.f select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
   .f input:focus,.f select:focus{border-color:var(--indigo)}
@@ -128,27 +183,52 @@
 
   table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
   th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);white-space:nowrap}
+  th{font-size:11.5px;letter-spacing:.3px;color:var(--muted);white-space:nowrap;font-weight:700;
+    background:#f8fafc;border-bottom:1px solid var(--line)}
   td a{color:var(--indigo);font-weight:600;text-decoration:none;white-space:nowrap}
   td a:hover{text-decoration:underline}
+  /* 长列表可读性：斑马纹 + hover 高亮 */
+  #jobsTable tbody tr:nth-child(even){background:#fafbfd}
+  #jobsTable tbody tr:hover{background:var(--indigo-soft)}
+  #jobsTable tbody tr:has(input:checked){background:var(--indigo-soft)}
+  #cityBody tr:hover{background:#fafbfd}
   .salary-mini{display:block;font-size:11px;color:var(--muted)}
   .st{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
-  .st.ok{background:var(--green-soft);color:#067a4f}
-  .st.no{background:var(--red-soft);color:var(--red)}
+  .st.ok{background:var(--green-soft);color:var(--green-ink)}
+  /* 已发 = 已完成的中性态，不再用红（红专留给危险动作与需人工确认） */
+  .st.no{background:var(--neutral-soft);color:var(--muted)}
   .st.pend{background:var(--amber-soft);color:var(--amber)}
   .pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
   .pager .info{font-size:12.5px;color:var(--muted)}
   .empty{color:var(--muted);font-size:13px;padding:18px 2px}
 
   /* 候选池批量操作 */
-  .bulkbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;padding:11px 14px;background:var(--indigo-soft);border:1px solid #e3deff;border-radius:12px}
+  .bulkbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;padding:11px 14px;
+    background:var(--indigo-soft);border:1px solid #e3deff;border-radius:12px;transition:background .2s,border-color .2s}
+  .bulkbar.idle{background:#f8fafc;border-color:var(--line)}
   .bulkbar .lbl{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .bulkbar.idle .lbl{color:var(--muted-2)}
   .bulkbar .selinfo{font-size:12.5px;color:var(--muted);font-weight:600}
   .bulkbar .sp{flex:1}
   .bulkbar button{box-shadow:none}
+  .bulkbar.idle .act{display:none}
   .chkcol{width:38px;text-align:center}
   table td.chkcol{text-align:center}
   table th.chkcol input,table td.chkcol input{width:16px;height:16px;accent-color:var(--indigo);cursor:pointer}
+
+  /* 城市表：扫描关键词多选下拉 */
+  .cops{position:relative}
+  .kwd{position:relative;display:inline-block}
+  .kwd>summary{list-style:none;cursor:pointer;user-select:none}
+  .kwd>summary::-webkit-details-marker{display:none}
+  .kwd>summary .caret{font-size:10px;opacity:.7;margin-left:3px}
+  .kwd-body{position:absolute;z-index:30;top:calc(100% + 6px);left:0;min-width:180px;max-height:260px;overflow:auto;
+    background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(10,37,64,.18);padding:8px}
+  .kwd-body label{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .kwd-body label:hover{background:var(--indigo-soft)}
+  .kwd-body input{width:15px;height:15px;accent-color:var(--indigo);cursor:pointer}
+  .kwd-body .kwd-actions{border-top:1px solid var(--line);margin-top:7px;padding-top:8px;display:flex;justify-content:flex-end}
+  .kwd-body .count{font-size:11.5px;color:var(--muted);margin:2px 7px 6px}
 
   /* 执行控制台 */
   .console{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);background:#fff}
@@ -161,14 +241,21 @@
   .clog{margin:0;padding:14px;background:#0a2540;color:#cfe3ff;font-size:12px;font-family:ui-monospace,Menlo,monospace;
     white-space:pre-wrap;max-height:340px;overflow:auto;min-height:90px}
   /* 确认弹窗 */
-  .mask{position:fixed;inset:0;background:rgba(10,37,64,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
-  .modal{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:22px;box-shadow:0 20px 50px rgba(10,37,64,.25)}
+  .mask{position:fixed;inset:0;background:rgba(10,37,64,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .mask.show{display:flex}
+  @keyframes modalIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+  .modal{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:22px;box-shadow:0 20px 50px rgba(10,37,64,.25);animation:modalIn .18s ease-out}
   .modal h3{margin:0 0 10px;font-size:17px}
   .modal p{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
   .modal pre{background:#0a2540;color:#cfe3ff;padding:11px 13px;border-radius:10px;font-size:12px;white-space:pre-wrap;overflow:auto;margin:0}
   .macts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
   .btn.danger{background:var(--red)}
   .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn:active:not(:disabled){transform:translateY(0)}
+  .btn:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--indigo);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
   footer{margin-top:40px;text-align:center;color:var(--muted);font-size:12px}
 </style>
 </head>
@@ -191,9 +278,29 @@
 
   <div class="banner" id="banner"></div>
 
+  <!-- 实时概览：提到首屏，进入页面第一眼看到全池状态 -->
+  <section class="tight">
+    <p class="sec-title">当前状态<span class="more">实时查库 · 无缓存</span></p>
+    <div class="cards" id="cards">
+      <div class="card"><div class="k">候选池总数</div><div class="v" id="cTotal">—</div><div class="x" id="cTotalX">boss_jobs</div></div>
+      <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x">greeted=1</div></div>
+      <div class="card accent"><div class="k">待复核可发</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">score≥阈值 &amp; 未发</div></div>
+      <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x">发送日志</div></div>
+      <div class="card"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">待 boss:score</div></div>
+    </div>
+  </section>
+
   <!-- 操作核心：流程控制台前置 -->
   <section>
-    <p class="sec-title">主流程（卡片上 ▶ 直接执行 · 点节点看命令与入口）</p>
+    <p class="sec-title">主流程<span class="more">卡片上 ▶ 直接执行 · 点节点看命令与入口</span></p>
+    <div class="legend">
+      <span><i class="lg-normal"></i>普通步骤</span>
+      <span><i class="lg-gate"></i>门槛（未就绪不放行）</span>
+      <span><i class="lg-check"></i>需你确认</span>
+      <span style="margin-left:auto"><i class="lg-idle"></i>未开始</span>
+      <span><i class="lg-run"></i>运行中</span>
+      <span><i class="lg-done"></i>本次会话已执行</span>
+    </div>
     <div class="flow" id="flow"></div>
     <div id="detail">
       <div class="dh" id="dH"></div>
@@ -205,7 +312,8 @@
       <div class="chead">
         <span class="cstat" id="cStat">—</span>
         <span class="ccmd" id="cCmd"></span>
-        <button class="btn ghost sm" id="btnKill">终止</button>
+        <button class="btn ghost sm" id="btnFollow" style="display:none" title="已暂停自动滚动，点此回到底部并恢复跟随">↓ 回到底部</button>
+        <button class="btn danger sm" id="btnKill">终止</button>
       </div>
       <pre class="clog" id="cLog"></pre>
     </div>
@@ -213,7 +321,7 @@
 
   <!-- 每日城市操作流程控制（列表形式，可添加城市、内联编辑） -->
   <section>
-    <p class="sec-title">每日城市操作流程控制（列表 · 可添加城市）</p>
+    <p class="sec-title">每日城市操作流程控制<span class="more">列表 · 可添加城市</span></p>
     <div class="globalkw">
       <label>统一搜索关键词（默认词表）</label>
       <input id="fGlobalKw" placeholder="逗号分隔，如 大数据开发,数仓,数据开发" />
@@ -232,6 +340,12 @@
       <button class="btn sm" id="btnAddCity">＋ 添加城市</button>
       <input id="cityFilter" placeholder="筛选城市…" />
     </div>
+    <div class="unsaved" id="unsavedBar">
+      <span>● 有未保存的改动</span>
+      <span class="sp"></span>
+      <button class="btn sm" id="btnUnsavedSave">保存配置</button>
+    </div>
+    <div class="table-scroll">
     <table class="city-table" id="cityTable">
       <thead><tr>
         <th>城市</th>
@@ -243,58 +357,60 @@
       </tr></thead>
       <tbody id="cityBody"></tbody>
     </table>
-    <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。自动刷新只更新数字、不重置你的编辑。</div>
-  </section>
-
-  <!-- 实时概览（紧凑状态条） -->
-  <section>
-    <p class="sec-title">当前状态</p>
-    <div class="cards" id="cards">
-      <div class="card"><div class="k">候选池总数</div><div class="v" id="cTotal">—</div><div class="x" id="cTotalX">boss_jobs</div></div>
-      <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x">greeted=1</div></div>
-      <div class="card accent"><div class="k">待复核可发</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">score≥阈值 &amp; 未发</div></div>
-      <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x">发送日志</div></div>
-      <div class="card"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">待 boss:score</div></div>
     </div>
+    <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。自动刷新只更新数字、不重置你的编辑。</div>
   </section>
 
   <!-- 候选池检索：纯查看器 -->
   <section id="querySection">
-    <p class="sec-title">候选池检索（分页 · 城市 / 薪资 / 状态 / 分数）</p>
+    <p class="sec-title">候选池检索<span class="more">默认：池中待发</span></p>
     <div class="q">
-      <div class="filters">
-        <div class="f"><label>城市</label><select id="fCity"><option value="">全部城市</option></select></div>
-        <div class="f"><label>薪资 ≥（K/月）</label><input id="fSalMin" type="number" step="1" placeholder="最低" /></div>
-        <div class="f"><label>薪资 ≤（K/月）</label><input id="fSalMax" type="number" step="1" placeholder="最高" /></div>
-        <div class="f"><label>打招呼状态</label><select id="fGreeted">
-          <option value="">全部</option><option value="pending">池中待发（可发送）</option><option value="unscored">未评分（待评分）</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
-        </select></div>
-        <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
-        <div class="f"><label>岗位类型</label><select id="fJobType">
-          <option value="">全部</option><option value="clean">非校招/非实习（社招）</option><option value="intern">仅实习</option><option value="campus">仅校招/应届</option>
-        </select></div>
-        <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
-        <div class="f"><label>排序</label><select id="fSort">
-          <option value="score_desc">分数 ↓</option><option value="salary_desc">薪资 ↓</option>
-          <option value="recent">最近扫描</option><option value="company">公司名</option>
-        </select></div>
-        <div class="f"><label>每页</label><select id="fSize">
-          <option>20</option><option>50</option><option>100</option>
-        </select></div>
+      <div class="fgroup">
+        <p class="gt">岗位条件</p>
+        <div class="filters">
+          <div class="f"><label>城市</label><select id="fCity"><option value="">全部城市</option></select></div>
+          <div class="f"><label>岗位类型</label><select id="fJobType">
+            <option value="">全部</option><option value="clean">非校招/非实习（社招）</option><option value="intern">仅实习</option><option value="campus">仅校招/应届</option>
+          </select></div>
+          <div class="f"><label>打招呼状态</label><select id="fGreeted">
+            <option value="">全部</option><option value="pending" selected>池中待发（可发送）</option><option value="unscored">未评分（待评分）</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
+          </select></div>
+        </div>
+      </div>
+      <div class="fgroup">
+        <p class="gt">分数与薪资</p>
+        <div class="filters">
+          <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
+          <div class="f"><label>薪资 ≥（K/月）</label><input id="fSalMin" type="number" step="1" placeholder="最低" /></div>
+          <div class="f"><label>薪资 ≤（K/月）</label><input id="fSalMax" type="number" step="1" placeholder="最高" /></div>
+        </div>
+      </div>
+      <div class="fgroup">
+        <p class="gt">检索与排序</p>
+        <div class="filters">
+          <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
+          <div class="f"><label>排序</label><select id="fSort">
+            <option value="score_desc">分数 ↓</option><option value="salary_desc">薪资 ↓</option>
+            <option value="recent">最近扫描</option><option value="company">公司名</option>
+          </select></div>
+          <div class="f"><label>每页</label><select id="fSize">
+            <option>20</option><option>50</option><option>100</option>
+          </select></div>
+        </div>
       </div>
       <div class="acts">
         <button class="btn" id="btnSearch">查询</button>
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
-      <div class="hint">薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
-      <div class="bulkbar" id="bulkbar">
+      <div class="hint">默认只看<b>池中待发</b>：<code>greeted=0</code> 且 <code>score≥阈值</code> 且非已关闭，与城市表「池中待发」<b>同口径</b>；要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="bulkbar idle" id="bulkbar">
         <span class="lbl">批量操作</span>
         <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
-        <span class="selinfo" id="selInfo">已选 0</span>
+        <span class="selinfo" id="selInfo">未选中 · 勾选后可批量处理</span>
         <span class="sp"></span>
-        <button class="btn sm" id="bulkMark">标记已发（移出待发池）</button>
-        <button class="btn danger sm" id="bulkDelete">删除</button>
-        <button class="btn sm" id="presetCampus">一键剔除校招/应届/实习/校园/毕业生</button>
+        <button class="btn sm act" id="bulkMark">标记已发（移出待发池）</button>
+        <button class="btn danger sm act" id="bulkDelete">删除</button>
+        <button class="btn ghost sm" id="presetCampus">一键剔除校招/应届/实习/校园/毕业生</button>
       </div>
       <div id="result"></div>
       <div class="pager" id="pager" style="display:none">
@@ -371,13 +487,35 @@ let allFilterSelected = false;   // 是否"全选过滤结果"（发送 filter �
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+// 命令 key → 主流程步骤号（城市级按钮映射到对应的全局步骤）
+const KEY_STAGE={doctor:1,scan:2,scan_all:2,scan_city:2,scan_city_all:2,score:3,fill:4,review:5,dryrun:6,send:7,send_city:7,send_city_new:7,merge:8};
+const stageDone=new Set();   // 本次会话内执行成功的步骤
+let runningStage=null;       // 当前运行中的步骤号
+let currentRunKey=null;
+
+function markStageState(){
+  document.querySelectorAll('.stage').forEach(el=>{
+    const n=Number(el.dataset.stage);
+    const isRun = runningStage===n;
+    const isDone = !isRun && stageDone.has(n);
+    el.classList.toggle('running', isRun);
+    el.classList.toggle('done', isDone);
+    const dot=el.querySelector('.stdot');
+    if(dot) dot.title = isRun ? '运行中' : (isDone ? '本次会话已执行' : '未开始');
+  });
+}
+
 function renderFlow(){
   const flow = document.getElementById('flow');
   flow.innerHTML='';
-  STAGES.forEach((s,i)=>{
+  STAGES.forEach(s=>{
     const el=document.createElement('div');
     el.className='stage '+(s.type==='checkpoint'?'checkpoint':s.type==='gate'?'gate':'');
-    el.innerHTML=`<div class="num">${s.n}</div><div class="t">${esc(s.t)}</div><div class="c">${esc(s.cmd)}</div>`+
+    el.dataset.stage=String(s.n);
+    const tag = s.type==='checkpoint' ? '<span class="tag">需你确认</span>'
+              : s.type==='gate' ? '<span class="tag">门槛</span>' : '';
+    el.innerHTML=`<span class="stdot" title="未开始"></span>
+      <div class="num">${s.n}</div><div class="t">${esc(s.t)}${tag}</div><div class="c">${esc(s.cmd)}</div>`+
       (s.preset?`<div class="go">${esc(s.viewLabel)} →</div>`:'<div class="go">命令 / 入口 →</div>');
     const runs=STAGE_RUNS[s.n]||[];
     if(runs.length){
@@ -394,8 +532,8 @@ function renderFlow(){
     }
     el.onclick=()=>{document.querySelectorAll('.stage').forEach(x=>x.classList.remove('active'));el.classList.add('active');showDetail(s);};
     flow.appendChild(el);
-    if(i<STAGES.length-1){const a=document.createElement('div');a.className='arrow';a.textContent='→';flow.appendChild(a);}
   });
+  markStageState();
 }
 
 function showDetail(s){
@@ -446,23 +584,26 @@ async function loadOverview(){
     THRESHOLD = d.threshold;
     document.getElementById('dbDot').classList.remove('bad');
     document.getElementById('dbText').textContent='MySQL 已连接';
-    document.getElementById('cTotal').textContent=d.total;
-    document.getElementById('cGreeted').textContent=d.greeted;
-    document.getElementById('cPending').textContent=d.pending;
-    document.getElementById('cToday').textContent=d.todaySent;
-    document.getElementById('cUnscored').textContent=d.unscored;
+    setNum('cTotal', d.total);
+    setNum('cGreeted', d.greeted);
+    setNum('cPending', d.pending);
+    setNum('cToday', d.todaySent);
+    setNum('cUnscored', d.unscored);
     document.getElementById('cPendingX').textContent=`score≥${d.threshold} & 未发`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
 
-    document.getElementById('fThreshold').value=d.threshold;
-    document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
+    // 有未保存改动时不要覆盖用户正在编辑的输入框，只更新统计数字
+    if(!cityDirty){
+      document.getElementById('fThreshold').value=d.threshold;
+      document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
+    }
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
     sel.innerHTML='<option value="">全部城市</option>'+
       d.cities.map(c=>`<option value="${esc(c.city)}">${esc(c.city)}（${c.n}）</option>`).join('');
     if(keep) sel.value=keep;
 
-    renderCityTable(d);
+    if(cityDirty) updateCityStats(d); else renderCityTable(d);
     b.className='banner ok';
     const ts=new Date(d.generatedAt).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
     b.textContent=`已连接 · 阈值 ${d.threshold} · 风格「${d.greetingStyle||'—'}」 · 更新于 ${ts}`;
@@ -502,12 +643,22 @@ function renderCityTable(d){
         <div class="meta">今日 ${c.sentToday} / 剩余 ${c.remaining}</div>
       </td>
       <td class="cops">
-        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="一键准备②③④：抓取该城全部关键词 → 全局评分 → 排队，完成后可直接点「发送/发新扫」">扫描</button>
+        <button class="btn sm ghost" data-act="scan_city" data-city="${esc(c.city)}" title="一键准备②③④：抓取该城全部关键词 → 全局评分 → 排队（= 关键词下拉里全选），完成后可直接点「发送/发新扫」">扫描</button>
+        <details class="kwd">
+          <summary class="btn sm" title="选择本次要扫描的关键词（默认全选=全扫）">关键词<span class="caret">▾</span></summary>
+          <div class="kwd-body">
+            <label><input type="checkbox" data-kw="__all" checked> <b>全选</b></label>
+            ${(c.keywords||[]).map(k=>`<label><input type="checkbox" class="kwsel" data-kw="${esc(k)}" checked> ${esc(k)}</label>`).join('')}
+            <div class="count" data-count></div>
+            <div class="kwd-actions"><button class="btn xs" data-act="scan_city_kw" data-city="${esc(c.city)}">用选中词扫描</button></div>
+          </div>
+        </details>
         <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：清空该城待发池（greeted=0 且 score≥阈值），分数降序，配额按城强制">发送</button>
         <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="⑦的变体：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），时间降序；是发送不是抓取">发新扫</button>
         <button class="btn sm ghost" data-act="del_city" data-city="${esc(c.city)}" title="从控制台移除该城市（配额与关键词一并删除；岗位数据保留）">删除</button>
       </td>`;
     tb.appendChild(tr);
+    updateKwCount(tr.querySelector('.kwd-body'));
   });
 }
 
@@ -528,17 +679,34 @@ function updateCityStats(d){
   });
 }
 
+// ===== 未保存改动追踪 =====
+// 城市表里的关键词/配额与统一词表都是裸 input：改了不点保存就只是"看起来改了"，
+// 60s 自动刷新又刻意不重建输入框，于是改动永远不会被发现已丢失。这里显式标脏。
+let cityDirty=false;
+function markDirty(){
+  cityDirty=true;
+  document.getElementById('unsavedBar').classList.add('show');
+}
+function clearDirty(){
+  cityDirty=false;
+  document.getElementById('unsavedBar').classList.remove('show');
+  document.querySelectorAll('#cityBody input.dirty').forEach(i=>i.classList.remove('dirty'));
+  document.querySelectorAll('#cityBody tr.dirty-row').forEach(t=>t.classList.remove('dirty-row'));
+  const g=document.getElementById('fGlobalKw'); if(g) g.classList.remove('dirty');
+  const th=document.getElementById('fThreshold'); if(th) th.classList.remove('dirty');
+}
+
 // 自动刷新：只更新概览卡片 + 城市统计，不重建表格 / 不重置检索区
 async function refreshStats(){
   try{
     const r=await fetch('/api/overview'); const d=await r.json();
     if(!d.ok) return;
     THRESHOLD=d.threshold;
-    document.getElementById('cTotal').textContent=d.total;
-    document.getElementById('cGreeted').textContent=d.greeted;
-    document.getElementById('cPending').textContent=d.pending;
-    document.getElementById('cToday').textContent=d.todaySent;
-    document.getElementById('cUnscored').textContent=d.unscored;
+    setNum('cTotal', d.total);
+    setNum('cGreeted', d.greeted);
+    setNum('cPending', d.pending);
+    setNum('cToday', d.todaySent);
+    setNum('cUnscored', d.unscored);
     document.getElementById('cPendingX').textContent=`score≥${d.threshold} & 未发`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
     updateCityStats(d);
@@ -571,7 +739,7 @@ async function saveQuota(){
     const v=i.value.trim();
     if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
   });
-  if(await postConfig(limits, kwByCity)) loadOverview();
+  if(await postConfig(limits, kwByCity)){ clearDirty(); loadOverview(); }
 }
 
 // 删除城市：从当前表格收集除该城外的配额/关键词，整表覆盖写回（对称删除）
@@ -589,6 +757,7 @@ async function delCity(city){
     if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
   });
   if(!(await postConfig(limits, kwByCity))) return;
+  clearDirty();
   try{
     const r=await postJson('/api/city/purge',{city});
     const d=await r.json();
@@ -609,7 +778,7 @@ function addCity(){
     if(v) kwByCity[i.dataset.city]=v.split(/[,，、\s]+/).filter(Boolean);
   });
   limits[name]=quota;
-  postConfig(limits, kwByCity).then(ok=>{ if(ok){ document.getElementById('addCityName').value=''; document.getElementById('addCityQuota').value=20; loadOverview(); } });
+  postConfig(limits, kwByCity).then(ok=>{ if(ok){ clearDirty(); document.getElementById('addCityName').value=''; document.getElementById('addCityQuota').value=20; loadOverview(); } });
 }
 
 function buildQuery(page){
@@ -631,7 +800,7 @@ function buildQuery(page){
 async function loadJobs(page){
   currentPage=page||currentPage;
   const out=document.getElementById('result');
-  out.innerHTML='<div class="empty">加载中…</div>';
+  out.innerHTML='<div class="skel"><div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div></div>';
   try{
     const r=await fetch('/api/jobs?'+buildQuery(currentPage)); const d=await r.json();
     if(!d.ok) throw new Error(d.error||'查询失败');
@@ -677,7 +846,19 @@ async function loadJobs(page){
 
 function updateSelInfo(){
   const el=document.getElementById('selInfo');
-  if(el) el.textContent = allFilterSelected ? '已选：过滤结果全部' : `已选 ${selected.size}`;
+  const on = allFilterSelected || selected.size>0;
+  if(el) el.textContent = allFilterSelected ? '已选：过滤结果全部'
+    : (on ? `已选 ${selected.size} 条` : '未选中 · 勾选后可批量处理');
+  const bar=document.getElementById('bulkbar');
+  if(bar) bar.classList.toggle('idle', !on);
+}
+// 数字更新时给一次极短的淡入，避免大数字无声跳变看不出刷新过
+function setNum(id, v){
+  const el=document.getElementById(id); if(!el) return;
+  const s=String(v);
+  if(el.textContent===s) return;
+  el.textContent=s;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 function currentFilter(){
   const v=id=>document.getElementById(id).value.trim();
@@ -712,6 +893,7 @@ async function presetCampus(){
 
 // ===== 执行引擎（前端）=====
 let runTimer=null, currentJobId=null;
+let logPinned=true;   // 日志是否跟随底部；用户向上翻阅时自动解除，避免每秒被拽回底部
 
 function postJson(url, body){
   return fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body||{})});
@@ -722,7 +904,7 @@ async function doRun(key, extra){
   try{
     const r=await postJson('/api/run', body);
     const d=await r.json();
-    if(d.ok){ startPoll(d.job); return; }
+    if(d.ok){ startPoll(d.job, key); return; }
     if(d.needConfirm){ showConfirm(d.message||'确认执行', d.cmd, ()=>doRun(key, Object.assign({}, extra||{}, {confirm:true}))); return; }
     alert(d.error||'执行失败');
   }catch(e){ alert('执行失败：'+e.message); }
@@ -731,16 +913,26 @@ async function doRun(key, extra){
 function showConfirm(msg, cmd, onOk){
   document.getElementById('mText').textContent=msg;
   document.getElementById('mCmd').textContent='$ '+cmd;
-  document.getElementById('mask').style.display='flex';
-  document.getElementById('mOk').onclick=()=>{document.getElementById('mask').style.display='none';onOk();};
+  document.getElementById('mask').classList.add('show');
+  document.getElementById('mOk').onclick=()=>{closeModal();onOk();};
+  const cancel=document.getElementById('mCancel');
+  if(cancel) cancel.focus();
 }
+function closeModal(){ document.getElementById('mask').classList.remove('show'); }
 
-function startPoll(job){
+function saveRunMeta(id,key){ try{ localStorage.setItem('bossweb:run', JSON.stringify({id,key})); }catch(e){} }
+function loadRunMeta(){ try{ return JSON.parse(localStorage.getItem('bossweb:run')||'null'); }catch(e){ return null; } }
+
+function startPoll(job, key){
   currentJobId=job.id;
+  if(key){ currentRunKey=key; runningStage=KEY_STAGE[key]||null; saveRunMeta(job.id,key); }
   const c=document.getElementById('console'); c.style.display='block';
   document.getElementById('cCmd').textContent='$ '+job.cmd;
   if(runTimer) clearInterval(runTimer);
   runTimer=setInterval(pollRun,1000);
+  logPinned=true;
+  document.getElementById('btnFollow').style.display='none';
+  markStageState();
   pollRun();
   c.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -757,15 +949,26 @@ async function pollRun(){
     el.className='cstat '+j.status;
     const log=document.getElementById('cLog');
     log.textContent=j.output||'（等待输出…）';
-    log.scrollTop=log.scrollHeight;
+    // 只在用户本来就贴着底部时才自动滚动，否则保留其阅读位置
+    if(logPinned) log.scrollTop=log.scrollHeight;
     document.getElementById('btnKill').style.display = j.status==='running' ? '' : 'none';
-    if(j.status!=='running'&&runTimer){clearInterval(runTimer);runTimer=null;loadOverview();}
+    if(j.status!=='running'&&runTimer){
+      clearInterval(runTimer);runTimer=null;
+      if(j.status==='done' && currentRunKey && KEY_STAGE[currentRunKey]) stageDone.add(KEY_STAGE[currentRunKey]);
+      runningStage=null; currentRunKey=null;
+      markStageState();
+      loadOverview();
+    }
   }catch(e){ /* 轮询失败忽略 */ }
 }
 
 document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
-document.getElementById('btnReset').onclick=()=>{['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
+document.getElementById('btnReset').onclick=()=>{
+  ['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('fGreeted').value='pending';  // 重置回默认视图：池中待发
+  currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);
+};
 document.getElementById('bulkMark').onclick=()=>bulkAction('mark_greeted');
 document.getElementById('bulkDelete').onclick=()=>bulkAction('delete');
 document.getElementById('selAllFilter').onclick=()=>{ allFilterSelected=true; updateSelInfo(); };
@@ -788,7 +991,21 @@ document.getElementById('btnSaveQuota').onclick=saveQuota;
 document.getElementById('btnCheckClosed').onclick=()=>doRun('check_closed');
 document.getElementById('btnAddCity').onclick=addCity;
 document.getElementById('btnKill').onclick=()=>{if(currentJobId)postJson('/api/run/kill',{id:currentJobId});};
-document.getElementById('mCancel').onclick=()=>{document.getElementById('mask').style.display='none';};
+document.getElementById('mCancel').onclick=closeModal;
+// 确认弹窗：ESC 关闭 + 点遮罩空白处关闭
+document.getElementById('mask').addEventListener('click',(e)=>{ if(e.target.id==='mask') closeModal(); });
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); });
+// 日志滚动跟随：用户向上翻阅则暂停自动滚动，并给出「回到底部」入口
+const clog=document.getElementById('cLog');
+clog.addEventListener('scroll',()=>{
+  const atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
+  logPinned = atBottom;
+  document.getElementById('btnFollow').style.display = atBottom ? 'none' : '';
+});
+document.getElementById('btnFollow').onclick=()=>{
+  clog.scrollTop=clog.scrollHeight; logPinned=true;
+  document.getElementById('btnFollow').style.display='none';
+};
 document.getElementById('prev').onclick=()=>{if(currentPage>1)loadJobs(currentPage-1);};
 document.getElementById('next').onclick=()=>loadJobs(currentPage+1);
 // 城市列表操作：事件委托（含「池中待发」跳检索）
@@ -797,14 +1014,61 @@ document.getElementById('cityBody').addEventListener('click',(e)=>{
   const act=el.dataset.act, city=el.dataset.city;
   if(act==='lk'){ applyPreset({city, greeted:'pending', minScore:''}); return; }
   if(act==='del_city'){ delCity(city); return; }
+  if(act==='scan_city_kw'){
+    const row=el.closest('tr');
+    const sel=[...row.querySelectorAll('.kwsel:checked')].map(cb=>cb.dataset.kw);
+    if(!sel.length){ alert('请至少选择一个关键词'); return; }
+    doRun('scan_city',{city, keywords:sel});
+    return;
+  }
   doRun(act,{city});
 });
+
+// 关键词多选下拉：全选联动 + 已选计数
+document.getElementById('cityBody').addEventListener('change',(e)=>{
+  const t=e.target;
+  if(t.dataset && t.dataset.kw==='__all'){
+    const dd=t.closest('.kwd-body');
+    dd.querySelectorAll('.kwsel').forEach(cb=>{ cb.checked=t.checked; });
+    return updateKwCount(t.closest('.kwd-body'));
+  }
+  if(t.classList && t.classList.contains('kwsel')){
+    const dd=t.closest('.kwd-body');
+    const all=dd.querySelector('[data-kw="__all"]');
+    const sels=dd.querySelectorAll('.kwsel');
+    const checked=dd.querySelectorAll('.kwsel:checked').length;
+    if(all) all.checked = (checked===sels.length);
+    return updateKwCount(dd);
+  }
+});
+function updateKwCount(dd){
+  if(!dd) return;
+  const n=dd.querySelectorAll('.kwsel:checked').length;
+  const total=dd.querySelectorAll('.kwsel').length;
+  const c=dd.querySelector('[data-count]'); if(c) c.textContent=`已选 ${n} / ${total}`;
+}
 // 城市筛选：仅隐藏不匹配行，不重建、不丢编辑
 document.getElementById('cityFilter').addEventListener('input',()=>{
   const fc=document.getElementById('cityFilter').value.trim();
   document.querySelectorAll('#cityBody tr').forEach(tr=>{
     tr.style.display = (!fc || tr.dataset.city.includes(fc)) ? '' : 'none';
   });
+});
+// 未保存改动：城市行内编辑 + 统一词表 / 阈值
+document.getElementById('cityBody').addEventListener('input',(e)=>{
+  const t=e.target;
+  if(!t || (t.className||'').indexOf('kwcity')<0 && (t.className||'').indexOf('qlimit')<0) return;
+  t.classList.add('dirty');
+  const tr=t.closest('tr'); if(tr) tr.classList.add('dirty-row');
+  markDirty();
+});
+['fGlobalKw','fThreshold'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{ el.classList.add('dirty'); markDirty(); });
+});
+document.getElementById('btnUnsavedSave').onclick=saveQuota;
+window.addEventListener('beforeunload',(e)=>{
+  if(cityDirty){ e.preventDefault(); e.returnValue=''; }
 });
 
 let autoTimer=null;
@@ -820,7 +1084,11 @@ setAuto(true); // 默认勾选则立即启动 60s 自动刷新（仅刷新统计
 (async()=>{ try{
   const r=await fetch('/api/run');
   const d=await r.json();
-  if(d.job && d.job.status==='running') startPoll(d.job);
+  if(d.job && d.job.status==='running'){
+    const meta=loadRunMeta();
+    const key=(meta && meta.id===d.job.id) ? meta.key : null;
+    startPoll(d.job, key);
+  }
 }catch(e){ /* 忽略 */ } })();
 </script>
 </body>

@@ -10,17 +10,17 @@
 - 项目：`/home/shici/career-ops`（career-ops v1.33.0 私有 fork `scccy/career-ops`，boss-* 模块自 pa1nrui1/career-ops-cn 迁移）
 - 平台：**Linux Ubuntu 桌面**（非 macOS）。原 boss-chrome-*.mjs 用 osascript/AppleScript 驱动 Chrome，本机已适配为 CDP 通道
 - 浏览器：用户日常 Chrome，启动于独立数据目录 `~/.config/google-chrome-boss` + `--remote-debugging-port=9222`（Chrome 136+ 禁止默认目录开调试端口；用户级 `.desktop` 覆盖让双击图标自带端口）
-- 适配层：`boss-cdp.mjs`（项目根）——CLI + 库。`--eval '<js>'` 在 BOSS 标签页执行 JS 并打印结果（模拟 AppleScript 语义）；内部用 `Runtime.evaluate(returnByValue, userGesture)` + `Input.dispatchMouseEvent`（真实鼠标事件）
-- 发送脚本：`boss-chrome-apply.mjs`。流程：`location.href` 导航到岗位页 → 找"立即沟通/继续沟通"按钮 → 点击 → 等输入框 → 填打招呼文案 → 点"发送"按钮 → **验证自定义文案出现在聊天记录** → 记录
+- 适配层：`boss/boss-cdp.mjs`（boss/ 子目录）——CLI + 库。`--eval '<js>'` 在 BOSS 标签页执行 JS 并打印结果（模拟 AppleScript 语义）；内部用 `Runtime.evaluate(returnByValue, userGesture)` + `Input.dispatchMouseEvent`（真实鼠标事件）
+- 发送脚本：`boss/boss-chrome-apply.mjs`。流程：`location.href` 导航到岗位页 → 找"立即沟通/继续沟通"按钮 → 点击 → 等输入框 → 填打招呼文案 → 点"发送"按钮 → **验证自定义文案出现在聊天记录** → 记录
 - 发送日志：`data/boss-sent-log.tsv`。状态字典：`sent`（自定义文案验证成功）/ `auto_sent`（BOSS 自动默认语已送达，见下文）/ `closed`（职位已下线）/ `failed` / `skipped`
-- 每日配额：按城市（上海20/杭州20/南京20），配置于 `config/profile.yml` 的 `boss.daily_limit_per_city`，`boss-common.mjs` 的 `countSentCompaniesTodayByCity` 按 URL 反查候选池计城市
+- 每日配额：按城市（上海20/杭州20/南京20），配置于 `config/profile.yml` 的 `boss.daily_limit_per_city`，`boss/boss-common.mjs` 的 `countSentCompaniesTodayByCity` 按 URL 反查候选池计城市
 
 ## 2. 已验证可用的部分（不要动）
 
 1. **CDP 执行 JS**：搜索页卡片提取、页面导航、DOM 查询全部正常（今日提取 100+ 岗位）
 2. **首次沟通（立即沟通）全流程**：点按钮 → `.chat-container` 面板打开 → `.chat-input`（contenteditable）出现 → 填文案 → 点"发送" → 聊天记录验证 ✅（今日成功 4 家：上海从鲸、深度求索、认养一头牛、浙江有鹿）
 3. **按钮可见性过滤**：岗位页常有两个同名按钮（DOM 前部一个隐藏 0×0 的"立即沟通" + 可见的"继续沟通"），必须 `getBoundingClientRect()` 宽高 > 0 过滤，否则点到隐藏按钮无反应
-4. **真实点击机制**：`__CDP_CLICK__` 坐标标记协议——页面 JS 返回 `{ ok, __CDP_CLICK__: {x,y} }`，`boss-cdp.mjs` CLI 解析后用 `Input.dispatchMouseEvent`（mouseMoved→mousePressed→mouseReleased，间隔 60ms）派发**受信任鼠标事件**。部分 BOSS 按钮对合成 `.click()` 无响应，必须走这条
+4. **真实点击机制**：`__CDP_CLICK__` 坐标标记协议——页面 JS 返回 `{ ok, __CDP_CLICK__: {x,y} }`，`boss/boss-cdp.mjs` CLI 解析后用 `Input.dispatchMouseEvent`（mouseMoved→mousePressed→mouseReleased，间隔 60ms）派发**受信任鼠标事件**。部分 BOSS 按钮对合成 `.click()` 无响应，必须走这条
 
 ## 3. 弹窗问题详解
 
@@ -57,7 +57,7 @@
 
 ### 3.3 已落地的处理（当前代码）
 
-`boss-chrome-apply.mjs` sendOne 内：
+`boss/boss-chrome-apply.mjs` sendOne 内：
 
 1. 点完沟通按钮后立即进入**弹窗轮询循环**（最多 3 次，避免等待 `gapMs` 让弹窗节点变陈旧）：
    - 若可见输入框存在 → 进入正常填文案流程
@@ -78,16 +78,16 @@
 
 ### 消息页路径说明
 
-`boss-chrome-apply.mjs` 的 `openMessageConversation()` 使用消息页搜索框（`.boss-search-input`）搜索公司，点击匹配的 `li[role="listitem"]`，然后确认可见 `.chat-input`。发送成功仍以自定义文案出现在聊天记录、且输入框已清空为准。
+`boss/boss-chrome-apply.mjs` 的 `openMessageConversation()` 使用消息页搜索框（`.boss-search-input`）搜索公司，点击匹配的 `li[role="listitem"]`，然后确认可见 `.chat-input`。发送成功仍以自定义文案出现在聊天记录、且输入框已清空为准。
 
 ### 复现/测试方法
 
 ```bash
 # 环境就绪：双击 Chrome 图标（自带 9222）→ 已登录 BOSS
 cd /home/shici/career-ops
-node boss-cdp.mjs --probe                       # 确认 CDP 在线
+node boss/boss-cdp.mjs --probe                       # 确认 CDP 在线
 # 找一个"继续沟通"岗位页（队列里 auto_sent 过的公司，或直接导航其 job URL）
-node boss-cdp.mjs --goto "<job_url>"
+node boss/boss-cdp.mjs --goto "<job_url>"
 # 手动点击可见沟通按钮（合成）→ 观察 .dialog-wrap.greet-pop 出现
 # 再测真实点击"留在此页继续沟通"（新鲜 vs 陈旧两种时序）
 ```
@@ -96,10 +96,10 @@ node boss-cdp.mjs --goto "<job_url>"
 
 | 位置 | 内容 |
 |---|---|
-| `boss-chrome-apply.mjs` sendOne | 按钮查找+可见性过滤+`__CDP_CLICK__` 协议；弹窗轮询；消息页会话补发；`AUTO_GREETED`/`JOB_CLOSED` 分流 |
-| `boss-chrome-apply.mjs` main catch | `auto_sent`/`closed`/`failed` 三种结果分流（auto_sent 与 closed 不中断批次） |
-| `boss-cdp.mjs` evaluateMaybeClick / realClick | `__CDP_CLICK__` 解析与 `Input.dispatchMouseEvent` 派发 |
-| `boss-common.mjs` | `loadSentCompanyKeys`（statuses 含 `auto_sent`）、`countSentCompaniesTodayByCity`（配额计数） |
+| `boss/boss-chrome-apply.mjs` sendOne | 按钮查找+可见性过滤+`__CDP_CLICK__` 协议；弹窗轮询；消息页会话补发；`AUTO_GREETED`/`JOB_CLOSED` 分流 |
+| `boss/boss-chrome-apply.mjs` main catch | `auto_sent`/`closed`/`failed` 三种结果分流（auto_sent 与 closed 不中断批次） |
+| `boss/boss-cdp.mjs` evaluateMaybeClick / realClick | `__CDP_CLICK__` 解析与 `Input.dispatchMouseEvent` 派发 |
+| `boss/boss-common.mjs` | `loadSentCompanyKeys`（statuses 含 `auto_sent`）、`countSentCompaniesTodayByCity`（配额计数） |
 
 ## 5. 硬约束（接手者必须遵守）
 

@@ -270,7 +270,7 @@ npm run boss:chrome:apply -- --threshold 4.0 --daily-limit 20 --confirmed-review
 
 原版 career-ops 的公司/岗位质量判断，本项目改成 BOSS 场景下的“机会可信度”。它不是联网背调每家公司，而是在批量评分阶段先判断这个岗位是否像一个真实、具体、可沟通的机会。
 
-`boss-score.mjs` 会输出 `opportunity_legitimacy`：
+`boss/boss-score.mjs` 会输出 `opportunity_legitimacy`：
 
 - `High Confidence / 高可信`：JD 完整、职责和要求清楚、岗位关键词具体、薪资透明、HR 近期活跃、有可沟通入口。
 - `Proceed with Caution / 谨慎推进`：岗位可看，但存在信息不完整、JD 偏泛、薪资不明确、HR 活跃度一般等问题。

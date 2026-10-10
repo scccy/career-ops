@@ -1,6 +1,6 @@
 // boss-web/server.mjs — BOSS 直聘流程操作控制台：实时概览 + 候选池检索 + 白名单命令执行
 // 复用项目 node_modules 的 mysql2 / js-yaml；连接参数与 boss-common.mjs 保持一致（MYSQL_* 可覆盖）。
-// 用法：node boss-web/server.mjs  →  浏览器打开 http://127.0.0.1:4173
+// 用法：node boss/boss-web/server.mjs  →  浏览器打开 http://127.0.0.1:4173
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -14,7 +14,7 @@ import { loadBossControl, saveBossControl } from '../boss-config-db.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.BOSS_DASHBOARD_PORT || 4173);
-const ROOT = join(__dirname, '..');
+const ROOT = join(__dirname, '..', '..');
 const SENT_LOG = join(ROOT, 'data', 'boss-sent-log.tsv');
 const PROFILE = join(ROOT, 'config', 'profile.yml');
 const HTML_PATH = join(__dirname, 'index.html');
@@ -346,7 +346,7 @@ const RUN_ALLOWED = {
   dryrun:  'npm run boss:chrome:apply -- --dry-run',
   send:    'npm run boss:chrome:apply -- --confirmed-review',
   merge:   'node merge-tracker.mjs',
-  check_closed: 'node boss-check-closed.mjs',
+  check_closed: 'node boss/boss-check-closed.mjs',
 };
 const RUN_TIER = { send: 'confirm' };
 const RUN_JOBS = new Map();
@@ -536,18 +536,43 @@ const server = http.createServer(async (req, res) => {
         return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
       }
 
-      // 动态命令：单城一键准备 = ②扫描该城全部关键词 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
-      // extract 加 --city 只跑该城，不影响其他城；评分/排队为全局步骤。关键词量由每城词表自行控制。
+      // 动态命令：单城一键准备 = ②扫描该城关键词 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
+      // extract 加 --city 只跑该城，不影响其他城；评分/排队为全局步骤。
+      // 关键词量由每城词表控制；若前端传 keywords 子集则只扫选中的词（控制台多选下拉）。
       if (key === 'scan_city') {
         const city = String(body.city || '').trim();
         if (!city) return json({ ok: false, error: '缺少城市' }, 400);
         if (!/^[一-龥A-Za-z0-9·\-]{1,20}$/.test(city)) return json({ ok: false, error: `城市名非法：${city}` }, 400);
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
+        // 解析可选的关键词子集，并校验为该市生效词表中的元素（防注入 / 防错词）
+        let kwArg = '';
+        if (Array.isArray(body.keywords) && body.keywords.length) {
+          const cfg2 = await loadBossConfig();
+          const known = new Set(
+            (Array.isArray(cfg2.dailyExtractKeywordsByCity?.[city]) && cfg2.dailyExtractKeywordsByCity[city].length
+              ? cfg2.dailyExtractKeywordsByCity[city]
+              : (cfg2.dailyExtractQueries || [])),
+          );
+          const picked = body.keywords
+            .map((k) => String(k || '').trim())
+            .filter((k) => k.length > 0 && k.length <= 40 && known.has(k));
+          if (!picked.length || picked.length !== body.keywords.length) {
+            return json({ ok: false, error: `关键词不在 ${city} 的生效词表中（可用：${(cfg2.dailyExtractKeywordsByCity?.[city] || cfg2.dailyExtractQueries || []).join(',') || '（空）'}）` }, 400);
+          }
+          if (picked.length === known.size) {
+            kwArg = ' --all'; // 选了全部 = 等同原「全扫」
+          } else {
+            kwArg = ` --keywords "${picked.join(',')}"`;
+          }
+        } else {
+          kwArg = ' --all';
+        }
         try { mkdirSync(join(ROOT, 'data'), { recursive: true }); writeFileSync(LAST_SCAN_FILE, new Date().toISOString()); } catch { /* ignore */ }
-        const cmd = `bash boss-extract-3cities.sh --city "${city}" --all && npm run boss:score && npm run boss:fill -- --prepare`;
+        const cmd = `bash boss/boss-extract-3cities.sh --city "${city}"${kwArg} && npm run boss:score && npm run boss:fill -- --prepare`;
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'safe';
-        return json({ ok: true, job: publicJob(startRun(key)), note: `一键准备：扫描 ${city} 全部关键词 → 评分 → 排队（不影响其他城市，完成后可直接发送/发新扫）` });
+        const scope = kwArg === ' --all' ? '全部关键词' : `关键词子集（${body.keywords.length} 个）`;
+        return json({ ok: true, job: publicJob(startRun(key)), note: `一键准备：扫描 ${city} ${scope} → 评分 → 排队（不影响其他城市，完成后可直接发送/发新扫）` });
       }
 
       // 动态命令：发新扫——只发「最近一次扫描才开始出现」的岗位（greeted=0 且 score≥阈值，时间降序；走单城临时队列）
