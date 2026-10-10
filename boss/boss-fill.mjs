@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'child_process';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import {
   CANDIDATES_PATH,
   list,
@@ -23,12 +23,36 @@ const DEFAULT_TARGET_COMPANIES = 20;
 const DEFAULT_BATCH_COMPANIES = 30;
 const RECENT_COMPANY_DEDUPE_DAYS = 30;
 
+// 兄弟脚本用「本文件所在目录」解析，而不是 CWD——脚本位于 boss/ 子目录，
+// 裸文件名会在仓库根解析失败（2026-09-30 迁移后修复）。
+function siblingScript(name) {
+  return fileURLToPath(new URL(`./${name}`, import.meta.url));
+}
+
 function runNode(args) {
   return execFileSync(process.execPath, args, {
     cwd: process.cwd(),
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
+}
+
+// 子脚本的契约是「stdout 只放最终 JSON、诊断走 stderr」，但历史上有日志误用 console.log
+// 混进 stdout（boss-score / boss-chrome-apply 的 [boss-db]/[过滤统计] 行，2026-09-30 已改为 stderr）。
+// 这里按「取最后一个完整 JSON 对象」解析，避免一行日志把整个 --prepare 拖垮。
+function parseJsonOutput(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch { /* fallthrough */ }
+    }
+    throw new Error(`${label} 的输出不是合法 JSON（stdout 可能混入了日志行）：\n${text.slice(0, 500)}`);
+  }
 }
 
 function buildNextStep(plan, input, profile) {
@@ -90,13 +114,13 @@ Rules:
   };
 
   if (args.prepare && plan.enoughForToday) {
-    const scoreOutput = runNode(['boss-score.mjs', '--input', input, '--threshold', String(plan.threshold)]);
-    const reviewOutput = runNode(['boss-review.mjs', '--limit', String(plan.targetCompanies), '--threshold', String(plan.threshold)]);
-    const applyDryRun = runNode(['boss-chrome-apply.mjs', '--threshold', String(plan.threshold), '--daily-limit', String(plan.targetCompanies), '--dry-run']);
+    const scoreOutput = runNode([siblingScript('boss-score.mjs'), '--input', input, '--threshold', String(plan.threshold)]);
+    const reviewOutput = runNode([siblingScript('boss-review.mjs'), '--limit', String(plan.targetCompanies), '--threshold', String(plan.threshold)]);
+    const applyDryRun = runNode([siblingScript('boss-chrome-apply.mjs'), '--threshold', String(plan.threshold), '--daily-limit', String(plan.targetCompanies), '--dry-run']);
     output.prepared = true;
-    output.scoreOutput = JSON.parse(scoreOutput);
-    output.reviewOutput = JSON.parse(reviewOutput);
-    output.applyDryRun = JSON.parse(applyDryRun);
+    output.scoreOutput = parseJsonOutput(scoreOutput, 'boss-score.mjs');
+    output.reviewOutput = parseJsonOutput(reviewOutput, 'boss-review.mjs');
+    output.applyDryRun = parseJsonOutput(applyDryRun, 'boss-chrome-apply.mjs');
   } else {
     output.prepared = false;
   }

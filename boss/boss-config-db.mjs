@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROFILE = join(__dirname, 'config', 'profile.yml');
+const PROFILE = join(__dirname, '..', 'config', 'profile.yml');
 
 const DB = {
   host: process.env.MYSQL_HOST || '127.0.0.1',

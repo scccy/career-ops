@@ -429,7 +429,7 @@ async function main() {
   if (isCandidatesPath(input) && !args['dry-run']) {
     try {
       const updated = await persistJobScores(scored);
-      console.log(`[boss-db] 评分已回写 boss_jobs：${updated} 条（其中可发送 ${scored.filter((j) => j.db_eligible).length} 条）`);
+      console.error(`[boss-db] 评分已回写 boss_jobs：${updated} 条（其中可发送 ${scored.filter((j) => j.db_eligible).length} 条）`);
     } catch (err) {
       console.error(`[boss-db] 评分回写失败（不影响队列输出）: ${err.message}`);
     }

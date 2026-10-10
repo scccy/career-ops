@@ -491,7 +491,7 @@ async function main() {
     sentToday = selection.sentToday;
     remainingToday = selection.remainingToday;
     const st = selection.stats;
-    console.log(
+    console.error(
       `[过滤统计] 队列 ${st.total} 条：低于阈值 ${st.belowThreshold}，30天内已发同岗位 ${st.alreadySent}，` +
       `30天内已发同公司 ${st.recentCompany}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
     );
