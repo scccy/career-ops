@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from 'child_process';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 import {
   CANDIDATES_PATH,
   QUEUE_PATH,
@@ -10,48 +9,30 @@ import {
   countSentCompaniesToday,
   countSentCompaniesTodayByCity,
   loadProfile,
-  loadSentCompanyKeys,
-  loadSentKeys,
   loadCandidatesByKeyHashes,
   markCandidatesGreeted,
   markJobsClosed,
   parseArgs,
   readJson,
-  uniqueCompanyKey,
-  uniqueJobKey,
   urlPathname,
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
+import { cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
+import { selectSendableJobs } from './boss-send-eligibility.mjs';
 
 // 城市操作流程配置（阈值 / 每城配额）统一来自数据库；DB 不可用时退化到 profile.yml 默认值。
 const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 
-const RECENT_COMPANY_DEDUPE_DAYS = 30;
 const CHAT_URL = 'https://www.zhipin.com/web/geek/chat';
 
-// 本地适配：macOS 走 AppleScript；其他平台（或 BOSS_TRANSPORT=cdp）走 boss-cdp.mjs（Chrome CDP）
-const CDP_TRANSPORT = process.env.BOSS_TRANSPORT
-  ? process.env.BOSS_TRANSPORT === 'cdp'
-  : process.platform !== 'darwin';
-
-function execJs(js) {
-  if (CDP_TRANSPORT) {
-    return execFileSync(process.execPath, [fileURLToPath(new URL('./boss-cdp.mjs', import.meta.url)), '--eval', js], {
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    }).trim();
-  }
-  const script = `tell application "Google Chrome" to execute active tab of front window javascript ${JSON.stringify(js)}`;
-  return execFileSync('osascript', ['-e', script], {
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024,
-  }).trim();
+async function execJs(js) {
+  return cdpExecJs(js);
 }
 
-function execJson(js, fallback = null) {
-  const raw = execJs(js);
+async function execJson(js, fallback = null) {
+  const raw = await execJs(js);
   if (!raw) return fallback;
   return JSON.parse(raw);
 }
@@ -65,7 +46,7 @@ async function waitFor(predicateJs, timeoutMs = 15000, intervalMs = 500) {
   while (Date.now() - started < timeoutMs) {
     let ok = false;
     try {
-      ok = execJson(predicateJs, false);
+      ok = await execJson(predicateJs, false);
     } catch {
       // 页面导航间隙 CDP evaluate 可能瞬时失败：视为未就绪，继续轮询
       ok = false;
@@ -80,8 +61,13 @@ function pageString(value) {
   return JSON.stringify(String(value || ''));
 }
 
+function trackerScore(value) {
+  const score = typeof value === 'number' ? value : (String(value ?? '').trim() ? Number(value) : NaN);
+  return Number.isFinite(score) ? `${score.toFixed(1)}/5` : 'N/A';
+}
+
 async function openMessageConversation(job) {
-  execJs(`location.href = ${JSON.stringify(CHAT_URL)}; 'navigating'`);
+  await execJs(`location.href = ${JSON.stringify(CHAT_URL)}; 'navigating'`);
   const loaded = await waitFor(
     `JSON.stringify(location.pathname.includes('/web/geek/chat') && document.readyState === 'complete')`,
     25000,
@@ -89,7 +75,7 @@ async function openMessageConversation(job) {
   );
   if (!loaded) throw new Error('BOSS消息页加载超时');
 
-  const searchInfo = execJson(`
+  const searchInfo = await execJson(`
 JSON.stringify((() => {
   const company = ${pageString(job.company)};
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -116,7 +102,7 @@ JSON.stringify((() => {
     throw new Error(`消息页未找到“${job.company}”对应会话`);
   }
 
-  const conversationInfo = execJson(`
+  const conversationInfo = await execJson(`
 JSON.stringify((() => {
   const company = ${pageString(job.company)};
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -148,9 +134,22 @@ JSON.stringify((() => {
     return rect.width > 0 && rect.height > 0;
   });
 })())`, 20000, 500);
-  if (!inputReady) throw new Error(`${context}未找到消息输入框`);
+  if (!inputReady) {
+    const state = await execJson(`
+JSON.stringify({
+  href: location.pathname,
+  title: document.title,
+  hasFocus: document.hasFocus(),
+  startChatVisible: [...document.querySelectorAll('.btn-startchat')].some((el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }),
+  bodyHint: (document.body?.innerText || '').slice(0, 180).replace(/\\s+/g, ' ')
+})`, {});
+    throw new Error(`${context}未找到消息输入框；页面状态=${JSON.stringify(state)}`);
+  }
 
-  const fillInfo = execJson(`
+  const fillInfo = await execJson(`
 JSON.stringify((() => {
   const message = ${pageString(greeting)};
   const nodes = [...document.querySelectorAll('textarea, [contenteditable="true"], .input-area, .chat-input textarea, .input-box textarea')];
@@ -198,7 +197,7 @@ JSON.stringify((() => {
   );
 })())`, 8000, 300);
   if (!sendReady) {
-    const state = execJson(`
+    const state = await execJson(`
 JSON.stringify((() => [...document.querySelectorAll('a,button,.send-message,.btn-send,[class*="send"]')].map((el) => {
   const rect = el.getBoundingClientRect();
   return {
@@ -211,7 +210,7 @@ JSON.stringify((() => [...document.querySelectorAll('a,button,.send-message,.btn
     throw new Error(`${context}发送按钮未激活：${JSON.stringify(state)}`);
   }
 
-  const sendInfo = execJson(`
+  const sendInfo = await execJson(`
 JSON.stringify((() => {
   const nodes = [...document.querySelectorAll('a,button,.send-message,.btn-send,[class*="send"]')];
   const items = nodes.map((el, index) => ({
@@ -257,65 +256,6 @@ JSON.stringify((() => {
   if (!verified) throw new Error(`点击发送后未在${context}聊天记录中验证到自定义文案，未记为成功`);
 }
 
-function candidatesFromQueue(queue, { threshold, limit, limitIsExplicit = false, cityLimits = null, platformLimit = 150, urlCity = new Map() }) {
-  const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const sentToday = countSentCompaniesToday();
-  const sentTodayByCity = countSentCompaniesTodayByCity({ urlCity });
-  // 城市配额（2026-09-22 用户要求：上海20/杭州20/南京20，配置于 profile.yml boss.daily_limit_per_city）
-  const cityRemaining = new Map(
-    Object.entries(cityLimits || {}).map(([city, cap]) => [city, Math.max(0, Number(cap) - (sentTodayByCity[city] || 0))]),
-  );
-  const globalRemaining = Math.max(0, limit - sentToday);
-  const perCityTotal = [...cityRemaining.values()].reduce((sum, n) => sum + n, 0);
-  // BOSS 平台级每日上限：可选开关（platform_daily_limit>0 才启用，0=不管理，
-  // 用户自行通过城市配额调整/会员解除）。启用时 remainingToday 额外受平台剩余封顶。
-  let remainingToday = cityLimits
-    ? (limitIsExplicit ? Math.min(globalRemaining, perCityTotal) : perCityTotal)
-    : globalRemaining;
-  if (platformLimit > 0) {
-    const platformRemaining = Math.max(0, platformLimit - sentToday);
-    if (remainingToday > platformRemaining) {
-      console.log(`[平台限额] 今日平台剩余 ${platformRemaining} 次（已沟通 ${sentToday}/${platformLimit}），本轮封顶。`);
-      remainingToday = platformRemaining;
-    }
-  }
-  const cityRemainingBefore = Object.fromEntries(cityRemaining);
-  const seenCompanies = new Set();
-  const stats = { total: queue.length, belowThreshold: 0, alreadySent: 0, recentCompany: 0, cityQuota: 0 };
-  const jobs = queue
-    .slice()
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .filter((job) => {
-      if (Number(job.score) < threshold) { stats.belowThreshold++; return false; }
-      if (sentJobs.has(uniqueJobKey(job))) { stats.alreadySent++; return false; }
-      const key = uniqueCompanyKey(job);
-      if (recentSentCompanies.has(key) || seenCompanies.has(key)) { stats.recentCompany++; return false; }
-      if (cityLimits) {
-        const city = String(job.city || '').split('·')[0];
-        if (cityRemaining.has(city)) {
-          const left = cityRemaining.get(city);
-          if (left <= 0) { stats.cityQuota++; return false; }
-          cityRemaining.set(city, left - 1);
-        }
-      }
-      seenCompanies.add(key);
-      return true;
-    })
-    .slice(0, remainingToday);
-  stats.selected = jobs.length;
-  return {
-    jobs,
-    sentToday,
-    remainingToday,
-    sentTodayByCity,
-    cityRemaining: cityRemainingBefore,
-    cityRemainingAfterSelection: Object.fromEntries(cityRemaining),
-    cityLimits,
-    stats,
-  };
-}
-
 function printPostSendGuidance({ sentCount, quotaLine }) {
   if (sentCount <= 0) return;
   console.log('');
@@ -329,7 +269,7 @@ async function sendOne(job, { gapMs = 1200 } = {}) {
   const greeting = String(job.greeting || '').trim();
   if (!greeting) throw new Error('缺少打招呼文案');
 
-  execJs(`location.href = ${JSON.stringify(job.url)}; 'navigating'`);
+  await execJs(`location.href = ${JSON.stringify(job.url)}; 'navigating'`);
   const loaded = await waitFor(
     `JSON.stringify(document.readyState === 'complete' || (document.body?.innerText || '').includes(${JSON.stringify(job.title || '')}))`,
     25000,
@@ -339,30 +279,65 @@ async function sendOne(job, { gapMs = 1200 } = {}) {
   await sleep(gapMs);
 
   // 岗位已下线：BOSS 会重定向到无沟通按钮的 SEO 页（"职位已关闭"）——记 closed 并继续下一家，不算批次失败
-  const jobClosed = execJson('JSON.stringify((document.body.innerText||"").includes("职位已关闭"))', false);
+  const jobClosed = await execJson('JSON.stringify((document.body.innerText||"").includes("职位已关闭"))', false);
   if (jobClosed) throw new Error('JOB_CLOSED: 职位已关闭');
 
-  const buttonInfo = execJson(`
+  // 定位「立即沟通」并真实鼠标点击（部分按钮对合成 .click() 无响应，返回 __CDP_CLICK__
+  // 坐标标记由 boss-cdp 派发真实鼠标事件）。scrollIntoView 防止坐标因滚动偏移。
+  const findChatButton = `
 JSON.stringify((() => {
-  const items = [...document.querySelectorAll('a,button')].map((el, index) => {
-    const rect = el.getBoundingClientRect();
-    return {
-      index,
-      text: (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim(),
-      cls: String(el.className || ''),
-      href: el.getAttribute('href') || '',
-      visible: rect.width > 0 && rect.height > 0
-    };
-  });
-  // 只点可见按钮（页面上常藏有 0×0 的同名隐藏按钮，点了没反应）；
-  // 返回 __CDP_CLICK__ 坐标标记，由 boss-cdp CLI 派发真实鼠标事件（部分按钮对合成 .click() 无响应）
-  const hit = items.find((item) => item.visible && /立即沟通|继续沟通|聊一聊/.test(item.text));
-  if (!hit) return { ok: false, reason: 'no_chat_button', items: items.filter((item) => /沟通|聊天|发送|继续/.test(item.text)).slice(0, 10) };
-  const el = [...document.querySelectorAll('a,button')][hit.index];
-  const rect = el.getBoundingClientRect();
-  return { ok: true, button: hit, __CDP_CLICK__: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } };
-  })())`, {});
-  if (!buttonInfo?.ok) throw new Error(`未找到“立即沟通”按钮：${JSON.stringify(buttonInfo?.items || [])}`);
+  const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const hit = [...document.querySelectorAll('a,button')]
+    .map((el) => ({ el, text: (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim() }))
+    .find((item) => vis(item.el) && /立即沟通|继续沟通|聊一聊/.test(item.text));
+  if (!hit) {
+    const items = [...document.querySelectorAll('a,button')]
+      .filter((el) => vis(el) && /沟通|聊天|发送|继续/.test(el.innerText || ''))
+      .map((el) => (el.innerText || '').trim()).slice(0, 10);
+    return { ok: false, reason: 'no_chat_button', items };
+  }
+  hit.el.scrollIntoView({ block: 'center' });
+  const rect = hit.el.getBoundingClientRect();
+  return { ok: true, button: { text: hit.text }, __CDP_CLICK__: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } };
+})())`;
+
+  // 2026-10-11 新增点击重试：页面刚完成导航时 React 事件可能尚未挂上，真实点击
+  // 会无声失败——表现为 3s 内既无消息输入框、也无「已向BOSS发送消息」默认语弹窗，
+  // 按钮原样留在页面（生产实测：报「岗位页未找到消息输入框」且按钮仍是「立即沟通」）。
+  // 处理：重新定位坐标（scrollIntoView）再点，最多 3 次；仍无反应才报错。
+  let clicked = false;
+  let buttonInfo = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    buttonInfo = await execJson(findChatButton, {});
+    if (!buttonInfo?.ok) throw new Error(`未找到“立即沟通”按钮：${JSON.stringify(buttonInfo?.items || [])}`);
+    const reacted = await waitFor(
+      `JSON.stringify((() => {
+         const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+         return Boolean([...document.querySelectorAll('.chat-input, textarea, [contenteditable="true"]')].find(vis))
+           || /已向BOSS发送消息/.test(document.body.innerText || '');
+       })())`,
+      3000,
+      150,
+    );
+    if (reacted) { clicked = true; break; }
+    console.error(`[retry] 第 ${attempt} 次点击「${buttonInfo.button?.text || '立即沟通'}」无反应，重新定位坐标再点`);
+    await sleep(800);
+  }
+  if (!clicked) {
+    const state = await execJson(
+      `JSON.stringify((() => {
+         const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+         return {
+           href: location.href,
+           title: document.title,
+           startChatVisible: [...document.querySelectorAll('.btn-startchat')].some(vis),
+           bodyHint: (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 200),
+         };
+       })())`,
+      {},
+    );
+    throw new Error(`点击「立即沟通」3 次均无反应；页面状态=${JSON.stringify(state)}`);
+  }
 
   // 继续沟通场景：BOSS 会先自动发送默认语，再弹出确认框。
   // 真实 DOM 会把“留在此页”和“继续沟通”拆成两个 span，不能按完整文案找叶子节点。
@@ -376,7 +351,7 @@ JSON.stringify((() => {
   return Boolean(input) || /已向BOSS发送消息/.test(document.body.innerText || '');
 })())`, 3000, 150);
     if (!appeared) break;
-    const state = execJson(`
+    const state = await execJson(`
 JSON.stringify((() => {
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   if ([...document.querySelectorAll('.chat-input, textarea, [contenteditable="true"]')].some(vis)) return { state: 'input' };
@@ -387,7 +362,7 @@ JSON.stringify((() => {
     if (state?.state === 'auto_greeted_popup') {
       autoGreeted = true;
       // 点击“继续沟通”：优先使用 BOSS 弹窗的稳定类名，兼容按钮文案被拆成两个 span 的 DOM。
-      execJson(`
+      await execJson(`
 JSON.stringify((() => {
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const popup = [...document.querySelectorAll('.greet-pop.greet-boss-pop, [role="dialog"]')]
@@ -411,7 +386,7 @@ JSON.stringify((() => {
 
   // 岗位页弹窗节点失效时，改走常驻消息页，定位该公司会话后补发自定义文案。
   if (autoGreeted) {
-    const inputStill = execJson(`
+    const inputStill = await execJson(`
 JSON.stringify((() => {
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   return [...document.querySelectorAll('.chat-input, textarea, [contenteditable="true"]')].some(vis);
@@ -473,13 +448,32 @@ async function main() {
     jobs = found;
   } else {
     const queue = readJson(args.input || QUEUE_PATH, []);
+    // Queue JSON may contain only the raw job payload from boss_jobs; score in
+    // the DB column is authoritative and must be restored by stable key_hash.
+    const storedCandidates = await loadCandidates();
+    const currentByHash = new Map(storedCandidates.filter((job) => job.key_hash).map((job) => [job.key_hash, job]));
+    const hydratedQueue = queue.map((job) => {
+      const current = currentByHash.get(job.key_hash);
+      if (!current) return job;
+      const currentScore = Number(current.score);
+      return {
+        ...job,
+        ...(Number.isFinite(currentScore) ? { score: currentScore } : {}),
+        greeted: Boolean(current.greeted),
+        contactState: current.contactState || job.contactState,
+        availability: current.availability || job.availability,
+        manualExcluded: Boolean(current.manualExcluded),
+        manualExclusionReason: current.manualExclusionReason || '',
+        status: current.status || job.status,
+      };
+    });
     // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市。
     // 键用 pathname（job_detail/<id>.html）——securityId 每次扫描都变，
     // 完整 URL 匹配会让重扫后历史发送记录对不上城市、配额扣减失灵。
     urlCity = new Map(
-      cityLimits ? (await loadCandidates()).map((job) => [urlPathname(job.url), job.city || '']) : [],
+      cityLimits ? storedCandidates.map((job) => [urlPathname(job.url), job.city || '']) : [],
     );
-    selection = candidatesFromQueue(queue, {
+    selection = selectSendableJobs(hydratedQueue, {
       threshold,
       limit,
       limitIsExplicit,
@@ -492,7 +486,8 @@ async function main() {
     remainingToday = selection.remainingToday;
     const st = selection.stats;
     console.error(
-      `[过滤统计] 队列 ${st.total} 条：低于阈值 ${st.belowThreshold}，30天内已发同岗位 ${st.alreadySent}，` +
+      `[过滤统计] 队列 ${st.total} 条：缺少分数 ${st.missingScore}，低于阈值 ${st.belowThreshold}，` +
+      `30天内已发同岗位 ${st.alreadySent}，` +
       `30天内已发同公司 ${st.recentCompany}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
     );
   }
@@ -543,7 +538,7 @@ async function main() {
     try {
       await sendOne(job, { gapMs: Number(args['gap-ms'] || 1400) });
       appendSentLog({ job, status: 'sent', message: job.greeting });
-      appendApplication({ job, score: `${job.score}/5`, status: 'Applied', report: job.report || '—', notes: 'BOSS Chrome 自动打招呼' });
+      appendApplication({ job, score: trackerScore(job.score), status: 'Applied', report: job.report || '—', notes: 'BOSS Chrome 自动打招呼' });
       console.log(`sent: ${job.company} - ${job.title}`);
       results.push({ company: job.company, title: job.title, status: 'sent' });
     } catch (err) {
@@ -560,7 +555,7 @@ async function main() {
         });
         appendApplication({
           job,
-          score: `${job.score}/5`,
+          score: trackerScore(job.score),
           status: 'Applied',
           report: job.report || '—',
           notes: `BOSS 继续沟通场景：默认打招呼语已发送；自定义话术未验证（${detail}）`,
@@ -591,16 +586,16 @@ async function main() {
     }
   }
 
-  // 发送成功（sent/auto_sent）的岗位在职位池里打 greeted 标记
-  const greetedUrls = jobs
-    .filter((job, i) => results[i] && (results[i].status === 'sent' || results[i].status === 'auto_sent') && job.url)
-    .map((job) => job.url);
-  if (greetedUrls.length) {
+  // 联系事实区分自定义文案验证发送与 BOSS 自动默认招呼。
+  const sentUrls = jobs.filter((job, i) => results[i]?.status === 'sent' && job.url).map((job) => job.url);
+  const autoSentUrls = jobs.filter((job, i) => results[i]?.status === 'auto_sent' && job.url).map((job) => job.url);
+  if (sentUrls.length || autoSentUrls.length) {
     try {
-      const marked = await markCandidatesGreeted(greetedUrls);
-      console.log(`[boss-db] 已标记 ${marked} 条 greeted`);
+      const sentMarked = sentUrls.length ? await markCandidatesGreeted(sentUrls, 'custom_sent') : 0;
+      const autoMarked = autoSentUrls.length ? await markCandidatesGreeted(autoSentUrls, 'auto_greeted_unverified') : 0;
+      console.log(`[boss-db] 已更新联系状态：自定义消息 ${sentMarked} 条，平台默认招呼 ${autoMarked} 条`);
     } catch (err) {
-      console.error(`[boss-db] greeted 标记失败（不影响发送结果）: ${err.message}`);
+      console.error(`[boss-db] 联系状态标记失败（不影响发送结果）: ${err.message}`);
     }
   }
   const sentCount = results.filter((r) => r.status === 'sent').length;
@@ -625,8 +620,7 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => {
-    console.error(`boss-chrome-apply failed: ${err.message}`);
-    process.exit(1);
-  });
+  main()
+    .catch((err) => { console.error(`boss-chrome-apply failed: ${err.message}`); process.exitCode = 1; })
+    .finally(closeAllConnections);
 }

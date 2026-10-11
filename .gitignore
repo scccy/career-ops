@@ -214,3 +214,9 @@ documents/*
 # Intake fingerprints — the recorded source filenames may themselves carry
 # PII (e.g. cv/jane-doe-master-cv.pdf). #1723
 data/intake-state.json
+
+# BOSS local runtime artifacts (cookies / login state / tools / secrets - never commit)
+.chrome-9222/
+.chrome-cdp/
+.tools/
+boss/.env.local
