@@ -37,7 +37,7 @@ $env:MYSQL_PASSWORD='你的密码'            # Windows PowerShell
 | `MYSQL_HOST` | `127.0.0.1` |
 | `MYSQL_PORT` | `3306` |
 | `MYSQL_USER` | `root` |
-| `MYSQL_PASSWORD` | `***REMOVED***` |
+| `MYSQL_PASSWORD` | `从 boss/.env.local 读取` |
 | `MYSQL_DB` | `career_ops` |
 
 首次运行会自动 `CREATE DATABASE IF NOT EXISTS career_ops` 并建表：
@@ -69,7 +69,7 @@ npm run boss:chrome:start
 curl http://127.0.0.1:9222/json/version
 ```
 
-> **已启动的 Chrome 不要关。** 所有命令都复用它。
+> **已启动的 Chrome 不要关。** 所有命令都复用它。不需要提前打开 zhipin.com——扫描/发送流程发现没有 BOSS 标签页时会**自动新建**一个（复用已登录会话），并自行导航到目标 URL。
 >
 > **Chrome 调试端口的三个坑（Windows 实测 Chrome 155）：**
 > 1. 不显式传 `--user-data-dir` → 调试端口**根本不开**；
@@ -274,6 +274,37 @@ node boss/boss-web/server.mjs          # 或设 BOSS_DASHBOARD_PORT 改端口
 
 命令走**白名单**，`send` 属危险档需前端显式二次确认。任务有超时保护（`BOSS_RUN_TIMEOUT_MS`，默认 90 分钟）。
 
+### 6.1 后台静默运行（持久化，Windows）
+
+控制台由**计划任务 `BossConsole`** 托管：登录自动拉起、失败自动重启（3 次/间隔 1 分钟）、全程无可见窗口、不依赖任何终端。
+
+```powershell
+# 立即启动（无窗口）
+Start-ScheduledTask -TaskName 'BossConsole'
+
+# 手动停止（只杀 4173 端口，安全）
+D:\github\career-ops\boss\stop-console.cmd
+
+# 查看运行状态
+netstat -ano | findstr /c:":4173 " | findstr LISTENING
+
+# 取消登录自启
+Unregister-ScheduledTask -TaskName 'BossConsole' -Confirm:$false
+```
+
+启动链：`计划任务 → wscript（boss/start-console-hidden.vbs，窗口样式 0）→ cmd /c start-console.cmd /noopen → node boss/boss-web/server.mjs`。`start-console.cmd` 自带端口守卫：4173 已在监听就静默退出，不会重复起实例。
+
+> **重建任务**（换机器或误删后，PowerShell 管理员不需要，普通权限即可）：
+>
+> ```powershell
+> $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '"D:\github\career-ops\boss\start-console-hidden.vbs"' -WorkingDirectory 'D:\github\career-ops'
+> $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+> $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+> Register-ScheduledTask -TaskName 'BossConsole' -Action $action -Trigger $trigger -Settings $settings -Force
+> ```
+
+> **坑（已修复，勿回退）**：cmd 的 `findstr /r "A B"` 中空格会把模式拆成"或"条件，端口守卫必须写 `findstr /r /c:":4173 .*LISTENING"`（`/c:` 才是一个整体正则）。`start-console.cmd` 和 `stop-console.cmd` 都依赖这一写法——写错成裸空格形式时，stop 会误杀**所有**监听端口的进程。
+
 ---
 
 ## 7. 数据与文件
@@ -341,7 +372,9 @@ npm run boss:chrome:apply -- --dry-run       # 预览打招呼文案
 npm run boss:chrome:apply -- --confirmed-review   # 真实发送 ← 人工确认
 npm run boss:send:one -- --key-hash <hash> --dry-run  # 点名单发
 node merge-tracker.mjs                       # 合并追踪表
-node boss/boss-web/server.mjs                # 启动控制台 127.0.0.1:4173
+node boss/boss-web/server.mjs                # 前台启动控制台 127.0.0.1:4173
+Start-ScheduledTask -TaskName 'BossConsole'  # 后台静默启动（推荐，见 §6.1）
+D:\github\career-ops\boss\stop-console.cmd   # 停止后台控制台
 ```
 
 ---

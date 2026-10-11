@@ -173,7 +173,29 @@ async function resolveTarget() {
   const bossPages = pages.filter((page) => {
     try { return /(^|\.)zhipin\.com$/i.test(new URL(page.url).hostname); } catch { return false; }
   });
-  if (!bossPages.length) throw new Error('没有可用的 BOSS 标签页；请先在此 Chrome 中打开 zhipin.com。');
+  if (!bossPages.length) {
+    // 自动新建一个 BOSS 标签页（首页，复用已登录会话），无需用户手动打开网站。
+    // apply/scan 流程随后会用 location.href 自行导航到具体岗位/会话 URL。
+    const res = await fetch(`${BASE}/json/new?${encodeURIComponent('https://www.zhipin.com/')}`, {
+      method: 'PUT',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`CDP 自动新建 BOSS 标签页失败 HTTP ${res.status}`);
+    const page = await res.json();
+    const started = Date.now();
+    while (Date.now() - started < 25000) {
+      await new Promise((r) => setTimeout(r, 800));
+      try {
+        const raw = await evaluateIn(page, `JSON.stringify({ready: document.readyState})`);
+        const state = raw ? JSON.parse(raw) : {};
+        if (state.ready === 'complete') break;
+      } catch {
+        // 导航中 evaluate 可能瞬时失败，继续轮询
+      }
+    }
+    cachedTarget = page;
+    return page;
+  }
   for (const page of bossPages) {
     if (await hasFocus(page)) { cachedTarget = page; return page; }
   }

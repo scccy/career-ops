@@ -11,7 +11,7 @@ set NOOPEN=
 if /i "%~1"=="/noopen" set NOOPEN=1
 
 rem Skip if already running (avoid port conflict)
-netstat -ano | findstr /r ":4173 .*LISTENING" >nul 2>&1
+netstat -ano | findstr /r /c:":4173 .*LISTENING" >nul 2>&1
 if %errorlevel%==0 (
   echo [i] Console already running - opening page...
   if not defined NOOPEN start "" http://127.0.0.1:4173
