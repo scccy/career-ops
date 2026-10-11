@@ -403,10 +403,14 @@ CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
   city VARCHAR(128) DEFAULT '',
   url VARCHAR(768) DEFAULT '',
   greeted TINYINT(1) DEFAULT 0,
+  contact_state VARCHAR(32) NOT NULL DEFAULT 'never_contacted',
   salary_min DECIMAL(6,2) NULL,
   salary_max DECIMAL(6,2) NULL,
   score DECIMAL(4,2) NULL,
   status VARCHAR(32) DEFAULT '',
+  availability VARCHAR(16) NOT NULL DEFAULT 'unknown',
+  manual_excluded TINYINT(1) NOT NULL DEFAULT 0,
+  manual_exclusion_reason VARCHAR(255) DEFAULT '',
   scanned_at DATETIME(3) NULL,
   raw JSON NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -461,6 +465,7 @@ function schemaReady() {
       );
       const colNames = new Set(cols.map((c) => c.name));
       const added = [];
+      const stateAdded = [];
       if (!colNames.has('url')) {
         await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN url VARCHAR(768) DEFAULT '' AFTER city`);
         added.push('url');
@@ -469,10 +474,26 @@ function schemaReady() {
         await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN greeted TINYINT(1) DEFAULT 0 AFTER url`);
         added.push('greeted');
       }
+      if (!colNames.has('contact_state')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN contact_state VARCHAR(32) NOT NULL DEFAULT 'never_contacted' AFTER greeted`);
+        stateAdded.push('contact_state');
+      }
       if (!colNames.has('salary_min') || !colNames.has('salary_max')) {
         if (!colNames.has('salary_min')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_min DECIMAL(6,2) NULL AFTER greeted`);
         if (!colNames.has('salary_max')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_max DECIMAL(6,2) NULL AFTER salary_min`);
         added.push('salary_min/salary_max');
+      }
+      if (!colNames.has('availability')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN availability VARCHAR(16) NOT NULL DEFAULT 'unknown' AFTER status`);
+        stateAdded.push('availability');
+      }
+      if (!colNames.has('manual_excluded')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN manual_excluded TINYINT(1) NOT NULL DEFAULT 0 AFTER availability`);
+        stateAdded.push('manual_excluded');
+      }
+      if (!colNames.has('manual_exclusion_reason')) {
+        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN manual_exclusion_reason VARCHAR(255) DEFAULT '' AFTER manual_excluded`);
+        stateAdded.push('manual_exclusion_reason');
       }
       if (added.length) {
         await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_greeted (greeted)`).catch(() => {});
@@ -494,9 +515,52 @@ function schemaReady() {
         );
         console.error(`[boss-db] boss_jobs 补列: ${added.join(', ')}（已从 raw 回填）`);
       }
+      if (stateAdded.includes('contact_state')) {
+        await pool.query(
+          `UPDATE ${BOSS_JOBS_TABLE}
+              SET contact_state = CASE
+                WHEN JSON_EXTRACT(raw, '$.contactState') IS NOT NULL
+                  THEN JSON_UNQUOTE(JSON_EXTRACT(raw, '$.contactState'))
+                WHEN greeted = 1 THEN 'legacy_contact_unknown'
+                ELSE 'never_contacted'
+              END`,
+        );
+      }
+      if (stateAdded.includes('availability')) {
+        await pool.query(
+          `UPDATE ${BOSS_JOBS_TABLE}
+              SET availability = CASE
+                WHEN status = 'closed' THEN 'closed'
+                WHEN JSON_EXTRACT(raw, '$.availability') IS NOT NULL
+                  THEN JSON_UNQUOTE(JSON_EXTRACT(raw, '$.availability'))
+                ELSE 'unknown'
+              END`,
+        );
+      }
+      if (stateAdded.includes('manual_excluded')) {
+        await pool.query(
+          `UPDATE ${BOSS_JOBS_TABLE}
+              SET manual_excluded = IFNULL(JSON_EXTRACT(raw, '$.manualExcluded'), 0)`,
+        );
+      }
+      if (stateAdded.includes('manual_exclusion_reason')) {
+        await pool.query(
+          `UPDATE ${BOSS_JOBS_TABLE}
+              SET manual_exclusion_reason = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw, '$.manualExclusionReason')), '')`,
+        );
+      }
+      if (stateAdded.length) console.error(`[boss-db] 状态字段迁移: ${stateAdded.join(', ')}`);
     })().catch((err) => { _schemaReady = null; throw err; });
   }
   return _schemaReady;
+}
+
+// Console API uses a separate connection pool but shares this idempotent
+// schema/data migration so scripts and UI agree on contact/availability state.
+export async function ensureCandidatesSchemaReady() {
+  cancelIdleClose();
+  try { await schemaReady(); }
+  finally { scheduleIdleClose(); }
 }
 
 function parseRawRow(raw) {
@@ -508,6 +572,10 @@ function mapJobRow(r) {
   const job = parseRawRow(r.raw);
   if (r.url) job.url = r.url;
   job.greeted = Boolean(r.greeted);
+  job.contactState = String(r.contact_state || (r.greeted ? 'legacy_contact_unknown' : 'never_contacted'));
+  job.availability = String(r.availability || (r.status === 'closed' ? 'closed' : 'unknown'));
+  job.manualExcluded = Boolean(r.manual_excluded);
+  job.manualExclusionReason = String(r.manual_exclusion_reason || '');
   if (r.key_hash) job.key_hash = r.key_hash;
   // score/status 列是权威字段：必须回读，否则扫描整池重写时
   // 评分与「职位已关闭」标记会被抹掉（2026-09-29）
@@ -521,7 +589,7 @@ export async function loadCandidates() {
   try {
     await schemaReady();
     const pool = dbPool();
-    const [rows] = await pool.query(`SELECT key_hash, url, greeted, score, status, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    const [rows] = await pool.query(`SELECT key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
     if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
       // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
       const legacy = readJson(CANDIDATES_PATH, []);
@@ -552,10 +620,14 @@ function jobRow(job) {
     cityPrefix,
     String(job.url || '').slice(0, 760),
     job.greeted ? 1 : 0,
+    String(job.contactState || (job.greeted ? 'legacy_contact_unknown' : 'never_contacted')).slice(0, 32),
     salaryMin,
     salaryMax,
     job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
     String(job.status || '').slice(0, 30),
+    String(job.availability || (job.status === 'closed' ? 'closed' : 'unknown')).slice(0, 16),
+    job.manualExcluded ? 1 : 0,
+    String(job.manualExclusionReason || '').slice(0, 255),
     scanned && !Number.isNaN(scanned.getTime()) ? scanned : null,
     JSON.stringify(job),
   ];
@@ -614,7 +686,7 @@ export async function saveCandidates(jobs) {
       if (list.length) {
         const values = list.map(jobRow);
         await conn.query(
-          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, salary_min, salary_max, score, status, scanned_at, raw) VALUES ?`,
+          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, contact_state, salary_min, salary_max, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at, raw) VALUES ?`,
           [values],
         );
       }
@@ -641,7 +713,7 @@ export async function mergeIntoCandidates(incomingJobs) {
 }
 
 // 打招呼成功后打标：greeted 列置 1，同时同步进 raw，保证 JSON 备份镜像一致
-export async function markCandidatesGreeted(urls) {
+export async function markCandidatesGreeted(urls, contactState = 'custom_sent') {
   const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
   if (!list.length) return 0;
   cancelIdleClose();
@@ -651,9 +723,12 @@ export async function markCandidatesGreeted(urls) {
     const [res] = await pool.query(
       `UPDATE ${BOSS_JOBS_TABLE}
           SET greeted = 1,
-              raw = JSON_SET(raw, '$.greeted', CAST('true' AS JSON))
+              contact_state = ?,
+              manual_excluded = 0,
+              manual_exclusion_reason = '',
+              raw = JSON_SET(raw, '$.greeted', CAST('true' AS JSON), '$.contactState', ?, '$.manualExcluded', CAST('false' AS JSON), '$.manualExclusionReason', '')
         WHERE url IN (?)`,
-      [list],
+      [contactState, contactState, list],
     );
     return res.affectedRows;
   } finally {
@@ -671,7 +746,7 @@ export async function markJobsClosed(keyHashes) {
     await schemaReady();
     const pool = dbPool();
     const [res] = await pool.query(
-      `UPDATE ${BOSS_JOBS_TABLE} SET status = 'closed' WHERE key_hash IN (?)`,
+      `UPDATE ${BOSS_JOBS_TABLE} SET status = 'closed', availability = 'closed' WHERE key_hash IN (?)`,
       [list],
     );
     return res.affectedRows;
@@ -691,7 +766,7 @@ export async function loadCandidatesByKeyHashes(keyHashes) {
     await schemaReady();
     const pool = dbPool();
     const [rows] = await pool.query(
-      `SELECT key_hash, url, greeted, raw FROM ${BOSS_JOBS_TABLE} WHERE key_hash IN (?)`,
+      `SELECT key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, raw FROM ${BOSS_JOBS_TABLE} WHERE key_hash IN (?)`,
       [list],
     );
     return rows.map(mapJobRow);

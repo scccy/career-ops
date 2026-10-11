@@ -9,37 +9,23 @@
 // 用法：node boss-check-closed.mjs [--city 上海] [--limit 100] [--gap-ms 1500] [--threshold 3]
 // 前置：BOSS Chrome 已启动（9222 调试端口）
 
-import { execFileSync } from 'child_process';
-import { fileURLToPath } from 'url';
+import { pathToFileURL } from 'url';
 import {
   parseArgs,
   loadCandidates,
   markJobsClosed,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
+import { assertAvailable, cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
 
 const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 
-const CDP_TRANSPORT = process.env.BOSS_TRANSPORT
-  ? process.env.BOSS_TRANSPORT === 'cdp'
-  : process.platform !== 'darwin';
-
-function execJs(js) {
-  if (CDP_TRANSPORT) {
-    return execFileSync(process.execPath, [fileURLToPath(new URL('./boss-cdp.mjs', import.meta.url)), '--eval', js], {
-      encoding: 'utf-8',
-      maxBuffer: 10 * 1024 * 1024,
-    }).trim();
-  }
-  const script = `tell application "Google Chrome" to execute active tab of front window javascript ${JSON.stringify(js)}`;
-  return execFileSync('osascript', ['-e', script], {
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024,
-  }).trim();
+async function execJs(js) {
+  return cdpExecJs(js);
 }
 
-function execJson(js, fallback = null) {
-  const raw = execJs(js);
+async function execJson(js, fallback = null) {
+  const raw = await execJs(js);
   if (!raw) return fallback;
   return JSON.parse(raw);
 }
@@ -53,7 +39,7 @@ async function waitFor(predicateJs, timeoutMs = 15000, intervalMs = 500) {
   while (Date.now() - started < timeoutMs) {
     let ok = false;
     try {
-      ok = execJson(predicateJs, false);
+      ok = await execJson(predicateJs, false);
     } catch {
       ok = false; // 页面导航间隙 CDP evaluate 可能瞬时失败：视为未就绪
     }
@@ -65,23 +51,22 @@ async function waitFor(predicateJs, timeoutMs = 15000, intervalMs = 500) {
 
 async function main() {
   const args = parseArgs();
-  if (!CDP_TRANSPORT && process.platform !== 'darwin') throw new Error('仅支持 CDP 传输');
   const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 3.0);
   const limit = Number(args.limit ?? 100);
   const gapMs = Number(args['gap-ms'] ?? 1500);
   const city = args.city ? String(args.city) : '';
 
-  // 前置：9222 通才继续
-  const { execFileSync: ef } = await import('child_process');
+  // 用 Node fetch 检查 CDP，避免 Windows 缺 curl 或 curl 参数不同。
   try {
-    ef('curl', ['-s', '--max-time', '3', 'http://127.0.0.1:9222/json/version'], { stdio: 'ignore' });
+    await assertAvailable();
   } catch {
-    throw new Error('9222 不通：请先启动 BOSS Chrome（npm run boss:chrome:start）');
+    throw new Error('CDP 9222 不通：请先启动 BOSS Chrome（npm run boss:chrome:start）');
   }
 
   const all = await loadCandidates();
   let targets = all.filter((job) =>
     !job.greeted
+    && !job.manualExcluded
     && job.key_hash
     && Number(job.score) >= threshold
     && String(job.status || '') !== 'closed',
@@ -108,7 +93,7 @@ async function main() {
   };
   for (const job of capped) {
     try {
-      execJs(`location.href = ${JSON.stringify(job.url)}; 'navigating'`);
+      await execJs(`location.href = ${JSON.stringify(job.url)}; 'navigating'`);
       const loaded = await waitFor(
         `JSON.stringify(document.readyState === 'complete' || (document.body?.innerText || '').includes(${JSON.stringify(job.title || '')}))`,
         25000,
@@ -116,7 +101,7 @@ async function main() {
       );
       if (!loaded) { errCount++; console.log(`error: ${job.company} - ${job.title}: 页面加载超时`); continue; }
       await sleep(gapMs);
-      const closed = execJson('JSON.stringify((document.body.innerText||"").includes("职位已关闭"))', false);
+      const closed = await execJson('JSON.stringify((document.body.innerText||"").includes("职位已关闭"))', false);
       checked++;
       if (closed) {
         closedCount++;
@@ -136,6 +121,8 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  main().catch((err) => { console.error(err); process.exit(1); });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((err) => { console.error(err); process.exitCode = 1; })
+    .finally(closeAllConnections);
 }

@@ -10,7 +10,7 @@
 - 项目：`/home/shici/career-ops`（career-ops v1.33.0 私有 fork `scccy/career-ops`，boss-* 模块自 pa1nrui1/career-ops-cn 迁移）
 - 平台：**Linux Ubuntu 桌面**（非 macOS）。原 boss-chrome-*.mjs 用 osascript/AppleScript 驱动 Chrome，本机已适配为 CDP 通道
 - 浏览器：用户日常 Chrome，启动于独立数据目录 `~/.config/google-chrome-boss` + `--remote-debugging-port=9222`（Chrome 136+ 禁止默认目录开调试端口；用户级 `.desktop` 覆盖让双击图标自带端口）
-- 适配层：`boss/boss-cdp.mjs`（boss/ 子目录）——CLI + 库。`--eval '<js>'` 在 BOSS 标签页执行 JS 并打印结果（模拟 AppleScript 语义）；内部用 `Runtime.evaluate(returnByValue, userGesture)` + `Input.dispatchMouseEvent`（真实鼠标事件）
+- 适配层：`boss/boss-cdp.mjs`（boss/ 子目录）——macOS、Linux、Windows 共用的 CDP CLI + 库。`--eval '<js>'` 在 BOSS 标签页执行 JS 并打印结果；内部用 `Runtime.evaluate(returnByValue, userGesture)` + `Input.dispatchMouseEvent`（真实鼠标事件）
 - 发送脚本：`boss/boss-chrome-apply.mjs`。流程：`location.href` 导航到岗位页 → 找"立即沟通/继续沟通"按钮 → 点击 → 等输入框 → 填打招呼文案 → 点"发送"按钮 → **验证自定义文案出现在聊天记录** → 记录
 - 发送日志：`data/boss-sent-log.tsv`。状态字典：`sent`（自定义文案验证成功）/ `auto_sent`（BOSS 自动默认语已送达，见下文）/ `closed`（职位已下线）/ `failed` / `skipped`
 - 每日配额：按城市（上海20/杭州20/南京20），配置于 `config/profile.yml` 的 `boss.daily_limit_per_city`，`boss/boss-common.mjs` 的 `countSentCompaniesTodayByCity` 按 URL 反查候选池计城市
