@@ -284,7 +284,7 @@
     <div class="cards" id="cards">
       <div class="card"><div class="k">候选池总数</div><div class="v" id="cTotal">—</div><div class="x" id="cTotalX">boss_jobs</div></div>
       <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x">greeted=1</div></div>
-      <div class="card accent"><div class="k">待复核可发</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">score≥阈值 &amp; 未发</div></div>
+      <div class="card accent"><div class="k">本轮可发送</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">实际可发送 · 30天去重 · 配额后</div></div>
       <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x">发送日志</div></div>
       <div class="card"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">待 boss:score</div></div>
     </div>
@@ -327,12 +327,19 @@
       <input id="fGlobalKw" placeholder="逗号分隔，如 大数据开发,数仓,数据开发" />
       <span class="saved" id="quotaSaved"></span>
     </div>
+    <div class="cfgbar" style="flex-wrap:wrap;gap:10px">
+      <label title="同一城市内两个关键词之间的休息秒数；0 = 不休息（不建议）">关键词间隔(秒) <input type="number" id="fKwGap" min="0" step="30" style="width:70px" /></label>
+      <label title="多个城市之间扫描的休息秒数；0 = 不休息（不建议）">城市间隔(秒) <input type="number" id="fCityGap" min="0" step="30" style="width:70px" /></label>
+      <label title="逐张卡片之间的随机休息区间（毫秒），降低连续点击的风控信号">卡片间隔(ms) <input type="number" id="fCardGapMin" min="200" step="500" style="width:74px" /> ~ <input type="number" id="fCardGapMax" min="200" step="500" style="width:74px" /></label>
+      <label title="单城扫描总量 = 该城每日配额 × 此系数（多扫部分用于过滤损耗）">预算系数 <input type="number" id="fBudgetFactor" min="1" step="0.1" style="width:60px" /></label>
+      <span class="hint" style="margin:0">⚠ 间隔调小会提高风控风险；改动对下一次扫描生效</span>
+    </div>
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
-      <button class="btn sm" id="btnCheckClosed" title="逐个打开池中待发岗位页，检查是否已在 BOSS 下线（职位已关闭）；命中的标记出局，不再占用发送名额">检查关闭岗位</button>
+      <button class="btn sm" id="btnCheckClosed" title="逐个打开评分达标且未打招呼的数据库候选岗位，检查是否已在 BOSS 下线；命中的标记出局，不再进入发送候选">检查关闭岗位</button>
       <span class="hint" id="platformInfo" style="margin:0"></span>
-      <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（清空该城待发池，分数降序）/ <b>发新扫</b>（只发最近一次扫描的新增，时间降序）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
+      <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（读取该城评分达标且未打招呼的数据库候选，执行时应用30天去重和配额）/ <b>发新扫</b>（只取最近一次扫描新增，执行时同样应用去重和配额）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
     </div>
     <div class="city-add">
       <input id="addCityName" placeholder="城市名，如 苏州" />
@@ -351,7 +358,7 @@
         <th>城市</th>
         <th>搜索关键词（逗号分隔，留空=统一词表）</th>
         <th>每日配额</th>
-        <th>池中待发</th>
+        <th>单城可发送 / 原始候选</th>
         <th>今日已发 / 剩余</th>
         <th>操作</th>
       </tr></thead>
@@ -363,7 +370,7 @@
 
   <!-- 候选池检索：纯查看器 -->
   <section id="querySection">
-    <p class="sec-title">候选池检索<span class="more">默认：池中待发</span></p>
+    <p class="sec-title">候选池检索<span class="more">默认：评分达标且未打招呼（含近期重复）</span></p>
     <div class="q">
       <div class="fgroup">
         <p class="gt">岗位条件</p>
@@ -372,8 +379,22 @@
           <div class="f"><label>岗位类型</label><select id="fJobType">
             <option value="">全部</option><option value="clean">非校招/非实习（社招）</option><option value="intern">仅实习</option><option value="campus">仅校招/应届</option>
           </select></div>
-          <div class="f"><label>打招呼状态</label><select id="fGreeted">
-            <option value="">全部</option><option value="pending" selected>池中待发（可发送）</option><option value="unscored">未评分（待评分）</option><option value="0">未打招呼</option><option value="1">已打招呼</option>
+          <div class="f"><label>发送资格</label><select id="fEligibility">
+            <option value="sendable" selected>本轮可发送</option><option value="">不限</option>
+          </select></div>
+          <div class="f"><label>联系状态</label><select id="fContactState">
+            <option value="">全部</option><option value="never_contacted">从未联系</option><option value="contacted">已联系（全部）</option>
+            <option value="custom_sent">已发送自定义招呼</option><option value="auto_greeted_unverified">平台默认招呼待核</option>
+            <option value="manual_contact_confirmed">人工确认已联系</option><option value="legacy_contact_unknown">旧联系记录待核</option>
+          </select></div>
+          <div class="f"><label>职位状态</label><select id="fAvailability">
+            <option value="">全部（默认隐藏关闭）</option><option value="open">未关闭</option><option value="closed">已关闭</option>
+          </select></div>
+          <div class="f"><label>人工暂缓</label><select id="fManualExclusion">
+            <option value="active" selected>正常候选</option><option value="excluded">暂缓中</option><option value="all">全部</option>
+          </select></div>
+          <div class="f"><label>原始标记</label><select id="fGreeted">
+            <option value="">不限</option><option value="unscored">未评分</option><option value="0">greeted=0</option><option value="1">greeted=1</option>
           </select></div>
         </div>
       </div>
@@ -402,13 +423,15 @@
         <button class="btn" id="btnSearch">查询</button>
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
-      <div class="hint">默认只看<b>池中待发</b>：<code>greeted=0</code> 且 <code>score≥阈值</code> 且非已关闭，与城市表「池中待发」<b>同口径</b>；要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
       <div class="bulkbar idle" id="bulkbar">
         <span class="lbl">批量操作</span>
         <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
         <span class="selinfo" id="selInfo">未选中 · 勾选后可批量处理</span>
         <span class="sp"></span>
-        <button class="btn sm act" id="bulkMark">标记已发（移出待发池）</button>
+        <button class="btn sm act" id="bulkConfirmContact">确认已联系</button>
+        <button class="btn ghost sm act" id="bulkExclude">暂不发送</button>
+        <button class="btn ghost sm act" id="bulkRestore">恢复暂缓</button>
         <button class="btn danger sm act" id="bulkDelete">删除</button>
         <button class="btn ghost sm" id="presetCampus">一键剔除校招/应届/实习/校园/毕业生</button>
       </div>
@@ -449,22 +472,22 @@ const STAGES = [
    preset:{scored:'1'}, viewLabel:'查看已评分岗位'},
   {n:4, t:'排队 fill', cmd:'npm run boss:fill -- --prepare', type:'normal',
    note:'每日城市配额 + 30 天公司去重。重跑 score 会重建队列，须重新剔除已发/外包/校招等公司。',
-   preset:{greeted:'0', minScore:'THR'}, viewLabel:'查看可发队列'},
+   preset:{eligibility:'sendable'}, viewLabel:'查看本轮可发送'},
   {n:5, t:'复核 review', cmd:'npm run boss:review', type:'checkpoint',
    note:'🔴 必须向你展示前 N 家 + 文案，获得明确确认；--confirmed-review 只是脚本门槛，确认来自你。',
-   preset:{greeted:'0', minScore:'THR'}, viewLabel:'查看待复核清单'},
+   preset:{eligibility:'sendable'}, viewLabel:'查看待复核清单'},
   {n:6, t:'预演 dry-run', cmd:'npm run boss:chrome:apply --dry-run', type:'checkpoint',
    note:'🔴 逐岗位预览打招呼文案；未生成可复核清单则停止真实发送，重新评分或补候选池。',
-   preset:{greeted:'0', minScore:'THR'}, viewLabel:'查看预演候选'},
+   preset:{eligibility:'sendable'}, viewLabel:'查看预演候选'},
   {n:7, t:'真实发送', cmd:'npm run boss:chrome:apply -- --confirmed-review', type:'normal',
    note:'点"发送"并验证自定义文案进入聊天记录；失败/未验证不计额度、停同批次。',
-   preset:{greeted:'0', minScore:'THR'}, viewLabel:'查看待发送'},
+   preset:{eligibility:'sendable'}, viewLabel:'查看本轮可发送'},
   {n:8, t:'追踪合并', cmd:'node merge-tracker.mjs', type:'normal',
    note:'发送记录写 batch/tracker-additions/*.tsv（状态 Applied）再合并，绝不直接改 data/applications.md。',
-   preset:{greeted:'1'}, viewLabel:'查看已打招呼（追踪）'},
+   preset:{contactState:'contacted', eligibility:''}, viewLabel:'查看已联系岗位'},
   {n:9, t:'后置引导', cmd:'pdf / interview-prep', type:'normal',
    note:'HR 要简历 → 定制 PDF（先读完整 JD）；进面试 → interview-prep。',
-   preset:{greeted:'1'}, viewLabel:'查看已进入沟通的岗位'},
+   preset:{contactState:'contacted', eligibility:''}, viewLabel:'查看已联系岗位'},
 ];
 
 // 每个阶段可一键执行的命令（对应服务端白名单 key）
@@ -484,6 +507,8 @@ let THRESHOLD = 3.0;
 let currentPage = 1;
 let selected = new Set();        // 勾选的 key_hash
 let allFilterSelected = false;   // 是否"全选过滤结果"（发送 filter 而非逐条 keyHash）
+const queryHint=document.querySelector('#querySection .hint');
+if(queryHint) queryHint.textContent='默认显示本轮可发送岗位；资格判断与发送命令共用评分、联系事实、关闭状态、30 天去重、批次公司去重和城市/平台配额。城市范围会按单城发送规则预检；不限城市时显示全局本轮队列。选择“不限”可浏览原始候选，并查看阻止原因。预检后 BOSS 页面状态仍可能变化，发送时会再次检查。';
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -569,8 +594,14 @@ function applyPreset(preset){
   setVal('fCity', preset.city||'');
   setVal('fSalMin', preset.salaryMin||'');
   setVal('fSalMax', preset.salaryMax||'');
+  setVal('fEligibility', preset.eligibility ?? '');
+  setVal('fContactState', preset.contactState||'');
+  setVal('fAvailability', preset.availability||'');
+  setVal('fManualExclusion', preset.manualExclusion||'active');
   setVal('fGreeted', preset.greeted||'');
   setVal('fMinScore', preset.minScore==='THR'?String(THRESHOLD):(preset.minScore||''));
+  setVal('fKeyword', preset.keyword||'');
+  setVal('fJobType', preset.jobType||'');
   document.getElementById('querySection').scrollIntoView({behavior:'smooth'});
   currentPage=1; loadJobs();
 }
@@ -586,16 +617,22 @@ async function loadOverview(){
     document.getElementById('dbText').textContent='MySQL 已连接';
     setNum('cTotal', d.total);
     setNum('cGreeted', d.greeted);
-    setNum('cPending', d.pending);
+    setNum('cPending', d.sendable);
     setNum('cToday', d.todaySent);
     setNum('cUnscored', d.unscored);
-    document.getElementById('cPendingX').textContent=`score≥${d.threshold} & 未发`;
+    document.getElementById('cPendingX').textContent=`30天岗位/公司去重 · 城市配额后`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
 
     // 有未保存改动时不要覆盖用户正在编辑的输入框，只更新统计数字
     if(!cityDirty){
       document.getElementById('fThreshold').value=d.threshold;
       document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
+      const p=d.pacing||{};
+      document.getElementById('fKwGap').value=p.keywordGapSeconds??300;
+      document.getElementById('fCityGap').value=p.cityGapSeconds??600;
+      document.getElementById('fCardGapMin').value=p.cardGapMinMs??3000;
+      document.getElementById('fCardGapMax').value=p.cardGapMaxMs??6000;
+      document.getElementById('fBudgetFactor').value=p.scanBudgetFactor??1.3;
     }
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
@@ -637,7 +674,7 @@ function renderCityTable(d){
       <td class="ccity">${esc(c.city)}</td>
       <td><input class="kwcity" data-city="${esc(c.city)}" value="${esc(kwStr)}" placeholder="留空=用统一词表"></td>
       <td><input class="qlimit" type="number" min="0" data-city="${esc(c.city)}" value="${c.quota}"></td>
-      <td class="cpool" data-city="${esc(c.city)}"><a class="lk" data-act="lk" data-city="${esc(c.city)}">池中待发 ${c.poolPending} ↗</a></td>
+      <td class="cpool" data-city="${esc(c.city)}"><a class="lk sendable-count" data-act="lk_sendable" data-city="${esc(c.city)}">单城可发送 ${c.sendable} ↗</a><br><a class="lk" data-act="lk_pool" data-city="${esc(c.city)}">原始候选 ${c.poolPending} ↗</a></td>
       <td class="csent" data-city="${esc(c.city)}">
         <div class="bar ${full?'full':''}"><i style="width:${pct}%"></i></div>
         <div class="meta">今日 ${c.sentToday} / 剩余 ${c.remaining}</div>
@@ -653,7 +690,7 @@ function renderCityTable(d){
             <div class="kwd-actions"><button class="btn xs" data-act="scan_city_kw" data-city="${esc(c.city)}">用选中词扫描</button></div>
           </div>
         </details>
-        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：清空该城待发池（greeted=0 且 score≥阈值），分数降序，配额按城强制">发送</button>
+        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：从该城评分达标且未打招呼的数据库候选中，按30天岗位/公司去重与城市配额筛选后发送">发送</button>
         <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="⑦的变体：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），时间降序；是发送不是抓取">发新扫</button>
         <button class="btn sm ghost" data-act="del_city" data-city="${esc(c.city)}" title="从控制台移除该城市（配额与关键词一并删除；岗位数据保留）">删除</button>
       </td>`;
@@ -667,8 +704,8 @@ function updateCityStats(d){
   d.quota.forEach(c=>{
     const pct=c.quota?Math.min(100,Math.round(c.sentToday/c.quota*100)):0;
     const full=c.sentToday>=c.quota;
-    const pool=document.querySelector(`#cityBody .cpool[data-city="${CSS.escape(c.city)}"] .lk`);
-    if(pool) pool.textContent=`池中待发 ${c.poolPending} ↗`;
+    const sendable=document.querySelector(`#cityBody .cpool[data-city="${CSS.escape(c.city)}"] .sendable-count`);
+    if(sendable) sendable.textContent=`单城可发送 ${c.sendable} ↗`;
     const sent=document.querySelector(`#cityBody .csent[data-city="${CSS.escape(c.city)}"]`);
     if(sent){
       const bar=sent.querySelector('.bar');
@@ -704,10 +741,10 @@ async function refreshStats(){
     THRESHOLD=d.threshold;
     setNum('cTotal', d.total);
     setNum('cGreeted', d.greeted);
-    setNum('cPending', d.pending);
+    setNum('cPending', d.sendable);
     setNum('cToday', d.todaySent);
     setNum('cUnscored', d.unscored);
-    document.getElementById('cPendingX').textContent=`score≥${d.threshold} & 未发`;
+    document.getElementById('cPendingX').textContent=`30天岗位/公司去重 · 城市配额后`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
     updateCityStats(d);
   }catch(e){ /* 忽略刷新失败 */ }
@@ -717,12 +754,24 @@ async function postConfig(limits, kwByCity){
   const thr=Number(document.getElementById('fThreshold').value);
   const globalKw=document.getElementById('fGlobalKw').value.trim()
     .split(/[,，、\s]+/).filter(Boolean);
+  const kwGap=Number(document.getElementById('fKwGap').value);
+  const cityGap=Number(document.getElementById('fCityGap').value);
+  const gapMin=Number(document.getElementById('fCardGapMin').value);
+  const gapMax=Number(document.getElementById('fCardGapMax').value);
+  const factor=Number(document.getElementById('fBudgetFactor').value);
+  if([kwGap,cityGap,gapMin,gapMax,factor].some(v=>!Number.isFinite(v)||v<0)){alert('节奏参数非法：必须为 ≥ 0 的数字');return false;}
+  if(gapMax<gapMin){alert('卡片间隔非法：最大值不能小于最小值');return false;}
   const r=await fetch('/api/quota',{method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({
       send_threshold:thr,
       daily_limit_per_city:limits,
       daily_extract_queries:globalKw,
       daily_extract_keywords_by_city:kwByCity,
+      keyword_gap_seconds:kwGap,
+      city_gap_seconds:cityGap,
+      card_gap_min_ms:gapMin,
+      card_gap_max_ms:gapMax,
+      scan_budget_factor:factor,
     })});
   const d=await r.json();
   if(!d.ok){alert('保存失败：'+(d.error||''));return false;}
@@ -789,6 +838,10 @@ function buildQuery(page){
   if(v('fCity')) p.set('city',v('fCity'));
   if(v('fSalMin')) p.set('salaryMin',v('fSalMin'));
   if(v('fSalMax')) p.set('salaryMax',v('fSalMax'));
+  if(v('fEligibility')) p.set('eligibility',v('fEligibility'));
+  if(v('fContactState')) p.set('contactState',v('fContactState'));
+  if(v('fAvailability')) p.set('availability',v('fAvailability'));
+  if(v('fManualExclusion')) p.set('manualExclusion',v('fManualExclusion'));
   if(v('fGreeted')) p.set('greeted',v('fGreeted'));
   if(v('fMinScore')) p.set('minScore',v('fMinScore'));
   if(v('fKeyword')) p.set('keyword',v('fKeyword'));
@@ -812,8 +865,7 @@ async function loadJobs(page){
         : '<span style="color:var(--muted)">无链接</span>';
       const salK = (m.salary_min!=null||m.salary_max!=null)
         ? `<span class="salary-mini">${m.salary_min!=null?m.salary_min:'?'}–${m.salary_max!=null?m.salary_max:'?'}K/月</span>` : '';
-      const st = m.greeted ? '<span class="st no">已发</span>'
-        : (m.score!=null && m.score>=d.threshold ? '<span class="st ok">可发</span>' : '<span class="st pend">低分</span>');
+      const st = eligibilityBadge(m);
       const chk = selected.has(m.key_hash) ? 'checked' : '';
       return `<tr>
         <td class="chkcol"><input type="checkbox" class="rowchk" data-key="${esc(m.key_hash)}" ${chk}></td>
@@ -852,6 +904,24 @@ function updateSelInfo(){
   const bar=document.getElementById('bulkbar');
   if(bar) bar.classList.toggle('idle', !on);
 }
+function eligibilityBadge(m){
+  const state = m.contactState || '';
+  if(m.manualExcluded) return '<span class="st pend">暂不发送</span>';
+  if(m.availability==='closed' || m.status==='closed') return '<span class="st no">职位已关闭</span>';
+  if(state==='custom_sent') return '<span class="st no">已发送自定义招呼</span>';
+  if(state==='auto_greeted_unverified') return '<span class="st pend">平台招呼待核</span>';
+  if(state==='manual_contact_confirmed') return '<span class="st no">人工确认已联系</span>';
+  if(state==='legacy_contact_unknown' || (m.greeted && !state)) return '<span class="st pend">旧联系待核</span>';
+  const labels={
+    sendable:['本轮可发送','ok'], missing_score:['缺少分数','pend'], below_threshold:['低于阈值','pend'],
+    already_contacted:['已联系','no'], recent_role:['30天内同岗位已发','pend'],
+    recent_company:['30天内同公司已发','pend'], duplicate_company_in_batch:['同批次已有该公司','pend'],
+    city_quota:['城市配额已满','pend'], daily_limit:['当日发送上限','pend'],
+    manual_excluded:['暂不发送','pend'], closed:['职位已关闭','no'], city_not_configured:['城市未配置','pend'],
+  };
+  const [label,kind]=labels[m.eligibility]||['候选池（未通过预检）','pend'];
+  return `<span class="st ${kind}">${label}</span>`;
+}
 // 数字更新时给一次极短的淡入，避免大数字无声跳变看不出刷新过
 function setNum(id, v){
   const el=document.getElementById(id); if(!el) return;
@@ -862,15 +932,17 @@ function setNum(id, v){
 }
 function currentFilter(){
   const v=id=>document.getElementById(id).value.trim();
-  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), minScore:v('fMinScore'), keyword:v('fKeyword') };
+  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), contactState:v('fContactState'), availability:v('fAvailability'), manualExclusion:v('fManualExclusion'), eligibility:v('fEligibility'), minScore:v('fMinScore'), keyword:v('fKeyword'), jobType:v('fJobType') };
 }
-async function bulkAction(action){
+async function legacyBulkActionUnused(action){
   const useFilter = allFilterSelected;
   if(!useFilter && !selected.size){ alert('请先勾选岗位，或点「全选过滤结果」。'); return; }
   if(action==='delete'){
     const n = useFilter ? '当前过滤结果（可能很多条）' : selected.size+' 条';
     if(!confirm(`确认删除 ${n}？此操作不可恢复，建议用「标记已发」替代。`)) return;
   }
+  if(action==='confirm_contact' && !confirm('确认这些岗位已经通过 BOSS 或其他渠道实际联系？这会阻止重复发送。')) return;
+  if(action==='exclude' && !confirm('将所选岗位设为暂不发送，不会记录为已联系；之后可恢复。继续？')) return;
   const body = useFilter ? { action, filter: currentFilter() } : { action, keyHashes: [...selected] };
   try{
     const r=await postJson('/api/jobs/bulk', body); const d=await r.json();
@@ -880,14 +952,38 @@ async function bulkAction(action){
     loadJobs(currentPage); refreshStats();
   }catch(e){ alert('请求失败：'+e.message); }
 }
-async function presetCampus(){
+async function legacyPresetCampusUnused(){
   if(!confirm('将把标题/正文含 校招/应届/实习/校园/毕业生 的岗位全部「标记已发」(greeted=1)：移出待发池、不再进入发送队列，数据保留可还原。继续？')) return;
   try{
-    const r=await postJson('/api/jobs/bulk', { action:'mark_greeted', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
+    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
     const d=await r.json();
     if(!d.ok) return alert('失败：'+(d.error||''));
     alert(`已标记 ${d.affected} 条校招/应届等岗位为已发（移出待发池）`);
     loadJobs(currentPage); refreshStats();
+  }catch(e){ alert('请求失败：'+e.message); }
+}
+
+// 以事实字段分别处理联系状态与人工暂缓，不再用一个“已发”按钮混淆语义。
+async function bulkAction(action){
+  const useFilter = allFilterSelected;
+  if(!useFilter && !selected.size){ alert('请先勾选岗位，或点「全选过滤结果」'); return; }
+  if(action==='delete' && !confirm(`确认删除 ${useFilter?'当前过滤结果':selected.size+' 条'}？此操作不可恢复。`)) return;
+  if(action==='confirm_contact' && !confirm('确认这些岗位已经通过 BOSS 或其他渠道实际联系？这会阻止重复发送。')) return;
+  if(action==='exclude' && !confirm('将所选岗位设为暂不发送，不会记录为已联系；之后可恢复。继续？')) return;
+  const body = useFilter ? { action, filter: currentFilter() } : { action, keyHashes: [...selected] };
+  try{
+    const r=await postJson('/api/jobs/bulk', body); const d=await r.json();
+    if(!d.ok) return alert('失败：'+(d.error||''));
+    alert(`已处理 ${d.affected} 条（${action}）`);
+    selected.clear(); allFilterSelected=false; updateSelInfo(); loadJobs(currentPage); refreshStats();
+  }catch(e){ alert('请求失败：'+e.message); }
+}
+async function presetCampus(){
+  if(!confirm('将校招/应届/实习/校园/毕业生相关岗位设为“暂不发送”。这不会记录为已联系，之后可恢复。继续？')) return;
+  try{
+    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
+    const d=await r.json(); if(!d.ok) return alert('失败：'+(d.error||''));
+    alert(`已将 ${d.affected} 条相关岗位设为暂不发送`); loadJobs(currentPage); refreshStats();
   }catch(e){ alert('请求失败：'+e.message); }
 }
 
@@ -965,11 +1061,14 @@ async function pollRun(){
 document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
 document.getElementById('btnReset').onclick=()=>{
-  ['fCity','fSalMin','fSalMax','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('fGreeted').value='pending';  // 重置回默认视图：池中待发
+  ['fCity','fSalMin','fSalMax','fContactState','fAvailability','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('fEligibility').value='sendable';
+  document.getElementById('fManualExclusion').value='active';
   currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);
 };
-document.getElementById('bulkMark').onclick=()=>bulkAction('mark_greeted');
+document.getElementById('bulkConfirmContact').onclick=()=>bulkAction('confirm_contact');
+document.getElementById('bulkExclude').onclick=()=>bulkAction('exclude');
+document.getElementById('bulkRestore').onclick=()=>bulkAction('restore_exclusion');
 document.getElementById('bulkDelete').onclick=()=>bulkAction('delete');
 document.getElementById('selAllFilter').onclick=()=>{ allFilterSelected=true; updateSelInfo(); };
 document.getElementById('presetCampus').onclick=presetCampus;
@@ -1012,7 +1111,8 @@ document.getElementById('next').onclick=()=>loadJobs(currentPage+1);
 document.getElementById('cityBody').addEventListener('click',(e)=>{
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act, city=el.dataset.city;
-  if(act==='lk'){ applyPreset({city, greeted:'pending', minScore:''}); return; }
+  if(act==='lk_sendable'){ applyPreset({city, eligibility:'sendable'}); return; }
+  if(act==='lk_pool'){ applyPreset({city, eligibility:'', contactState:'never_contacted', manualExclusion:'all', minScore:''}); return; }
   if(act==='del_city'){ delCity(city); return; }
   if(act==='scan_city_kw'){
     const row=el.closest('tr');
@@ -1062,7 +1162,7 @@ document.getElementById('cityBody').addEventListener('input',(e)=>{
   const tr=t.closest('tr'); if(tr) tr.classList.add('dirty-row');
   markDirty();
 });
-['fGlobalKw','fThreshold'].forEach(id=>{
+['fGlobalKw','fThreshold','fKwGap','fCityGap','fCardGapMin','fCardGapMax','fBudgetFactor'].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener('input',()=>{ el.classList.add('dirty'); markDirty(); });
 });

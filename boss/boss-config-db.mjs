@@ -37,10 +37,25 @@ const FALLBACK = {
   // BOSS 平台级每日沟通上限：0 = 不启用（用户自行通过城市配额管理，
   // 会员可解除平台限制）。仅在显式配置 >0 时才参与封顶。
   platform_daily_limit: 0,
+  // 扫描节奏（防风控节流，2026-10-11 从环境变量常量改为控制台可调）：
+  //   keyword_gap_seconds  同城关键词之间的休息秒数
+  //   city_gap_seconds     城市之间的休息秒数（0 = 不休息）
+  //   card_gap_min/max_ms  卡片之间的随机休息区间（毫秒）
+  //   scan_budget_factor   扫描预算系数（单城扫描量 = 每日配额 × 该系数）
+  keyword_gap_seconds: 300,
+  city_gap_seconds: 600,
+  card_gap_min_ms: 3000,
+  card_gap_max_ms: 6000,
+  scan_budget_factor: 1.3,
 };
 
+function numOr(v, fallback, min) {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min ? n : fallback;
+}
+
 function normalize(v = {}) {
-  return {
+  const out = {
     send_threshold: Number(v.send_threshold) > 0 ? Number(v.send_threshold) : FALLBACK.send_threshold,
     daily_limit_per_city:
       v.daily_limit_per_city && typeof v.daily_limit_per_city === 'object'
@@ -55,7 +70,14 @@ function normalize(v = {}) {
       Number.isFinite(Number(v.platform_daily_limit)) && Number(v.platform_daily_limit) > 0
         ? Number(v.platform_daily_limit)
         : 0,
+    keyword_gap_seconds: numOr(v.keyword_gap_seconds, FALLBACK.keyword_gap_seconds, 0),
+    city_gap_seconds: numOr(v.city_gap_seconds, FALLBACK.city_gap_seconds, 0),
+    card_gap_min_ms: numOr(v.card_gap_min_ms, FALLBACK.card_gap_min_ms, 200),
+    card_gap_max_ms: numOr(v.card_gap_max_ms, FALLBACK.card_gap_max_ms, 200),
+    scan_budget_factor: numOr(v.scan_budget_factor, FALLBACK.scan_budget_factor, 1),
   };
+  if (out.card_gap_max_ms < out.card_gap_min_ms) out.card_gap_max_ms = out.card_gap_min_ms;
+  return out;
 }
 
 // 从 profile.yml 读取这 4 个键（仅用于一次性迁移与 DB 不可用时的兜底）

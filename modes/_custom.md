@@ -61,7 +61,7 @@
 
 ## Boss直聘 Workflow（自 career-ops-cn 迁移）
 
-Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + AppleScript（仅 macOS + Chrome；需开启 视图→开发者→允许 Apple 事件中的 JavaScript）。不要用 Playwright 浏览器去访问 BOSS——会触发风控。
+Boss直聘无公开 API。扫描/发送一律走用户真实 Chrome + CDP；macOS、Linux、Windows 共用 Node.js CDP 控制器，不再使用 AppleScript 分支。不要启动 Playwright/无头浏览器访问 BOSS——会触发风控。
 
 **职位池存储（2026-09-23 用户确认全切 MySQL）**：`career_ops.boss_jobs` 表（Docker：`/opt/docker/mysql`，`docker.1ms.run/library/mysql:8.0`，host 网络+仅绑 127.0.0.1，root 密码见 compose.yaml）。统一入口：`boss/boss-common.mjs` 的 `loadCandidates / saveCandidates / mergeIntoCandidates / isCandidatesPath`——脚本的 `--input/--output` 指向 `data/boss-candidates.json` 时自动路由到 MySQL，指向其他文件仍走 JSON。`data/boss-candidates.json` 降级为每次写池时的备份镜像，不再作为读取来源；库空时自动从该文件一次性迁移。连接参数可用环境变量覆盖（MYSQL_HOST/PORT/USER/PASSWORD/DB）。连接池空闲 5s 自动关闭，保证 CLI 自然退出。
 

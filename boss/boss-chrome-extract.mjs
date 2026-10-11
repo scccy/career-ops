@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from 'child_process';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 import {
   CANDIDATES_PATH,
   countUniqueCompanies,
@@ -16,6 +15,7 @@ import {
   mergeIntoCandidates,
   saveCandidates,
 } from './boss-common.mjs';
+import { cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
 
 const BASE_URL = 'https://www.zhipin.com';
 const DEFAULT_SKIP = /外包|派遣|猎头|驻场|某[^\\n]{0,16}公司|催收|电催|贷后|信用卡逾期|纯销售|电话销售|不缴社保|无社保|大小周/;
@@ -46,27 +46,12 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// 本地适配：macOS 走 AppleScript；其他平台（或 BOSS_TRANSPORT=cdp）走 boss-cdp.mjs（Chrome CDP）
-const CDP_TRANSPORT = process.env.BOSS_TRANSPORT
-  ? process.env.BOSS_TRANSPORT === 'cdp'
-  : process.platform !== 'darwin';
-
-function execJs(js) {
-  if (CDP_TRANSPORT) {
-    return execFileSync(process.execPath, [fileURLToPath(new URL('./boss-cdp.mjs', import.meta.url)), '--eval', js], {
-      encoding: 'utf-8',
-      maxBuffer: 20 * 1024 * 1024,
-    }).trim();
-  }
-  const script = `tell application "Google Chrome" to execute active tab of front window javascript ${JSON.stringify(js)}`;
-  return execFileSync('osascript', ['-e', script], {
-    encoding: 'utf-8',
-    maxBuffer: 20 * 1024 * 1024,
-  }).trim();
+async function execJs(js) {
+  return cdpExecJs(js);
 }
 
-function execJson(js, fallback = null) {
-  const raw = execJs(js);
+async function execJson(js, fallback = null) {
+  const raw = await execJs(js);
   if (!raw) return fallback;
   return JSON.parse(raw);
 }
@@ -133,7 +118,7 @@ function peekScript(index) {
     card_alt: [...card.querySelectorAll('img')].map((img) => img.alt || '').join(' '),
     card_title: pickText(card, ['.job-name', '.job-title', 'a']),
     card_salary: pickText(card, ['.salary', '.job-salary']),
-    card_company: pickText(card, ['.company-name', '.company-text']),
+    card_company: pickText(card, ['.company-name', '.company-text', '.boss-name']),
     card_city: pickText(card, ['.company-location']) || (card.innerText || '').match(/(深圳(?:·[\\u4e00-\\u9fa5A-Za-z0-9]+){0,2}|北京|上海|广州|杭州|成都|南京|苏州|武汉|西安|长沙|重庆|天津|长春|全国)/)?.[0] || '',
     card_url: pickHref(card, ['.job-name', 'a[href*="/job_detail/"]']),
   });
@@ -202,8 +187,8 @@ const SKIP_KNOWN = !(process.env.BOSS_SKIP_KNOWN === '0' || String(process.env.B
 
 // BOSS 风控拦截检测：命中即中止。否则页面被踢到验证/403 页时只会「静默返回 extracted: 0」，
 // 看起来像正常空结果，极容易误判成入库或代码故障（2026-09-30 实际踩过一次）。
-function assertNotBlocked() {
-  const state = execJson(
+async function assertNotBlocked() {
+  const state = await execJson(
     'JSON.stringify({ url: location.href, title: document.title, body: (document.body.innerText || "").slice(0, 200) })',
     {},
   );
@@ -218,7 +203,7 @@ function assertNotBlocked() {
   return state;
 }
 
-function cardMetrics() {
+async function cardMetrics() {
   return execJson(
     `JSON.stringify({ n: document.querySelectorAll("${CARD_SEL}").length, y: scrollY, sh: document.body.scrollHeight })`,
     { n: 0, y: 0, sh: 0 },
@@ -227,12 +212,12 @@ function cardMetrics() {
 
 // 阶段一：只滚动、不点击，把卡片载入 DOM（点击会重置列表滚动位置，故此阶段不点）。
 async function loadCards({ targetCards, maxCards, clickGapMs }) {
-  let last = cardMetrics();
+  let last = await cardMetrics();
   let stagnant = 0;
   while (last.n < Math.min(targetCards, maxCards)) {
-    execJs('window.scrollTo(0, document.body.scrollHeight); "ok"');
+    await execJs('window.scrollTo(0, document.body.scrollHeight); "ok"');
     await sleep(Math.max(clickGapMs, 1200));
-    const now = cardMetrics();
+    const now = await cardMetrics();
     const grew = now.n > last.n || now.sh > last.sh;
     if (grew) console.error(`[载入] 卡片 ${now.n} 张 / 列表高 ${now.sh}px`);
     stagnant = grew ? 0 : stagnant + 1;
@@ -248,7 +233,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
   const seenCompanies = new Set();
   let skippedKnown = 0;
 
-  assertNotBlocked(); // 开局先确认不在风控页
+  await assertNotBlocked(); // 开局先确认不在风控页
 
   // 点击前比对：加载库内已有候选键，已入库的岗位直接跳过（不点卡片、不计入名额）
   let existingJobKeys = null;
@@ -275,7 +260,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
   let stagnant = 0;
   // 阶段二：先窥视（不点击）→ 与库内已有岗位比对 → 新岗位才点击展开抽取。
   while (scanned < maxCards && seenCompanies.size < targetCompanies) {
-    const pos = execJson(
+    const pos = await execJson(
       `(() => {
         const cards = [...document.querySelectorAll("${CARD_SEL}")];
         return JSON.stringify(cards.findIndex((c) => !c.dataset.bossExtracted));
@@ -285,11 +270,11 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
 
     if (pos < 0) {
       // 当前已载入的卡片都处理完了：再滚一段继续载入
-      assertNotBlocked(); // 长时间运行时风控可能中途介入
-      const before = cardMetrics();
-      execJs('window.scrollTo(0, document.body.scrollHeight); "ok"');
+      await assertNotBlocked(); // 长时间运行时风控可能中途介入
+      const before = await cardMetrics();
+      await execJs('window.scrollTo(0, document.body.scrollHeight); "ok"');
       await sleep(Math.max(clickGapMs, 1200));
-      const after = cardMetrics();
+      const after = await cardMetrics();
       const grew = after.n > before.n || after.sh > before.sh;
       stagnant = grew ? 0 : stagnant + 1;
       if (stagnant >= STAGNANT_LIMIT) break;
@@ -297,7 +282,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
     }
 
     // 窥视：只读卡片文本/公司/岗位名，不点击
-    const cardMeta = execJson(peekScript(pos), { ok: false, reason: 'peek_failed' });
+    const cardMeta = await execJson(peekScript(pos), { ok: false, reason: 'peek_failed' });
     if (!cardMeta?.ok) continue;
     // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过
     const preKey = uniqueCandidateKey({ company: cardMeta.card_company, title: cardMeta.card_title });
@@ -306,14 +291,14 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
       continue;
     }
     // 新岗位：点击展开详情面板
-    execJs(clickScript(pos));
+    await execJs(clickScript(pos));
     scanned += 1;
     // 卡片间随机 3~6 秒（用户要求 2026-10-08 加长），同时给右侧详情面板留渲染时间
     await sleep(CARD_GAP_MIN_MS + Math.floor(Math.random() * (CARD_GAP_MAX_MS - CARD_GAP_MIN_MS)));
     const cardText = decodeBossText(`${cardMeta.card_text || ''}\n${cardMeta.card_alt || ''}`);
     if (DEFAULT_SKIP.test(cardText)) continue;
 
-    const raw = execJson(detailScript(cardMeta), {});
+    const raw = await execJson(detailScript(cardMeta), {});
     const job = normalizeJob(raw);
     const fullText = `${job.company}\n${job.title}\n${job.desc}`;
     if (DEFAULT_SKIP.test(fullText)) continue;
@@ -373,8 +358,7 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => {
-    console.error(`boss-chrome-extract failed: ${err.message}`);
-    process.exit(1);
-  });
+  main()
+    .catch((err) => { console.error(`boss-chrome-extract failed: ${err.message}`); process.exitCode = 1; })
+    .finally(closeAllConnections);
 }
