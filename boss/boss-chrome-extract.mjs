@@ -232,6 +232,8 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
   const seenJobs = new Set();
   const seenCompanies = new Set();
   let skippedKnown = 0;
+  // 每张被点击卡片最终去向的计数（2026-10-11：extracted=0 时不再抓瞎）
+  const dropReasons = { skipWord: 0, incompleteJd: 0, dupOrNoCompany: 0, peekFailed: 0, emptyDetail: 0 };
 
   await assertNotBlocked(); // 开局先确认不在风控页
 
@@ -283,7 +285,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
 
     // 窥视：只读卡片文本/公司/岗位名，不点击
     const cardMeta = await execJson(peekScript(pos), { ok: false, reason: 'peek_failed' });
-    if (!cardMeta?.ok) continue;
+    if (!cardMeta?.ok) { dropReasons.peekFailed += 1; continue; }
     // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过
     const preKey = uniqueCandidateKey({ company: cardMeta.card_company, title: cardMeta.card_title });
     if (existingJobKeys && preKey && existingJobKeys.has(preKey)) {
@@ -296,23 +298,24 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs }) {
     // 卡片间随机 3~6 秒（用户要求 2026-10-08 加长），同时给右侧详情面板留渲染时间
     await sleep(CARD_GAP_MIN_MS + Math.floor(Math.random() * (CARD_GAP_MAX_MS - CARD_GAP_MIN_MS)));
     const cardText = decodeBossText(`${cardMeta.card_text || ''}\n${cardMeta.card_alt || ''}`);
-    if (DEFAULT_SKIP.test(cardText)) continue;
+    if (DEFAULT_SKIP.test(cardText)) { dropReasons.skipWord += 1; continue; }
 
     const raw = await execJson(detailScript(cardMeta), {});
     const job = normalizeJob(raw);
+    if (!String(job.desc || '').trim()) { dropReasons.emptyDetail += 1; }
     const fullText = `${job.company}\n${job.title}\n${job.desc}`;
-    if (DEFAULT_SKIP.test(fullText)) continue;
-    if (!hasCompleteJd(job)) continue;
+    if (DEFAULT_SKIP.test(fullText)) { dropReasons.skipWord += 1; continue; }
+    if (!hasCompleteJd(job)) { dropReasons.incompleteJd += 1; continue; }
 
     const jobKey = uniqueCandidateKey(job);
     const companyKey = uniqueCompanyKey(job);
-    if (!companyKey || seenJobs.has(jobKey) || seenCompanies.has(companyKey)) continue;
+    if (!companyKey || seenJobs.has(jobKey) || seenCompanies.has(companyKey)) { dropReasons.dupOrNoCompany += 1; continue; }
     seenJobs.add(jobKey);
     seenCompanies.add(companyKey);
     jobs.push(job);
   }
 
-  return { jobs, scannedCards: scanned, skippedKnown };
+  return { jobs, scannedCards: scanned, skippedKnown, dropReasons };
 }
 
 async function main() {
@@ -326,7 +329,7 @@ async function main() {
   const maxCards = Number(args['max-cards'] || Math.max(companyLimit * 5, 80));
   const clickGapMs = Number(args['click-gap-ms'] || 1400);
   const output = args.output || CANDIDATES_PATH;
-  const { jobs, scannedCards, skippedKnown } = await extractJobs({ targetCompanies: companyLimit, maxCards, clickGapMs });
+  const { jobs, scannedCards, skippedKnown, dropReasons } = await extractJobs({ targetCompanies: companyLimit, maxCards, clickGapMs });
   let finalJobs;
   if (isCandidatesPath(output)) {
     // 职位池走 MySQL（2026-09-23 用户确认）：dry-run 只读不写；append 库内合并，非 append 整池重写；saveCandidates 落 JSON 备份镜像
@@ -338,10 +341,12 @@ async function main() {
     if (!args['dry-run']) writeJson(output, finalJobs);
   }
 
+  console.error(`[去向统计] 点击 ${scannedCards} 张：入库 ${jobs.length}，跳词 ${dropReasons.skipWord}，JD不完整 ${dropReasons.incompleteJd}（其中详情空白 ${dropReasons.emptyDetail}），本轮重复 ${dropReasons.dupOrNoCompany}，peek失败 ${dropReasons.peekFailed}`);
   console.log(JSON.stringify({
     extracted: jobs.length,
     scannedCards,
     skippedKnown: skippedKnown || 0,
+    dropReasons,
     total: finalJobs.length,
     uniqueCompanies: countUniqueCompanies(finalJobs),
     appended: Boolean(args.append),
