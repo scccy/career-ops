@@ -220,3 +220,14 @@ data/intake-state.json
 .chrome-cdp/
 .tools/
 boss/.env.local
+
+# --- 个人求职数据（公开清洗 2026-10-11 追加）---
+data/applications.md
+data/boss-candidates.json
+data/boss-queue.json
+data/boss-review.json
+data/boss-review.md
+data/boss-sent-log.tsv
+data/status-log.tsv
+data/pdf-index.tsv
+data/data-platform/

@@ -7,7 +7,7 @@
 // 已落库的同 key_hash 岗位会被覆盖更新（ON DUPLICATE KEY UPDATE），不会清空整张表。
 //
 // 前置：Chrome 已带 --remote-debugging-port=9222 启动，且当前标签页停在 BOSS 搜索结果页（已登录）。
-// 环境变量：MYSQL_PASSWORD（默认走 boss-common 的 ***REMOVED*** 覆盖）、BOSS_CDP_PORT（默认 9222）、
+// 环境变量：MYSQL_PASSWORD、BOSS_CDP_PORT（默认 9222）、
 //           BOSS_INDEX（处理第 N 张卡片，默认 0）。
 //
 // 用法：
@@ -15,7 +15,7 @@
 //   node boss/extract-first-regression.mjs --probe         # 只列 CDP 标签页，不抽
 //   node boss/extract-first-regression.mjs --index 2       # 抓第 2 张
 //   node boss/extract-first-regression.mjs --dry-run       # 抽但不落库（打印）
-//   MYSQL_PASSWORD=***REMOVED*** node boss/extract-first-regression.mjs
+//   MYSQL_PASSWORD=你的密码 node boss/extract-first-regression.mjs
 
 import { pathToFileURL } from 'url';
 import { readFileSync } from 'fs';
@@ -37,7 +37,7 @@ const DB_CONFIG = {
   host: process.env.MYSQL_HOST || '127.0.0.1',
   port: Number(process.env.MYSQL_PORT || 3306),
   user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '***REMOVED***',
+  password: process.env.MYSQL_PASSWORD || '',
   connectionLimit: 5,
   waitForConnections: true,
 };
