@@ -651,6 +651,22 @@ function fillConfigInputs(d){
   document.getElementById('fRiskKeywords').value=(rules.riskKeywords||[]).join('\n');
   document.getElementById('fTitleExclude').value=(rules.titleExclude||[]).join('\n');
   document.getElementById('fCompanyExclude').value=(rules.companyExclude||[]).join('\n');
+  RULES={
+    skipWords:rules.skipWords||[],
+    riskKeywords:rules.riskKeywords||[],
+    titleExclude:rules.titleExclude||[],
+    companyExclude:rules.companyExclude||[],
+  };
+  // 「一键剔除」按钮的文案跟着配置走（词表为空时明确提示，而不是静默什么都不删）
+  const campusBtn=document.getElementById('presetCampus');
+  if(campusBtn){
+    campusBtn.textContent = RULES.titleExclude.length
+      ? `一键剔除${RULES.titleExclude.join('/')}`
+      : '一键剔除校园/实习岗位（规则表为空）';
+    campusBtn.title = RULES.titleExclude.length
+      ? `按「排队·标题排除」的词表（${RULES.titleExclude.join('/')}）做标题/正文子串匹配，把命中的岗位设为暂不发送；正则片段按字面匹配。`
+      : '「排队·标题排除」为空，请先在配置里填写';
+  }
   if(Array.isArray(rules.titleExclude)) rulesLoaded=true;
 }
 
@@ -760,6 +776,9 @@ function updateCityStats(d){
 let cityDirty=false;
 // 是否已从 /api/overview 成功回填过跳词/排除规则——没回填过就不提交这四项，避免空值覆盖 DB
 let rulesLoaded=false;
+// 当前生效的规则表（/api/overview.rules）。「一键剔除校园/实习岗位」这类批量操作复用它，
+// 保证与「排队·标题排除」是同一份词表（2026-10-14 统一）。
+let RULES={skipWords:[],riskKeywords:[],titleExclude:[],companyExclude:[]};
 function markDirty(){
   cityDirty=true;
   document.getElementById('unsavedBar').classList.add('show');
@@ -1024,14 +1043,20 @@ async function legacyBulkActionUnused(action){
     loadJobs(currentPage); refreshStats();
   }catch(e){ alert('请求失败：'+e.message); }
 }
-async function legacyPresetCampusUnused(){
-  if(!confirm('将把标题/正文含 校招/应届/实习/校园/毕业生 的岗位全部「标记已发」(greeted=1)：移出待发池、不再进入发送队列，数据保留可还原。继续？')) return;
+// 校园/实习类岗位批量剔除：词表统一取「排队·标题排除」（DB boss_config.title_exclude），
+// 不再各自硬编码一份（2026-10-14 用户确认统一成一份配置，改一处处处生效）。
+async function presetCampus(){
+  const words = RULES.titleExclude || [];
+  if(!words.length){
+    alert('「排队·标题排除」现在是空的，没有可用词；请先在「每日城市操作流程控制」里填好并保存。');
+    return;
+  }
+  const shown = words.join('/');
+  if(!confirm(`将标题/正文含 ${shown} 的岗位设为“暂不发送”（不记录为已联系，之后可恢复）。\n\n词表来自控制台「排队·标题排除」。继续？`)) return;
   try{
-    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
-    const d=await r.json();
-    if(!d.ok) return alert('失败：'+(d.error||''));
-    alert(`已标记 ${d.affected} 条校招/应届等岗位为已发（移出待发池）`);
-    loadJobs(currentPage); refreshStats();
+    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword: words.join(',') } });
+    const d=await r.json(); if(!d.ok) return alert('失败：'+(d.error||''));
+    alert(`已将 ${d.affected} 条相关岗位设为暂不发送（按 ${shown} 匹配）`); loadJobs(currentPage); refreshStats();
   }catch(e){ alert('请求失败：'+e.message); }
 }
 
@@ -1051,11 +1076,17 @@ async function bulkAction(action){
   }catch(e){ alert('请求失败：'+e.message); }
 }
 async function presetCampus(){
-  if(!confirm('将校招/应届/实习/校园/毕业生相关岗位设为“暂不发送”。这不会记录为已联系，之后可恢复。继续？')) return;
+  const words = RULES.titleExclude || [];
+  if(!words.length){
+    alert('「排队·标题排除」现在是空的，没有可用词；请先在「每日城市操作流程控制」里填好并保存。');
+    return;
+  }
+  const shown = words.join('/');
+  if(!confirm(`将标题/正文含 ${shown} 的岗位设为“暂不发送”（不记录为已联系，之后可恢复）。\n\n词表来自控制台「排队·标题排除」。继续？`)) return;
   try{
-    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword:'校招,应届,实习,校园,毕业生' } });
+    const r=await postJson('/api/jobs/bulk', { action:'exclude', filter:{ keyword: words.join(',') } });
     const d=await r.json(); if(!d.ok) return alert('失败：'+(d.error||''));
-    alert(`已将 ${d.affected} 条相关岗位设为暂不发送`); loadJobs(currentPage); refreshStats();
+    alert(`已将 ${d.affected} 条相关岗位设为暂不发送（按 ${shown} 匹配）`); loadJobs(currentPage); refreshStats();
   }catch(e){ alert('请求失败：'+e.message); }
 }
 
