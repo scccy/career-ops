@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import {
+  BOSS_CITY_CODES,
   CANDIDATES_PATH,
   QUEUE_PATH,
   includesAny,
@@ -25,7 +26,7 @@ import {
   persistJobScores,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
-import { DEFAULT_RISK_KEYWORDS } from './skip-rules.mjs';
+import { DEFAULT_RISK_KEYWORDS, matchRejectHits } from './skip-rules.mjs';
 
 // 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
 const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
@@ -88,6 +89,12 @@ export function evaluateJob(job, profile) {
   const weights = profile?.weights || {};
 
   const titleAndDesc = `${job.title || ''}\n${job.desc || job.description || ''}\n${list(job.tags).join(' ')}`;
+  const rejectSplit = matchRejectHits({
+    reject,
+    cityWords: Object.keys(BOSS_CITY_CODES),
+    titleAndDesc,
+    city: job.city || job.location || '',
+  });
   const jdCheck = checkDetailedJd(job);
   const roleHits = matchAliases(titleAndDesc, targetRoles, roleAliases);
   const skillHits = matchAliases(titleAndDesc, coreSkills, skillAliases);
@@ -103,7 +110,13 @@ export function evaluateJob(job, profile) {
     : /日内|天内|3日|本周/.test(job.hr_active || '') ? 4
     : 3;
 
-  const riskHits = [...new Set([...RISK_KEYWORDS, ...reject].filter((kw) => includesAny(titleAndDesc, [kw])))];
+  const riskHits = [...new Set([
+    ...RISK_KEYWORDS.filter((kw) => includesAny(titleAndDesc, [kw])),
+    // preferences.reject 拆两类：城市名按岗位所在城市匹配，其余仍按标题+正文匹配
+    // （2026-10-14 用户确认：之前「北京/深圳/广州」当正文词，误伤了提到这些城市的杭州岗位）
+    ...rejectSplit.textHits,
+    ...rejectSplit.cityHits,
+  ])];
   const genericHits = GENERIC_JD_PATTERNS.filter((kw) => includesAny(titleAndDesc, [kw]));
   const legitimacy = assessOpportunityLegitimacy(job, jdCheck, genericHits, list(profile?.boss?.jd_focus_terms));
   const companyQuality = legitimacy.score;

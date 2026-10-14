@@ -91,6 +91,40 @@ export function validateWordRegex(list) {
 }
 
 /**
+ * 把 `preferences.reject` 的命中拆成两类。
+ *
+ * 2026-10-14 用户确认：reject 里的「北京 / 深圳 / 广州」本意是「不在这些城市投递」，
+ * 但之前和风险词一起比对标题+正文，导致任何杭州岗位只要 JD 里出现「北京/上海/杭州」
+ * 就被判不可发送、`score` 留空（杭州一天内有 15 条这样被误伤）。
+ *
+ * 拆分规则：
+ *   - 词本身是城市名（在 cityWords 里）→ 只比对**岗位所在城市** `job.city`
+ *   - 其它词（外包 / 派遣 / 海外…）→ 比对标题+正文，行为不变
+ *
+ * @param {object} params
+ * @param {string[]} [params.reject] 原始 reject 词表
+ * @param {string[]} [params.cityWords] 视为「城市名」的词表（一般取 BOSS_CITY_CODES 的键）
+ * @param {string} [params.titleAndDesc] 标题 + 正文 + 标签
+ * @param {string} [params.city] 岗位所在城市（如 `杭州·滨江区·长河`）
+ * @returns {{textHits: string[], cityHits: string[]}}
+ */
+export function matchRejectHits({ reject = [], cityWords = [], titleAndDesc = '', city = '' } = {}) {
+  const citySet = new Set((cityWords || []).map((c) => String(c ?? '').trim()).filter(Boolean));
+  const textHits = [];
+  const cityHits = [];
+  for (const raw of reject || []) {
+    const kw = String(raw ?? '').trim();
+    if (!kw) continue;
+    if (citySet.has(kw)) {
+      if (String(city || '').includes(kw)) cityHits.push(kw);
+    } else if (String(titleAndDesc || '').includes(kw)) {
+      textHits.push(kw);
+    }
+  }
+  return { textHits, cityHits };
+}
+
+/**
  * 取词表：显式配置（数组，含空数组）优先，否则用默认值。
  *
  * @param {unknown} value 来自 DB / 环境变量的值
