@@ -632,6 +632,28 @@ function applyPreset(preset){
 }
 function setVal(id,v){document.getElementById(id).value=v;}
 
+// 回填全局配置输入框（阈值/词表/节奏/跳词四张表）。
+// 只在用户没有未保存改动（cityDirty=false）时调用：页面上的旧值会在下次保存时把 DB 的新值
+// 覆盖回去（2026-10-14 踩过一次：改好的「排队·标题排除」被一页没刷新的旧文本写回）。
+// 60 秒自动刷新也调它，页面就始终跟 DB 一致。
+function fillConfigInputs(d){
+  document.getElementById('fThreshold').value=d.threshold;
+  document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
+  const p=d.pacing||{};
+  document.getElementById('fKwGap').value=p.keywordGapSeconds??300;
+  document.getElementById('fCityGap').value=p.cityGapSeconds??600;
+  document.getElementById('fCardGapMin').value=p.cardGapMinMs??3000;
+  document.getElementById('fCardGapMax').value=p.cardGapMaxMs??6000;
+  document.getElementById('fBudgetFactor').value=p.scanBudgetFactor??1.3;
+  document.getElementById('fRequireFullJd').checked=p.requireFullJd===true;
+  const rules=d.rules||{};
+  document.getElementById('fSkipWords').value=(rules.skipWords||[]).join('\n');
+  document.getElementById('fRiskKeywords').value=(rules.riskKeywords||[]).join('\n');
+  document.getElementById('fTitleExclude').value=(rules.titleExclude||[]).join('\n');
+  document.getElementById('fCompanyExclude').value=(rules.companyExclude||[]).join('\n');
+  if(Array.isArray(rules.titleExclude)) rulesLoaded=true;
+}
+
 async function loadOverview(){
   const b=document.getElementById('banner');
   try{
@@ -649,24 +671,7 @@ async function loadOverview(){
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
 
     // 有未保存改动时不要覆盖用户正在编辑的输入框，只更新统计数字
-    if(!cityDirty){
-      document.getElementById('fThreshold').value=d.threshold;
-      document.getElementById('fGlobalKw').value=(d.dailyExtractQueries||[]).join(', ');
-      const p=d.pacing||{};
-      document.getElementById('fKwGap').value=p.keywordGapSeconds??300;
-      document.getElementById('fCityGap').value=p.cityGapSeconds??600;
-      document.getElementById('fCardGapMin').value=p.cardGapMinMs??3000;
-      document.getElementById('fCardGapMax').value=p.cardGapMaxMs??6000;
-      document.getElementById('fBudgetFactor').value=p.scanBudgetFactor??1.3;
-      document.getElementById('fRequireFullJd').checked=p.requireFullJd===true;
-      // 跳词与排除规则（DB boss_config；只在这里回填，避免把用户正在编辑的内容覆盖掉）
-      const rules=d.rules||{};
-      document.getElementById('fSkipWords').value=(rules.skipWords||[]).join('\n');
-      document.getElementById('fRiskKeywords').value=(rules.riskKeywords||[]).join('\n');
-      document.getElementById('fTitleExclude').value=(rules.titleExclude||[]).join('\n');
-      document.getElementById('fCompanyExclude').value=(rules.companyExclude||[]).join('\n');
-      rulesLoaded=true;
-    }
+    if(!cityDirty) fillConfigInputs(d);
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
     sel.innerHTML='<option value="">全部城市</option>'+
@@ -768,7 +773,8 @@ function clearDirty(){
   const th=document.getElementById('fThreshold'); if(th) th.classList.remove('dirty');
 }
 
-// 自动刷新：只更新概览卡片 + 城市统计，不重建表格 / 不重置检索区
+// 自动刷新：只更新概览卡片 + 城市统计，不重建表格 / 不重置检索区；
+// 配置输入框在用户没有未保存改动时跟着 DB 一起刷新（否则旧值会在下次保存时覆盖 DB 新值）
 async function refreshStats(){
   try{
     const r=await fetch('/api/overview'); const d=await r.json();
@@ -781,6 +787,7 @@ async function refreshStats(){
     setNum('cUnscored', d.unscored);
     document.getElementById('cPendingX').textContent=`30天岗位/公司去重 · 城市配额后`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
+    if(!cityDirty) fillConfigInputs(d);
     updateCityStats(d);
   }catch(e){ /* 忽略刷新失败 */ }
 }
