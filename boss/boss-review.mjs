@@ -8,7 +8,7 @@ import {
   parseArgs,
   readJson,
   todayIso,
-  uniqueCompanyKey,
+  uniqueCompanyPlacementKey,
 } from './boss-common.mjs';
 
 const REVIEW_PATH = 'data/boss-review.md';
@@ -55,7 +55,7 @@ function topCompanies(queue, limit) {
     .slice()
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .filter((job) => {
-      const key = uniqueCompanyKey(job);
+      const key = uniqueCompanyPlacementKey(job);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;

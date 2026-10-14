@@ -189,20 +189,36 @@ export function countMatches(text, keywords) {
   return list(keywords).filter((kw) => lower.includes(normalizeText(kw))).length;
 }
 
-export function uniqueJobKey(job) {
+export function normalizeBossCity(value) {
+  // BOSS 的 city 可能是「杭州·滨江区·长河」；岗位身份只按 base city 区分，
+  // 避免同一 base 的区域文本变化制造重复，同时避免不同 base 被错误合并。
+  return normalizeText(String(value || '').split(/[·,，/、-]/)[0]) || 'unknown';
+}
+
+export function uniqueJobKeyLegacy(job) {
+  // 兼容 2026-10-14 之前的发送日志/旧键：仅公司+岗位，不作为新数据的主键。
   return `${normalizeText(job.company)}::${normalizeText(job.title)}`;
 }
 
+export function uniqueJobKey(job) {
+  // 公司+岗位名+base 城市 = 岗位唯一身份。URL 不参与：BOSS 每次扫描同一岗位都会带新的
+  // securityId 查询参数，旧键含 URL 导致同一岗位每次扫描都算新哈希、重复入库。
+  return `${uniqueJobKeyLegacy(job)}::${normalizeBossCity(job.city || job.location)}`;
+}
+
 export function uniqueCandidateKey(job) {
-  // 公司+岗位名 = 岗位唯一身份。URL 不参与：BOSS 每次扫描同一岗位都会带新的
-  // securityId 查询参数，旧键含 URL 导致同一岗位每次扫描都算新哈希、重复入库
-  // （2026-09-29 实测 245 组 745 行重复）。且发送日志去重 loadSentKeys 本就是
-  // company::title，两处键保持一致。
+  // 候选池主键与重复投递的「同一岗位」判断共用城市作用域；同公司同岗位不同 base
+  // 是两个不同机会，应分别入库/评估。公司级去重仍由 uniqueCompanyKey 单独负责。
   return uniqueJobKey(job);
 }
 
 export function uniqueCompanyKey(job) {
   return normalizeText(job.company || job.url || job.title);
+}
+
+export function uniqueCompanyPlacementKey(job) {
+  // 发送阶段的一家公司只限制同一 base；同公司不同 base 可以分别进入发送候选。
+  return `${uniqueCompanyKey(job)}::${normalizeBossCity(job.city || job.location)}`;
 }
 
 export function mergeJobs(existingJobs, incomingJobs) {
@@ -236,11 +252,32 @@ export function loadSentKeys({ date = null, sinceDate = '', lookbackDays = null,
   const minDate = sinceDate || (lookbackDays == null ? '' : daysAgoIso(lookbackDays));
   for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
     if (!line.trim()) continue;
-    const [sentDate, , company, title, , status] = line.split('\t');
+    // city is appended as the ninth column; old 8-column logs remain readable.
+    const [sentDate, , company, title, , status, , , city] = line.split('\t');
     if (date && sentDate !== date) continue;
     if (minDate && sentDate < minDate) continue;
     if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
-    if (company && title) keys.add(`${normalizeText(company)}::${normalizeText(title)}`);
+    if (company && title) {
+      keys.add(city ? uniqueJobKey({ company, title, city }) : uniqueJobKeyLegacy({ company, title }));
+    }
+  }
+  return keys;
+}
+
+export function loadSentPlacementKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent', 'auto_sent'] } = {}) {
+  const keys = new Set();
+  if (!existsSync(SENT_LOG_PATH)) return keys;
+  const allowedStatuses = new Set(statuses);
+  const minDate = sinceDate || (lookbackDays == null ? '' : daysAgoIso(lookbackDays));
+  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
+    if (!line.trim()) continue;
+    const [sentDate, , company, title, , status, , , city] = line.split('\t');
+    if (date && sentDate !== date) continue;
+    if (minDate && sentDate < minDate) continue;
+    if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
+    if (company) keys.add(city
+      ? uniqueCompanyPlacementKey({ company, city })
+      : uniqueCompanyKey({ company }));
   }
   return keys;
 }
@@ -277,8 +314,8 @@ export function countSentCompaniesToday(date = todayIso()) {
   return loadSentCompanyKeys({ date, statuses: ['sent', 'auto_sent'] }).size;
 }
 
-// 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）
-// 城市由发送记录 URL 反查候选池得到（发送日志本身无城市列）；无法匹配的 URL 归入"未知"。
+// 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）。
+// 新日志直接使用 city 列；旧日志没有 city 时再由 URL 反查候选池，无法匹配归入"未知"。
 // URL 指纹：只取 pathname（job_detail/<id>.html），剥掉 query。
 // BOSS 每次扫描同一岗位都换新 securityId，若用完整 URL 匹配，重扫后
 // 发送日志里的历史 URL 就对不上池子，按城配额扣减会失灵（#2026-09-29）。
@@ -295,13 +332,13 @@ export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new
   const countedStatuses = new Set(['sent', 'auto_sent']);
   for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
     if (!line.trim()) continue;
-    const [sentDate, , company, , url, status] = line.split('\t');
+    const [sentDate, , company, , url, status, , , loggedCity] = line.split('\t');
     if (sentDate !== date || !countedStatuses.has(status)) continue;
     const path = urlPathname(url);
-    const dedupeKey = path || normalizeText(company);
+    const dedupeKey = path || `${normalizeText(company)}::${normalizeBossCity(loggedCity)}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    const city = String(urlCity.get(path) || '').split('·')[0] || '未知';
+    const city = String(loggedCity || urlCity.get(path) || '').split('·')[0] || '未知';
     if (!byCity.has(city)) byCity.set(city, new Set());
     byCity.get(city).add(normalizeText(company));
   }
@@ -311,7 +348,7 @@ export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new
 export function appendSentLog({ job, status, message = '', error = '' }) {
   mkdirSync(ROOT_DATA_DIR, { recursive: true });
   if (!existsSync(SENT_LOG_PATH)) {
-    writeFileSync(SENT_LOG_PATH, 'date\ttime\tcompany\ttitle\turl\tstatus\tmessage\terror\n', 'utf-8');
+    writeFileSync(SENT_LOG_PATH, 'date\ttime\tcompany\ttitle\turl\tstatus\tmessage\terror\tcity\n', 'utf-8');
   }
   const now = new Date();
   const row = [
@@ -323,6 +360,7 @@ export function appendSentLog({ job, status, message = '', error = '' }) {
     status,
     String(message).replace(/\s+/g, ' '),
     String(error).replace(/\s+/g, ' '),
+    String(job.city || job.location || '').replace(/\s+/g, ' '),
   ].join('\t');
   appendFileSync(SENT_LOG_PATH, `${row}\n`, 'utf-8');
 }
@@ -550,6 +588,48 @@ function schemaReady() {
         );
       }
       if (stateAdded.length) console.error(`[boss-db] 状态字段迁移: ${stateAdded.join(', ')}`);
+
+       // 2026-10-14：候选主键从 company::title 升级为 company::title::baseCity。
+       // 不迁移会导致旧行与新扫描各自生成两条记录，或旧键无法被点击前比对命中。
+       const [keyRows] = await pool.query(
+         `SELECT id, key_hash, company, title, city FROM ${BOSS_JOBS_TABLE} ORDER BY id`,
+       );
+       const keyChanges = keyRows
+         .map((row) => ({
+           id: row.id,
+           oldHash: String(row.key_hash || ''),
+           newHash: candidateKeyHash({ company: row.company, title: row.title, city: row.city }),
+         }))
+         .filter((row) => row.oldHash !== row.newHash);
+       const desiredOwners = new Map();
+       for (const change of keyChanges) {
+         const prior = desiredOwners.get(change.newHash);
+         if (prior) {
+           throw new Error(`候选城市键迁移冲突：id=${prior.id} 与 id=${change.id} 生成相同 key_hash=${change.newHash}`);
+         }
+         desiredOwners.set(change.newHash, change);
+       }
+       if (keyChanges.length) {
+         const conn = await pool.getConnection();
+         try {
+           await conn.beginTransaction();
+           // 先换成临时哈希，避免极端情况下新旧哈希互相占用 UNIQUE 索引。
+           for (const change of keyChanges) {
+             const temporary = createHash('sha256').update(`city-key-migration:${change.id}:${change.oldHash}`).digest('hex');
+             await conn.query(`UPDATE ${BOSS_JOBS_TABLE} SET key_hash = ? WHERE id = ?`, [temporary, change.id]);
+           }
+           for (const change of keyChanges) {
+             await conn.query(`UPDATE ${BOSS_JOBS_TABLE} SET key_hash = ? WHERE id = ?`, [change.newHash, change.id]);
+           }
+           await conn.commit();
+         } catch (err) {
+           await conn.rollback();
+           throw err;
+         } finally {
+           conn.release();
+         }
+         console.error(`[boss-db] 候选键迁移：${keyChanges.length} 条已加入城市维度`);
+       }
     })().catch((err) => { _schemaReady = null; throw err; });
   }
   return _schemaReady;

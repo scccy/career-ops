@@ -7,12 +7,14 @@ import {
   appendSentLog,
   countSentCompaniesToday,
   loadProfile,
-  loadSentCompanyKeys,
+  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   readJson,
   uniqueCompanyKey,
+  uniqueCompanyPlacementKey,
   uniqueJobKey,
+  uniqueJobKeyLegacy,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 
@@ -62,7 +64,7 @@ async function main() {
   const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
   const cookiesPath = args.cookies || profile?.boss?.cookies_path || 'data/boss-cookies.json';
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
+  const recentSentCompanies = loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const sentToday = countSentCompaniesToday();
   const remainingToday = Math.max(0, limit - sentToday);
   const seenCompanies = new Set();
@@ -70,10 +72,10 @@ async function main() {
     .slice()
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .filter((job) => Number(job.score) >= threshold)
-    .filter((job) => !sentJobs.has(uniqueJobKey(job)))
+    .filter((job) => !sentJobs.has(uniqueJobKey(job)) && !sentJobs.has(uniqueJobKeyLegacy(job)))
     .filter((job) => {
-      const key = uniqueCompanyKey(job);
-      if (recentSentCompanies.has(key)) return false;
+      const key = uniqueCompanyPlacementKey(job);
+      if (recentSentCompanies.has(key) || recentSentCompanies.has(uniqueCompanyKey(job))) return false;
       if (seenCompanies.has(key)) return false;
       seenCompanies.add(key);
       return true;
