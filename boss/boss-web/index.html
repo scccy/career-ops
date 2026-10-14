@@ -349,11 +349,11 @@
     </div>
     <div class="globalkw rules">
       <label title="排队阶段：标题命中即从发送队列剔除。按正则片段处理；换行、逗号、顿号都可以分隔；留空 = 不排除。改动对下一次排队生效">排队·标题排除</label>
-      <input id="fTitleExclude" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除" />
+      <textarea id="fTitleExclude" rows="2" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除"></textarea>
     </div>
     <div class="globalkw rules">
       <label title="排队阶段：公司名命中即从发送队列剔除。按正则片段处理；换行、逗号、顿号都可以分隔；留空 = 不排除。改动对下一次排队生效">排队·公司排除</label>
-      <input id="fCompanyExclude" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除" />
+      <textarea id="fCompanyExclude" rows="2" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除"></textarea>
     </div>
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
@@ -647,10 +647,16 @@ function fillConfigInputs(d){
   document.getElementById('fBudgetFactor').value=p.scanBudgetFactor??1.3;
   document.getElementById('fRequireFullJd').checked=p.requireFullJd===true;
   const rules=d.rules||{};
-  document.getElementById('fSkipWords').value=(rules.skipWords||[]).join('\n');
-  document.getElementById('fRiskKeywords').value=(rules.riskKeywords||[]).join('\n');
-  document.getElementById('fTitleExclude').value=(rules.titleExclude||[]).join('\n');
-  document.getElementById('fCompanyExclude').value=(rules.companyExclude||[]).join('\n');
+  // 回填要按元素类型选分隔符：<textarea> 用换行（一行一条）；万一哪天又变回单行 <input>，
+  // 它会把换行吞掉、多条粘成一条，所以退化成逗号分隔（2026-10-14 正是这么把 6 条粘成 1 条的）。
+  const setRule=(id,list)=>{
+    const el=document.getElementById(id);
+    el.value=(list||[]).join(el.tagName==='TEXTAREA' ? '\n' : ', ');
+  };
+  setRule('fSkipWords', rules.skipWords);
+  setRule('fRiskKeywords', rules.riskKeywords);
+  setRule('fTitleExclude', rules.titleExclude);
+  setRule('fCompanyExclude', rules.companyExclude);
   RULES={
     skipWords:rules.skipWords||[],
     riskKeywords:rules.riskKeywords||[],
