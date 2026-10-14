@@ -22,6 +22,7 @@ import {
   buildWordRegex,
   validateWordRegex,
   resolveExtractSkipWords,
+  matchRejectHits,
 } from '../boss/skip-rules.mjs';
 
 test('splitWordList：数组 / 分隔符字符串 / 空值', () => {
@@ -92,6 +93,47 @@ test('默认风险词 / 排队排除表非空且可用', () => {  for (const [na
   assert.equal(buildWordRegex(DEFAULT_TITLE_EXCLUDE).test('高级大数据开发工程师'), false);
   assert.equal(buildWordRegex(DEFAULT_COMPANY_EXCLUDE).test('外企德科人力资源服务'), true);
   assert.equal(buildWordRegex(DEFAULT_COMPANY_EXCLUDE).test('某某数据科技有限公司'), false);
+});
+
+test('reject 拆分：城市名按岗位城市匹配，其它词仍按标题+正文匹配', () => {
+  const cityWords = ['北京', '上海', '广州', '深圳', '杭州'];
+  // 杭州岗位，JD 里提到「北京/上海/杭州」——这是 2026-10-14 误伤 15 条杭州岗位的场景
+  const hangzhou = matchRejectHits({
+    reject: ['北京', '深圳', '广州', '海外'],
+    cityWords,
+    titleAndDesc: '高级大数据开发工程师（北京/上海/杭州）\n岗位职责：与北京团队协作…',
+    city: '杭州·滨江区·长河',
+  });
+  assert.deepEqual(hangzhou.cityHits, [], '杭州岗位不该因为 JD 提到北京而被判城市排除');
+  assert.deepEqual(hangzhou.textHits, [], '北京不是在正文里当风险词比对的');
+
+  // 真正的北京岗位：按城市命中
+  const beijing = matchRejectHits({
+    reject: ['北京', '深圳'],
+    cityWords,
+    titleAndDesc: '数据开发工程师',
+    city: '北京·朝阳区',
+  });
+  assert.deepEqual(beijing.cityHits, ['北京']);
+  assert.deepEqual(beijing.textHits, []);
+
+  // 非城市词（海外/外包）仍按正文匹配
+  const text = matchRejectHits({
+    reject: ['海外', '外包'],
+    cityWords,
+    titleAndDesc: '海外数据开发经理（出差阿联酋）',
+    city: '杭州',
+  });
+  assert.deepEqual(text.textHits, ['海外']);
+  assert.deepEqual(text.cityHits, []);
+
+  // 边界：空值/空白/城市字段为空
+  assert.deepEqual(matchRejectHits({}), { textHits: [], cityHits: [] });
+  assert.deepEqual(
+    matchRejectHits({ reject: ['  ', null, '北京'], cityWords, titleAndDesc: '', city: '' }),
+    { textHits: [], cityHits: [] },
+    '城市字段为空时不应命中城市排除',
+  );
 });
 
 test('提取跳词解析：env > DB > 内置默认，且 DB 挂了不影响扫描', async () => {
