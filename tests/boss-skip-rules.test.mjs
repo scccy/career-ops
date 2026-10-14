@@ -18,6 +18,7 @@ import {
   DEFAULT_COMPANY_EXCLUDE,
   NEVER_MATCH,
   splitWordList,
+  splitRuleText,
   resolveWordList,
   buildWordRegex,
   validateWordRegex,
@@ -31,6 +32,21 @@ test('splitWordList：数组 / 分隔符字符串 / 空值', () => {
   assert.deepEqual(splitWordList('   '), []);
   assert.equal(splitWordList(undefined), null);
   assert.equal(splitWordList(42), null);
+  // 数组里遗留的「一行写完」数据也会被拆开
+  assert.deepEqual(splitWordList(['校招,应届、实习', '秋招;春招']), ['校招', '应届', '实习', '秋招', '春招']);
+  assert.deepEqual(splitWordList([null, '  ', '猎头']), ['猎头']);
+});
+
+test('splitRuleText：逗号/顿号/换行都能拆，但正则里的逗号不拆', () => {
+  assert.deepEqual(splitRuleText('校招,应届、实习;秋招，春招\n毕业生'), ['校招', '应届', '实习', '秋招', '春招', '毕业生']);
+  // {m,n} 量词里的逗号必须保住（2026-10-14 实测过的坑：拆坏就等于过滤失效）
+  assert.deepEqual(splitRuleText('外包\n某[^\\n]{0,16}公司'), ['外包', '某[^\\n]{0,16}公司']);
+  assert.deepEqual(splitRuleText('某[^\\n]{0,16}公司'), ['某[^\\n]{0,16}公司']);
+  // 字符类与转义里的逗号同样不拆
+  assert.deepEqual(splitRuleText('[a,b]|c'), ['[a,b]|c']);
+  assert.deepEqual(splitRuleText('a\\,b,c'), ['a\\,b', 'c']);
+  assert.deepEqual(splitRuleText(''), []);
+  assert.deepEqual(splitRuleText('  \n  '), []);
 });
 
 test('resolveWordList：显式空数组 = 关闭该规则，缺省才回落默认', () => {

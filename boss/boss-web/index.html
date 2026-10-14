@@ -340,20 +340,20 @@
     </div>
     <!-- 跳词与排除规则（2026-10-14 统一到控制台；提取/评分/排队三处共用一份 DB 配置） -->
     <div class="globalkw rules">
-      <label title="提取阶段：命中卡片文本或 JD 即丢弃，岗位不入库（连详情都不读）。每行一条，按正则片段处理，例如 外包 / 某[^\n]{0,16}公司；留空 = 不跳词。改动对下一次扫描生效">提取跳词</label>
-      <textarea id="fSkipWords" rows="2" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不跳词"></textarea>
+      <label title="提取阶段：命中卡片文本或 JD 即丢弃，岗位不入库（连详情都不读）。按正则片段处理，例如 外包 / 某[^\n]{0,16}公司；换行、逗号、顿号都可以分隔（{0,16} 这类量词里的逗号不会被拆）；留空 = 不跳词。改动对下一次扫描生效">提取跳词</label>
+      <textarea id="fSkipWords" rows="2" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不跳词"></textarea>
     </div>
     <div class="globalkw rules">
-      <label title="评分阶段：命中只作为风险信号参与评分，不影响入库。每行一条，按纯文本（子串）匹配；留空 = 不做风险词判断。改动对下一次评分生效">评分风险词</label>
-      <textarea id="fRiskKeywords" rows="2" spellcheck="false" placeholder="每行一条，纯文本；留空 = 不判断"></textarea>
+      <label title="评分阶段：命中只作为风险信号参与评分，不影响入库。按纯文本（子串）匹配；换行、逗号、顿号都可以分隔；留空 = 不做风险词判断。改动对下一次评分生效">评分风险词</label>
+      <textarea id="fRiskKeywords" rows="2" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），纯文本；留空 = 不判断"></textarea>
     </div>
     <div class="globalkw rules">
-      <label title="排队阶段：标题命中即从发送队列剔除。每行一条，按正则片段处理；留空 = 不排除。改动对下一次排队生效">排队·标题排除</label>
-      <input id="fTitleExclude" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不排除" />
+      <label title="排队阶段：标题命中即从发送队列剔除。按正则片段处理；换行、逗号、顿号都可以分隔；留空 = 不排除。改动对下一次排队生效">排队·标题排除</label>
+      <input id="fTitleExclude" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除" />
     </div>
     <div class="globalkw rules">
-      <label title="排队阶段：公司名命中即从发送队列剔除。每行一条，按正则片段处理；留空 = 不排除。改动对下一次排队生效">排队·公司排除</label>
-      <input id="fCompanyExclude" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不排除" />
+      <label title="排队阶段：公司名命中即从发送队列剔除。按正则片段处理；换行、逗号、顿号都可以分隔；留空 = 不排除。改动对下一次排队生效">排队·公司排除</label>
+      <input id="fCompanyExclude" spellcheck="false" placeholder="一行一条（也可逗号/顿号分隔），正则片段；留空 = 不排除" />
     </div>
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
@@ -789,10 +789,25 @@ async function postConfig(limits, kwByCity){
   const thr=Number(document.getElementById('fThreshold').value);
   const globalKw=document.getElementById('fGlobalKw').value.trim()
     .split(/[,，、\s]+/).filter(Boolean);
-  // 跳词/排除规则按**换行**拆分（不按逗号拆，否则 `某[^\n]{0,16}公司` 这类正则片段会被拆坏）；
-  // 评分风险词是纯文本匹配，逗号也接受。
-  const lines=(id)=>document.getElementById(id).value.split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean);
-  const riskLines=(id)=>document.getElementById(id).value.split(/[,，、\n\r]+/).map(s=>s.trim()).filter(Boolean);
+  // 规则表拆分（与后端 boss/skip-rules.mjs 的 splitRuleText 同规则）：换行/逗号/顿号/分号都算分隔，
+  // 但 `{0,16}` 量词、`[...]` 字符类、`\` 转义里的逗号不拆——否则 `某[^\n]{0,16}公司` 会被拆坏。
+  const splitRuleText=(text)=>{
+    const out=[]; let cur='',depth=0,inClass=false,esc=false;
+    for(const ch of String(text||'')){
+      if(esc){cur+=ch;esc=false;continue;}
+      if(ch==='\\'){cur+=ch;esc=true;continue;}
+      if(inClass){cur+=ch;if(ch===']')inClass=false;continue;}
+      if(ch==='['){cur+=ch;inClass=true;continue;}
+      if(ch==='{'){cur+=ch;depth+=1;continue;}
+      if(ch==='}'){cur+=ch;if(depth>0)depth-=1;continue;}
+      if(depth===0 && '\n\r,，、;；'.includes(ch)){out.push(cur);cur='';continue;}
+      cur+=ch;
+    }
+    out.push(cur);
+    return out.map(s=>s.trim()).filter(Boolean);
+  };
+  const lines=(id)=>splitRuleText(document.getElementById(id).value);
+  const riskLines=lines;
   const kwGap=Number(document.getElementById('fKwGap').value);
   const cityGap=Number(document.getElementById('fCityGap').value);
   const gapMin=Number(document.getElementById('fCardGapMin').value);
