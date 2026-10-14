@@ -38,21 +38,58 @@ export const DEFAULT_COMPANY_EXCLUDE = [
 export const NEVER_MATCH = /(?!)/;
 
 /**
+ * 按分隔符拆一行规则文本，**但保护正则里的逗号**。
+ *
+ * 分隔符：换行 / 逗号 / 顿号 / 分号（半角全角都算）。
+ * 不拆的情况：`{m,n}` 量词、`[...]` 字符类、`\` 转义里的逗号——
+ * 所以 `某[^\n]{0,16}公司` 是一条，不会被 `{0,16}` 里的逗号拆成两条。
+ *
+ * 为什么要宽容：控制台里把「校招,应届,实习」写在同一行是很自然的输入，
+ * 若只按换行拆，它会变成一个正则片段（等于过滤静默失效）。
+ *
+ * @param {unknown} text
+ * @returns {string[]} 去掉空白与空项后的规则数组
+ */
+export function splitRuleText(text) {
+  const out = [];
+  let cur = '';
+  let depth = 0;      // { } 量词深度
+  let inClass = false; // [ ] 字符类
+  let escaped = false;
+  for (const ch of String(text ?? '')) {
+    if (escaped) { cur += ch; escaped = false; continue; }
+    if (ch === '\\') { cur += ch; escaped = true; continue; }
+    if (inClass) { cur += ch; if (ch === ']') inClass = false; continue; }
+    if (ch === '[') { cur += ch; inClass = true; continue; }
+    if (ch === '{') { cur += ch; depth += 1; continue; }
+    if (ch === '}') { cur += ch; if (depth > 0) depth -= 1; continue; }
+    if (depth === 0 && (ch === '\n' || ch === '\r' || ch === ',' || ch === '，' || ch === '、' || ch === ';' || ch === '；')) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * 把「数组或分隔符字符串」统一成字符串数组。
  *
- * 控制台输入框里是 `外包, 猎头` 这样的文本，DB 里存的是数组；两者都要能读。
+ * 控制台输入框里是 `外包, 猎头` 这样的文本（也允许一行一条），DB 里存的是数组；两者都要能读，
+ * 且数组里的每一项也再过一次 splitRuleText——这样「一行写完」的历史数据在保存时会被自动拆开。
  *
  * @param {unknown} value 数组 / 字符串 / 其它
  * @returns {string[]|null} 规范化后的数组；既不是数组也不是字符串时返回 null（由调用方决定兜底）
  */
 export function splitWordList(value) {
   if (Array.isArray(value)) {
-    return value.map((v) => String(v).trim()).filter(Boolean);
+    return value
+      .filter((v) => v != null && String(v).trim() !== '')
+      .flatMap((v) => splitRuleText(v));
   }
-  if (typeof value === 'string') {
-    if (!value.trim()) return [];
-    return value.split(/[,，、;；\n\r]+/).map((v) => v.trim()).filter(Boolean);
-  }
+  if (typeof value === 'string') return splitRuleText(value);
   return null;
 }
 
