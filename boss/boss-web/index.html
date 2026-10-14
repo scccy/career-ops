@@ -289,7 +289,7 @@
       <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x">greeted=1</div></div>
       <div class="card accent"><div class="k">本轮可发送</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">实际可发送 · 30天去重 · 配额后</div></div>
       <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x">发送日志</div></div>
-      <div class="card"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">待 boss:score</div></div>
+      <div class="card" id="cardUnscored" style="cursor:pointer" title="点击查看缺少分数（score IS NULL）的岗位"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">点击查看 · 待 boss:score</div></div>
     </div>
   </section>
 
@@ -415,13 +415,16 @@
             <option value="active" selected>正常候选</option><option value="excluded">暂缓中</option><option value="all">全部</option>
           </select></div>
           <div class="f"><label>原始标记</label><select id="fGreeted">
-            <option value="">不限</option><option value="unscored">未评分</option><option value="0">greeted=0</option><option value="1">greeted=1</option>
+            <option value="">不限</option><option value="unscored">未评分（= 评分「缺少分数」）</option><option value="0">greeted=0</option><option value="1">greeted=1</option>
           </select></div>
         </div>
       </div>
       <div class="fgroup">
         <p class="gt">分数与薪资</p>
         <div class="filters">
+          <div class="f"><label>评分</label><select id="fScored">
+            <option value="">全部</option><option value="1">有分数</option><option value="0">缺少分数</option>
+          </select></div>
           <div class="f"><label>最低分数</label><input id="fMinScore" type="number" step="0.1" placeholder="阈值" /></div>
           <div class="f"><label>薪资 ≥（K/月）</label><input id="fSalMin" type="number" step="1" placeholder="最低" /></div>
           <div class="f"><label>薪资 ≤（K/月）</label><input id="fSalMax" type="number" step="1" placeholder="最高" /></div>
@@ -444,7 +447,7 @@
         <button class="btn" id="btnSearch">查询</button>
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
-      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。<b>「评分」</b>：<code>有分数</code>=通过发送资格、已回写分数；<code>缺少分数</code>=<code>score IS NULL</code>（未通过发送资格判定，评分器仍写入了推荐语，可在候选详情里看原因）——选它时会自动把「发送资格」放开，否则永远是空列表。点「未评分」卡片可直接查看这批岗位。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
       <div class="bulkbar idle" id="bulkbar">
         <span class="lbl">批量操作</span>
         <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
@@ -620,6 +623,7 @@ function applyPreset(preset){
   setVal('fAvailability', preset.availability||'');
   setVal('fManualExclusion', preset.manualExclusion||'active');
   setVal('fGreeted', preset.greeted||'');
+  setVal('fScored', preset.scored||'');
   setVal('fMinScore', preset.minScore==='THR'?String(THRESHOLD):(preset.minScore||''));
   setVal('fKeyword', preset.keyword||'');
   setVal('fJobType', preset.jobType||'');
@@ -888,6 +892,7 @@ function buildQuery(page){
   if(v('fAvailability')) p.set('availability',v('fAvailability'));
   if(v('fManualExclusion')) p.set('manualExclusion',v('fManualExclusion'));
   if(v('fGreeted')) p.set('greeted',v('fGreeted'));
+  if(v('fScored')) p.set('scored',v('fScored'));
   if(v('fMinScore')) p.set('minScore',v('fMinScore'));
   if(v('fKeyword')) p.set('keyword',v('fKeyword'));
   if(v('fJobType')) p.set('jobType',v('fJobType'));
@@ -977,7 +982,7 @@ function setNum(id, v){
 }
 function currentFilter(){
   const v=id=>document.getElementById(id).value.trim();
-  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), contactState:v('fContactState'), availability:v('fAvailability'), manualExclusion:v('fManualExclusion'), eligibility:v('fEligibility'), minScore:v('fMinScore'), keyword:v('fKeyword'), jobType:v('fJobType') };
+  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), scored:v('fScored'), contactState:v('fContactState'), availability:v('fAvailability'), manualExclusion:v('fManualExclusion'), eligibility:v('fEligibility'), minScore:v('fMinScore'), keyword:v('fKeyword'), jobType:v('fJobType') };
 }
 async function legacyBulkActionUnused(action){
   const useFilter = allFilterSelected;
@@ -1106,11 +1111,20 @@ async function pollRun(){
 document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
 document.getElementById('btnReset').onclick=()=>{
-  ['fCity','fSalMin','fSalMax','fContactState','fAvailability','fGreeted','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
+  ['fCity','fSalMin','fSalMax','fContactState','fAvailability','fGreeted','fScored','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('fEligibility').value='sendable';
   document.getElementById('fManualExclusion').value='active';
   currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);
 };
+// 选「缺少分数」时自动把「发送资格」放开：无分数的岗位按定义就不可能是「本轮可发送」，
+// 否则默认的 sendable 过滤会让列表永远是空的（看起来像筛选坏了）。
+document.getElementById('fScored').onchange=(e)=>{
+  if(e.target.value==='0' && document.getElementById('fEligibility').value==='sendable'){
+    document.getElementById('fEligibility').value='';
+  }
+};
+// 「未评分」卡片：一键查看缺少分数的岗位（= score IS NULL，含尚未评分的）
+document.getElementById('cardUnscored').onclick=()=>applyPreset({scored:'0', eligibility:'', manualExclusion:'all', minScore:'', keyword:''});
 document.getElementById('bulkConfirmContact').onclick=()=>bulkAction('confirm_contact');
 document.getElementById('bulkExclude').onclick=()=>bulkAction('exclude');
 document.getElementById('bulkRestore').onclick=()=>bulkAction('restore_exclusion');
