@@ -285,6 +285,7 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 | `BOSS_LOAD_MAX_STEPS` | `60` | 单次补货最多滚动多少步（防止极端情况下无界滚动） |
 | `BOSS_NO_YIELD_CLICKS` | `40` | 点击产出止损：连续这么多次点击都没带来新公司就结束本词扫描（`0` 关闭） |
 | `BOSS_SKIP_WORDS` | 未设置 | 提取跳词覆盖：**换行或分号**分隔的正则片段（逗号不拆，避免拆坏 `{0,16}`）；设置后不再读 DB 跳词表 |
+| `BOSS_FORCE_FRONT` | 开启 | 每个关键词扫描前把 BOSS 标签页切到前台；**后台标签页不会触发 BOSS 的无限滚动**（实测 `document.hidden=true` 时滚到底也只有首屏 15 张，会被误判成「列表已到底」）。`0` 关闭（关闭后仅告警） |
 | `BOSS_SCAN_BUDGET_FACTOR` | `1.3` | 扫描预算系数 |
 | `BOSS_SKIP_KNOWN` | 开启 | `0` 可关闭"跳过已入库岗位" |
 | `BOSS_CDP_TIMEOUT` | `30000` | CDP 调用超时（ms） |

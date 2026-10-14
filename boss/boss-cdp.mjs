@@ -161,6 +161,24 @@ async function hasFocus(target) {
   }
 }
 
+// 把 BOSS 标签页切到前台。2026-10-14 实测：标签页在后台（document.hidden）时 BOSS 的无限滚动
+// 不追加新卡片，扫描会误判「列表已到底」；扫描前调用它让页面可见即可恢复。
+// 只做「激活标签页 + Page.bringToFront」，不保证被最小化/被遮挡的 OS 窗口一定被抬起
+// （调用方应轮询 document.hidden 确认，见 boss-card-loader.mjs 的 ensureTabVisible）。
+async function bringToFront() {
+  const target = await resolveTarget();
+  try {
+    await fetch(`${BASE}/json/activate/${encodeURIComponent(target.id)}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch { /* 激活失败不致命，下面再用 CDP 试一次 */ }
+  try {
+    const ws = await getWs(target);
+    await call(ws, 'Page.bringToFront');
+  } catch { /* 同上 */ }
+  return target;
+}
+
 // 只允许控制 BOSS 标签页，避免焦点落在邮件/其他工作页时误导航或误操作。
 async function resolveTarget() {
   // Reuse the live target during a run. Re-listing all Chrome targets and
@@ -310,7 +328,7 @@ export function closeAllConnections() {
   wsCache.clear();
 }
 
-export { assertAvailable, cdpExecJs, cdpExecJson, evaluateMaybeClick, gotoUrl, listPages, probe, realClick, resolveTarget };
+export { assertAvailable, bringToFront, cdpExecJs, cdpExecJson, evaluateMaybeClick, gotoUrl, listPages, probe, realClick, resolveTarget };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then(() => {
