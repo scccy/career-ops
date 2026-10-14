@@ -5,12 +5,14 @@ import {
   CANDIDATES_PATH,
   list,
   loadProfile,
-  loadSentCompanyKeys,
+  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   readJson,
   uniqueCompanyKey,
+  uniqueCompanyPlacementKey,
   uniqueJobKey,
+  uniqueJobKeyLegacy,
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
@@ -28,7 +30,7 @@ function uniqueByCompany(jobs) {
   const seen = new Set();
   const out = [];
   for (const job of jobs) {
-    const key = uniqueCompanyKey(job);
+    const key = uniqueCompanyPlacementKey(job);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(job);
@@ -45,8 +47,9 @@ export function planQuota(jobs, profile, {
 } = {}) {
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
-    if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
-    if (recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
+    if (sentJobs.has(uniqueJobKey(result)) || sentJobs.has(uniqueJobKeyLegacy(result))) result.eligible = false;
+    if (recentSentCompanies.has(uniqueCompanyPlacementKey(result))
+      || recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
     if (result.score < threshold) result.eligible = false;
     return result;
   });
@@ -73,8 +76,8 @@ export function planQuota(jobs, profile, {
       : job.jd_detail?.ok === false ? '缺少完整JD'
       : job.can_chat === false ? '不可立即沟通'
       : job.already_contacted ? '已沟通'
-      : recentSentCompanies.has(uniqueCompanyKey(job)) ? '最近30天已沟通该公司'
-      : sentJobs.has(uniqueJobKey(job)) ? '该岗位已沟通'
+      : recentSentCompanies.has(uniqueCompanyPlacementKey(job)) || recentSentCompanies.has(uniqueCompanyKey(job)) ? '最近30天已沟通该公司同一基地'
+      : sentJobs.has(uniqueJobKey(job)) || sentJobs.has(uniqueJobKeyLegacy(job)) ? '该岗位已沟通'
       : Number(job.score) < threshold ? '评分低于阈值'
       : '其他';
     rejectionSummary[reason] = (rejectionSummary[reason] || 0) + 1;
@@ -123,7 +126,7 @@ async function main() {
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
     threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0),
     sentJobs: loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
-    recentSentCompanies: loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
+    recentSentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
   });
   console.log(JSON.stringify({ input, ...plan }, null, 2));
 }

@@ -42,7 +42,7 @@ $env:MYSQL_PASSWORD='你的密码'            # Windows PowerShell
 
 首次运行会自动 `CREATE DATABASE IF NOT EXISTS career_ops` 并建表：
 
-- **`boss_jobs`** — 候选岗位池（16 列）：`key_hash`(唯一) / `company` / `title` / `salary` / `city` / `url` / `greeted` / `salary_min` / `salary_max` / `score` / `status` / `scanned_at` / `raw`(JSON 完整岗位) / 时间戳；索引：`key_hash` 唯一索引 + 5 个查询索引（city+score / company / greeted / salary / scanned）
+- **`boss_jobs`** — 候选岗位池（16 列）：`key_hash`(唯一，按 `公司+岗位+base城市` 生成) / `company` / `title` / `salary` / `city` / `url` / `greeted` / `salary_min` / `salary_max` / `score` / `status` / `scanned_at` / `raw`(JSON 完整岗位) / 时间戳；索引：`key_hash` 唯一索引 + 5 个查询索引（city+score / company / greeted / salary / scanned）
 - **`boss_config`** — 单一配置行 `boss_city_control`(JSON)：评分阈值、每城配额、词表、平台日限
 
 `data/boss-candidates.json` 降级为**写入时的备份镜像**，权威数据在 MySQL。
@@ -213,20 +213,32 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 //      ↑ 点击上限          ↑ 真正目标：N 家不同公司
 ```
 
-再加 `STAGNANT_LIMIT = 8`：连续 8 次滚动没有新卡片 = 列表到底，收工。
+再加一道"到底"判定：连续 `BOSS_STAGNANT_LIMIT` 次（默认 8）滚到页底都没有新卡片 = 列表到底，收工。
+
+**卡片是按需加载的（2026-10-14 起）**，不是开局把整页一次性滚出来：
+
+```text
+先看首屏（15 张左右，不滚动）
+→ 逐张窥视/点击，处理掉一张少一张
+→ DOM 里待处理卡片 ≤ BOSS_CARD_BUFFER_LOW（默认 3）张：才向下滚一小段补货
+→ 补到 ≥ BOSS_CARD_BUFFER_HIGH（默认 8）张、或连续滚到页底没有新卡片 → 停
+```
+
+滚动本身也不是 `scrollTo(0, scrollHeight)` 一步跳到页底，而是按视口分步滚（每步随机 55%~95% 视口高度，
+步间随机停顿）。这样更接近真人边看边往下加载，也不会在几秒内堆出一串滚动请求。
 
 **目标 ≠ 实际入库数。** 循环里这些都会被丢弃（不计入名额）：
 
 | 丢弃原因 | 说明 |
 |----------|------|
 | 已入库跳过 | `BOSS_SKIP_KNOWN` 开启时，库里已有的岗位**不点击**直接跳过 |
-| 黑名单 | 命中 `外包 / 派遣 / 猎头 / 驻场 / 某XX公司 / 催收 / 电催 / 贷后 / 信用卡逾期 / 纯销售 / 电话销售 / 不缴社保 / 无社保 / 大小周` |
+| 黑名单（提取跳词） | 命中即**不入库**（连详情都不读）；词表在控制台「提取跳词」里维护，默认 `外包 / 派遣 / 猎头 / 驻场 / 某XX公司 / 催收 / 电催 / 贷后 / 信用卡逾期 / 纯销售 / 电话销售 / 不缴社保 / 无社保 / 大小周` |
 | JD 不完整 | < 180 字，或无「岗位职责/任职要求」结构 |
 | 同公司去重 | **一家公司只留 1 条** |
 
 > 实操提醒：外派/驻场岗位常以「某大型综合集团公司」这类脱敏公司名出现，会命中 `某XX公司` 规则被过滤。这是**预期行为**（外派岗通常虚假高薪），不是 bug。
 
-所以外派多、重复多的关键词，实际入库可能远低于目标值。每个关键词独立计数，但入库时按 `key_hash` 在 DB 层合并。
+所以外派多、重复多的关键词，实际入库可能远低于目标值。每个关键词独立计数，但入库时按 `key_hash` 在 DB 层合并。`key_hash` 现在包含 base 城市：同一公司在上海、杭州发布同名岗位会分别入库；同一 base 内仍按公司/岗位去重。发送阶段的岗位去重和同公司批次去重也按 base 城市作用域，旧的无城市发送日志会继续按兼容的公司级规则拦截。
 
 **想调总数，改这几个地方：**
 
@@ -236,6 +248,23 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 | 临时改系数 | `BOSS_SCAN_BUDGET_FACTOR=2.0` |
 | 加/减关键词 | 改统一词表（词变多则每词分到的变少，总数不变） |
 | 完全手动 | `node boss/boss-chrome-extract.mjs --company-limit 30 --max-cards 120 --append` |
+
+**跳词与排除规则（控制台可编辑，2026-10-14 起统一）**
+
+三个阶段的规则都以 DB `boss_config` 为唯一来源，在控制台「每日城市操作流程控制」区直接编辑（实现见 `boss/skip-rules.mjs`）：
+
+| 控制台字段 | 生效阶段 | 语义 | 默认值 |
+|---|---|---|---|
+| 提取跳词 | 扫描提取 | 命中卡片文本或 JD → **直接丢弃，岗位不入库**（连详情都不读） | 外包 / 派遣 / 猎头 / 驻场 / 某XX公司 / 催收 / 电催 / 贷后 / 信用卡逾期 / 纯销售 / 电话销售 / 不缴社保 / 无社保 / 大小周 |
+| 评分风险词 | 评分 | 命中只作风险信号参与评分，**不影响入库** | 上面 12 个 + 外派 / 长期出差 / 单休 / 培训贷 / 逾期账款 / 销售岗 / 业绩提成 |
+| 排队·标题排除 | 排队 | 标题命中 → 从发送队列剔除 | 校招 / 应届 / 实习 / 秋招 / 春招 / 毕业生 |
+| 排队·公司排除 | 排队 | 公司名命中 → 从发送队列剔除 | 人力 / 代招 / FESCO / 外企德科 / 科锐国际 / 万宝盛华 / 任仕达 / 北京外企服务 |
+
+- 提取跳词 / 标题排除 / 公司排除按**正则片段**处理，**每行一条**——所以 `某[^\n]{0,16}公司` 这类写法可用（也是不按逗号拆分的原因）；评分风险词按纯文本子串匹配，逗号或换行都行。
+- **留空 = 该规则不启用**（不是「恢复默认」）：想完全不跳词就清空「提取跳词」。
+- 正则非法在**保存那一步**就被拒绝并提示原因，不会等到扫描时静默失效。
+- 改动分别对**下一次**扫描 / 评分 / 排队生效，正在跑的任务不受影响。
+- 手动命令行跑提取时：`BOSS_SKIP_WORDS`（多项用换行或分号分隔）优先，其次读同一份 DB 配置（需要 `MYSQL_PASSWORD`，与控制台一致），最后才是内置默认。
 
 ---
 
@@ -250,6 +279,12 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 | `BOSS_KEYWORD_GAP_SECONDS` | `300`（5 分钟） | 同一城市内，关键词之间的休息 |
 | `BOSS_CITY_GAP_SECONDS` | `600`（10 分钟） | 城市之间的休息（只扫单城时不生效） |
 | `BOSS_CARD_GAP_MIN_MS` / `BOSS_CARD_GAP_MAX_MS` | `3000` / `6000` | 卡片之间的随机休息 |
+| `BOSS_CARD_BUFFER_LOW` / `BOSS_CARD_BUFFER_HIGH` | `3` / `8` | 待处理卡片的下/上水位：不足 low 张才向下滚补货，补到 high 张即停 |
+| `BOSS_SCROLL_STEP_GAP_MIN_MS` / `BOSS_SCROLL_STEP_GAP_MAX_MS` | `--click-gap-ms` 值 ~ 其 1.6 倍 | 每滚一步之间的随机停顿；显式设置可覆盖（驱动固定传 `--click-gap-ms 1800`） |
+| `BOSS_STAGNANT_LIMIT` | `8` | 滚到页底连续多少次没有新卡片就判定列表到底（此后不再滚动） |
+| `BOSS_LOAD_MAX_STEPS` | `60` | 单次补货最多滚动多少步（防止极端情况下无界滚动） |
+| `BOSS_NO_YIELD_CLICKS` | `40` | 点击产出止损：连续这么多次点击都没带来新公司就结束本词扫描（`0` 关闭） |
+| `BOSS_SKIP_WORDS` | 未设置 | 提取跳词覆盖：**换行或分号**分隔的正则片段（逗号不拆，避免拆坏 `{0,16}`）；设置后不再读 DB 跳词表 |
 | `BOSS_SCAN_BUDGET_FACTOR` | `1.3` | 扫描预算系数 |
 | `BOSS_SKIP_KNOWN` | 开启 | `0` 可关闭"跳过已入库岗位" |
 | `BOSS_CDP_TIMEOUT` | `30000` | CDP 调用超时（ms） |

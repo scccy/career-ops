@@ -6,7 +6,7 @@ import {
   CANDIDATES_PATH,
   list,
   loadProfile,
-  loadSentCompanyKeys,
+  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   readJson,
@@ -104,7 +104,7 @@ Rules:
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
     threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0),
     sentJobs: loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
-    recentSentCompanies: loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
+    recentSentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
   });
   const nextStep = buildNextStep(plan, input, profile);
   const output = {

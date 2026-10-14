@@ -9,13 +9,15 @@ import {
   includesAny,
   list,
   loadProfile,
-  loadSentCompanyKeys,
+  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   salaryScore,
   todayIso,
   uniqueCompanyKey,
+  uniqueCompanyPlacementKey,
   uniqueJobKey,
+  uniqueJobKeyLegacy,
   writeJson,
   readJson,
   isCandidatesPath,
@@ -23,14 +25,16 @@ import {
   persistJobScores,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
+import { DEFAULT_RISK_KEYWORDS } from './skip-rules.mjs';
 
 // 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
 const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
 
-const RISK_KEYWORDS = [
-  '外包', '派遣', '猎头', '驻场', '外派', '长期出差', '大小周', '单休', '无社保', '不缴社保', '培训贷',
-  '催收', '电催', '贷后', '信用卡逾期', '逾期账款', '纯销售', '电话销售', '销售岗', '业绩提成',
-];
+// 评分阶段风险词（2026-10-14 统一到控制台）：DB boss_config.risk_keywords 为唯一来源，
+// 缺省/DB 不可用时回落内置默认；这里按**纯子串**匹配（用户写什么就匹配什么，不必懂正则）。
+const RISK_KEYWORDS = Array.isArray(BOSS_CONTROL.risk_keywords)
+  ? BOSS_CONTROL.risk_keywords
+  : DEFAULT_RISK_KEYWORDS;
 const GENERIC_JD_PATTERNS = ['抗压能力强', '服从安排', '吃苦耐劳', '有梦想', '狼性'];
 const VAGUE_SALARY_PATTERNS = ['薪资面议', '面议', '上不封顶', '底薪+提成', '底薪加提成'];
 const UNREALISTIC_PATTERNS = ['月入', '躺赚', '轻松赚钱', '零经验', '小白', '无责高薪', '快速上手'];
@@ -128,10 +132,14 @@ export function evaluateJob(job, profile) {
 
   // 2026-09-22 用户指令「只要带数据就投递，不管其他的」：移除内部 total>=4.0 硬门槛，
   // 分数线统一由 --threshold 参数控制（jdCheck/riskHits/可疑机会/面议 等保护性闸门保留）
-  const eligible = jdCheck.ok && riskHits.length === 0
+  // 2026-10-14：JD 完整性闸门由 BOSS_REQUIRE_FULL_JD=true（控制台「JD完整性过滤」勾选）开启，
+  // 默认关闭——JD 不完整的岗位也照常评分入队，jd_detail 继续如实记录原始判定供人工审阅。
+  const requireFullJd = process.env.BOSS_REQUIRE_FULL_JD === 'true'
+    || String(process.env.BOSS_REQUIRE_FULL_JD).toLowerCase() === 'true';
+  const eligible = (!requireFullJd || jdCheck.ok) && riskHits.length === 0
     && job.can_chat !== false && job.already_contacted !== true
     && legitimacy.tier !== 'Suspicious' && salaryClear;
-  const recommendation = !jdCheck.ok ? `缺少完整JD，不能评分入队：${jdCheck.reason}`
+  const recommendation = requireFullJd && !jdCheck.ok ? `缺少完整JD，不能评分入队：${jdCheck.reason}`
     : legitimacy.tier === 'Suspicious' ? '机会可信度较低，不自动发送'
     : !salaryClear ? '薪资不明确，只记录不自动发送'
     : total >= 4.5 ? '强烈推荐，优先发送'
@@ -412,14 +420,15 @@ async function main() {
   // 2026-09-23 用户确认：日常评分阈值标准 3.0，统一由 config/profile.yml boss.send_threshold 控制（--threshold 参数可临时覆盖）
   const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
   const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const recentSentCompanies = loadSentCompanyKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
+  const recentSentCompanies = loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
     // 评分规则的原始判定（发送日志 30 天去重覆盖前）——决定是否回写数据库
     result.db_eligible = Boolean(result.eligible);
-    if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
-    if (recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
+    if (sentJobs.has(uniqueJobKey(result)) || sentJobs.has(uniqueJobKeyLegacy(result))) result.eligible = false;
+    if (recentSentCompanies.has(uniqueCompanyPlacementKey(result))
+      || recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
     if (result.score < threshold) result.eligible = false;
     if (!args['dry-run']) result.report = writeReport(result);
     return result;
@@ -439,7 +448,7 @@ async function main() {
     .filter((job) => job.eligible)
     .sort((a, b) => b.score - a.score)
     .filter((job) => {
-      const key = uniqueCompanyKey(job);
+      const key = uniqueCompanyPlacementKey(job);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

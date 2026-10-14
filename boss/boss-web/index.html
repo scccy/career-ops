@@ -100,6 +100,9 @@
   .globalkw label{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
   .globalkw input{flex:1;min-width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
   .globalkw input:focus{border-color:var(--indigo)}
+  .globalkw textarea{flex:1;min-width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:12.5px/1.6 ui-monospace,Consolas,monospace;outline:none;background:#fff;color:var(--ink);resize:vertical}
+  .globalkw textarea:focus{border-color:var(--indigo)}
+  .globalkw.rules{background:#fff;border:1px solid var(--line)}
   /* 城市操作列表（表格） */
   .city-add{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
   .city-add input{padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;outline:none;background:#fff;color:var(--ink)}
@@ -332,7 +335,25 @@
       <label title="多个城市之间扫描的休息秒数；0 = 不休息（不建议）">城市间隔(秒) <input type="number" id="fCityGap" min="0" step="30" style="width:70px" /></label>
       <label title="逐张卡片之间的随机休息区间（毫秒），降低连续点击的风控信号">卡片间隔(ms) <input type="number" id="fCardGapMin" min="200" step="500" style="width:74px" /> ~ <input type="number" id="fCardGapMax" min="200" step="500" style="width:74px" /></label>
       <label title="单城扫描总量 = 该城每日配额 × 此系数（多扫部分用于过滤损耗）">预算系数 <input type="number" id="fBudgetFactor" min="1" step="0.1" style="width:60px" /></label>
+      <label title="勾选=抽取时丢弃 JD 偏短（<180字）或无「岗位职责/任职要求」结构词的岗位；取消勾选=不过滤，照常入库评分（可减少岗位流失）。改动对下一次扫描生效"><input type="checkbox" id="fRequireFullJd" /> JD完整性过滤</label>
       <span class="hint" style="margin:0">⚠ 间隔调小会提高风控风险；改动对下一次扫描生效</span>
+    </div>
+    <!-- 跳词与排除规则（2026-10-14 统一到控制台；提取/评分/排队三处共用一份 DB 配置） -->
+    <div class="globalkw rules">
+      <label title="提取阶段：命中卡片文本或 JD 即丢弃，岗位不入库（连详情都不读）。每行一条，按正则片段处理，例如 外包 / 某[^\n]{0,16}公司；留空 = 不跳词。改动对下一次扫描生效">提取跳词</label>
+      <textarea id="fSkipWords" rows="2" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不跳词"></textarea>
+    </div>
+    <div class="globalkw rules">
+      <label title="评分阶段：命中只作为风险信号参与评分，不影响入库。每行一条，按纯文本（子串）匹配；留空 = 不做风险词判断。改动对下一次评分生效">评分风险词</label>
+      <textarea id="fRiskKeywords" rows="2" spellcheck="false" placeholder="每行一条，纯文本；留空 = 不判断"></textarea>
+    </div>
+    <div class="globalkw rules">
+      <label title="排队阶段：标题命中即从发送队列剔除。每行一条，按正则片段处理；留空 = 不排除。改动对下一次排队生效">排队·标题排除</label>
+      <input id="fTitleExclude" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不排除" />
+    </div>
+    <div class="globalkw rules">
+      <label title="排队阶段：公司名命中即从发送队列剔除。每行一条，按正则片段处理；留空 = 不排除。改动对下一次排队生效">排队·公司排除</label>
+      <input id="fCompanyExclude" spellcheck="false" placeholder="每行一条，正则片段；留空 = 不排除" />
     </div>
     <div class="cfgbar">
       <label>评分阈值 <input type="number" id="fThreshold" step="0.1" min="0" /></label>
@@ -633,6 +654,14 @@ async function loadOverview(){
       document.getElementById('fCardGapMin').value=p.cardGapMinMs??3000;
       document.getElementById('fCardGapMax').value=p.cardGapMaxMs??6000;
       document.getElementById('fBudgetFactor').value=p.scanBudgetFactor??1.3;
+      document.getElementById('fRequireFullJd').checked=p.requireFullJd===true;
+      // 跳词与排除规则（DB boss_config；只在这里回填，避免把用户正在编辑的内容覆盖掉）
+      const rules=d.rules||{};
+      document.getElementById('fSkipWords').value=(rules.skipWords||[]).join('\n');
+      document.getElementById('fRiskKeywords').value=(rules.riskKeywords||[]).join('\n');
+      document.getElementById('fTitleExclude').value=(rules.titleExclude||[]).join('\n');
+      document.getElementById('fCompanyExclude').value=(rules.companyExclude||[]).join('\n');
+      rulesLoaded=true;
     }
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
@@ -720,6 +749,8 @@ function updateCityStats(d){
 // 城市表里的关键词/配额与统一词表都是裸 input：改了不点保存就只是"看起来改了"，
 // 60s 自动刷新又刻意不重建输入框，于是改动永远不会被发现已丢失。这里显式标脏。
 let cityDirty=false;
+// 是否已从 /api/overview 成功回填过跳词/排除规则——没回填过就不提交这四项，避免空值覆盖 DB
+let rulesLoaded=false;
 function markDirty(){
   cityDirty=true;
   document.getElementById('unsavedBar').classList.add('show');
@@ -754,6 +785,10 @@ async function postConfig(limits, kwByCity){
   const thr=Number(document.getElementById('fThreshold').value);
   const globalKw=document.getElementById('fGlobalKw').value.trim()
     .split(/[,，、\s]+/).filter(Boolean);
+  // 跳词/排除规则按**换行**拆分（不按逗号拆，否则 `某[^\n]{0,16}公司` 这类正则片段会被拆坏）；
+  // 评分风险词是纯文本匹配，逗号也接受。
+  const lines=(id)=>document.getElementById(id).value.split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean);
+  const riskLines=(id)=>document.getElementById(id).value.split(/[,，、\n\r]+/).map(s=>s.trim()).filter(Boolean);
   const kwGap=Number(document.getElementById('fKwGap').value);
   const cityGap=Number(document.getElementById('fCityGap').value);
   const gapMin=Number(document.getElementById('fCardGapMin').value);
@@ -761,18 +796,28 @@ async function postConfig(limits, kwByCity){
   const factor=Number(document.getElementById('fBudgetFactor').value);
   if([kwGap,cityGap,gapMin,gapMax,factor].some(v=>!Number.isFinite(v)||v<0)){alert('节奏参数非法：必须为 ≥ 0 的数字');return false;}
   if(gapMax<gapMin){alert('卡片间隔非法：最大值不能小于最小值');return false;}
+  const payload={
+    send_threshold:thr,
+    daily_limit_per_city:limits,
+    daily_extract_queries:globalKw,
+    daily_extract_keywords_by_city:kwByCity,
+    keyword_gap_seconds:kwGap,
+    city_gap_seconds:cityGap,
+    card_gap_min_ms:gapMin,
+    card_gap_max_ms:gapMax,
+    scan_budget_factor:factor,
+    require_full_jd:document.getElementById('fRequireFullJd').checked,
+  };
+  // 只有成功读到过规则才提交这四项：否则（例如刚打开页面 DB 就连不上）空输入框
+  // 会被当成「清空规则」写进 DB，把跳词表抹掉。
+  if(rulesLoaded){
+    payload.skip_words=lines('fSkipWords');
+    payload.risk_keywords=riskLines('fRiskKeywords');
+    payload.title_exclude=lines('fTitleExclude');
+    payload.company_exclude=lines('fCompanyExclude');
+  }
   const r=await fetch('/api/quota',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({
-      send_threshold:thr,
-      daily_limit_per_city:limits,
-      daily_extract_queries:globalKw,
-      daily_extract_keywords_by_city:kwByCity,
-      keyword_gap_seconds:kwGap,
-      city_gap_seconds:cityGap,
-      card_gap_min_ms:gapMin,
-      card_gap_max_ms:gapMax,
-      scan_budget_factor:factor,
-    })});
+    body:JSON.stringify(payload)});
   const d=await r.json();
   if(!d.ok){alert('保存失败：'+(d.error||''));return false;}
   document.getElementById('quotaSaved').textContent='已保存 ✓';
@@ -1162,7 +1207,7 @@ document.getElementById('cityBody').addEventListener('input',(e)=>{
   const tr=t.closest('tr'); if(tr) tr.classList.add('dirty-row');
   markDirty();
 });
-['fGlobalKw','fThreshold','fKwGap','fCityGap','fCardGapMin','fCardGapMax','fBudgetFactor'].forEach(id=>{
+['fGlobalKw','fThreshold','fKwGap','fCityGap','fCardGapMin','fCardGapMax','fBudgetFactor','fRequireFullJd','fSkipWords','fRiskKeywords','fTitleExclude','fCompanyExclude'].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener('input',()=>{ el.classList.add('dirty'); markDirty(); });
 });

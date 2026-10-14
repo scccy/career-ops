@@ -540,7 +540,7 @@ async function main() {
       appendSentLog({ job, status: 'sent', message: job.greeting });
       appendApplication({ job, score: trackerScore(job.score), status: 'Applied', report: job.report || '—', notes: 'BOSS Chrome 自动打招呼' });
       console.log(`sent: ${job.company} - ${job.title}`);
-      results.push({ company: job.company, title: job.title, status: 'sent' });
+      results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: 'sent' });
     } catch (err) {
       const closed = /^JOB_CLOSED/.test(err.message || '');
       const autoGreeted = /^AUTO_GREETED/.test(err.message || '');
@@ -561,12 +561,12 @@ async function main() {
           notes: `BOSS 继续沟通场景：默认打招呼语已发送；自定义话术未验证（${detail}）`,
         });
         console.log(`auto_sent_custom_unverified: ${job.company} - ${job.title}: ${detail}`);
-        results.push({ company: job.company, title: job.title, status: 'auto_sent', customVerified: false, error: detail });
+        results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: 'auto_sent', customVerified: false, error: detail });
         continue;
       }
       appendSentLog({ job, status: closed ? 'closed' : 'failed', message: job.greeting, error: err.message });
       console.error(`${closed ? 'closed' : 'failed'}: ${job.company} - ${job.title}: ${err.message}`);
-      results.push({ company: job.company, title: job.title, status: closed ? 'closed' : 'failed', error: err.message });
+      results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: closed ? 'closed' : 'failed', error: err.message });
       if (!closed) break;
     }
   }
@@ -575,7 +575,7 @@ async function main() {
   // 避免每次运行都反复重试、白占一个配额名额
   const closedHashes = results
     .filter((r) => r.status === 'closed')
-    .map((r) => jobs.find((j) => j.company === r.company && j.title === r.title)?.key_hash)
+    .map((r) => r.keyHash || jobs.find((j) => j.company === r.company && j.title === r.title && j.city === r.city)?.key_hash)
     .filter(Boolean);
   if (closedHashes.length) {
     try {

@@ -7,6 +7,9 @@
 //
 // 存储的键（即控制台「每日城市操作流程控制」管理的全部字段）：
 //   send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city
+//   keyword_gap_seconds, city_gap_seconds, card_gap_min_ms, card_gap_max_ms, scan_budget_factor,
+//   require_full_jd
+//   skip_words / risk_keywords / title_exclude / company_exclude（跳词与排除规则，见 skip-rules.mjs）
 //
 // 注意：daily_extract_cities / jd_focus_terms / greeting_style 等 boss.* 键不属于本控件，仍留 profile.yml。
 
@@ -15,6 +18,13 @@ import { readFileSync, existsSync } from 'node:fs';
 import * as yaml from 'js-yaml';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  DEFAULT_SKIP_WORDS,
+  DEFAULT_RISK_KEYWORDS,
+  DEFAULT_TITLE_EXCLUDE,
+  DEFAULT_COMPANY_EXCLUDE,
+  resolveWordList,
+} from './skip-rules.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROFILE = join(__dirname, '..', 'config', 'profile.yml');
@@ -47,6 +57,20 @@ const FALLBACK = {
   card_gap_min_ms: 3000,
   card_gap_max_ms: 6000,
   scan_budget_factor: 1.3,
+  // JD 完整性门禁（2026-10-14）：true = 抽取时 <180 字或无「岗位职责/任职要求」结构词的岗位直接丢弃，
+  // 评分端同样以 JD 完整为可发送前提；false = 关闭该门禁（岗位照常入库评分，jd_detail 仍如实记录原始判定）。
+  // 默认 false（用户指令 2026-10-14：门禁默认关，避免误伤大量岗位；控制台勾选「JD完整性过滤」可开启）。
+  require_full_jd: false,
+  // 跳词 / 排除规则（2026-10-14 用户要求统一到控制台，见 skip-rules.mjs 的默认表）：
+  //   skip_words      提取阶段命中即丢弃（岗位不入库）
+  //   risk_keywords   评分阶段命中只作风险信号，不影响入库
+  //   title_exclude   排队阶段标题命中即剔除
+  //   company_exclude 排队阶段公司命中即剔除
+  // 空数组是合法值 = 该规则不启用；缺省/非数组才回落到默认表。
+  skip_words: DEFAULT_SKIP_WORDS,
+  risk_keywords: DEFAULT_RISK_KEYWORDS,
+  title_exclude: DEFAULT_TITLE_EXCLUDE,
+  company_exclude: DEFAULT_COMPANY_EXCLUDE,
 };
 
 function numOr(v, fallback, min) {
@@ -75,6 +99,13 @@ function normalize(v = {}) {
     card_gap_min_ms: numOr(v.card_gap_min_ms, FALLBACK.card_gap_min_ms, 200),
     card_gap_max_ms: numOr(v.card_gap_max_ms, FALLBACK.card_gap_max_ms, 200),
     scan_budget_factor: numOr(v.scan_budget_factor, FALLBACK.scan_budget_factor, 1),
+    // 仅显式 true 才开启（缺省/非法值一律视为 false，门禁默认关）
+    require_full_jd: v.require_full_jd === true ? true : false,
+    // 跳词/排除规则：数组或「逗号/换行分隔的字符串」都接受；显式空数组 = 该规则不启用
+    skip_words: resolveWordList(v.skip_words, FALLBACK.skip_words),
+    risk_keywords: resolveWordList(v.risk_keywords, FALLBACK.risk_keywords),
+    title_exclude: resolveWordList(v.title_exclude, FALLBACK.title_exclude),
+    company_exclude: resolveWordList(v.company_exclude, FALLBACK.company_exclude),
   };
   if (out.card_gap_max_ms < out.card_gap_min_ms) out.card_gap_max_ms = out.card_gap_min_ms;
   return out;

@@ -86,7 +86,7 @@ async function extractOne({ city, code, query, companyLimit, maxCards, dryRun })
   console.log(`=== [${city}] ${dryRun ? '（dry-run 预演）' : '提取中'}（query=${query}, city=${code}, company-limit=${companyLimit}, max-cards=${maxCards}）===`);
   if (dryRun) {
     console.log(`[dry-run] 将导航：${url}`);
-    console.log(`[dry-run] 将执行：node boss/boss-chrome-extract.mjs --company-limit ${companyLimit} --max-cards ${maxCards} --click-gap-ms 1800 --append`);
+    console.log(`[dry-run] 将执行：node boss/boss-chrome-extract.mjs --city ${city} --company-limit ${companyLimit} --max-cards ${maxCards} --click-gap-ms 1800 --append`);
     return;
   }
   const out = await gotoUrl(url);
@@ -96,7 +96,7 @@ async function extractOne({ city, code, query, companyLimit, maxCards, dryRun })
   await new Promise((resolve, reject) => {
     const proc = spawn(
       process.execPath,
-      ['boss/boss-chrome-extract.mjs', '--company-limit', String(companyLimit), '--max-cards', String(maxCards), '--click-gap-ms', '1800', '--append'],
+      ['boss/boss-chrome-extract.mjs', '--city', city, '--company-limit', String(companyLimit), '--max-cards', String(maxCards), '--click-gap-ms', '1800', '--append'],
       { cwd: ROOT, stdio: 'inherit' },
     );
     proc.on('close', (code2) => (code2 === 0 ? resolve() : reject(new Error(`boss-chrome-extract.mjs 退出码 ${code2}`))));

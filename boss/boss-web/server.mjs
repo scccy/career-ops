@@ -11,6 +11,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import mysql from 'mysql2/promise';
 import * as yaml from 'js-yaml';
 import { loadBossControl, saveBossControl } from '../boss-config-db.mjs';
+import { splitWordList, validateWordRegex } from '../skip-rules.mjs';
 import { ensureCandidatesSchemaReady, urlPathname as sharedUrlPathname } from '../boss-common.mjs';
 import { readSendHistory as readSharedSendHistory, selectSendableJobs } from '../boss-send-eligibility.mjs';
 
@@ -58,6 +59,13 @@ async function loadBossConfig() {
       Number.isFinite(Number(c.scan_budget_factor)) && Number(c.scan_budget_factor) > 0
         ? Number(c.scan_budget_factor)
         : 1.3,
+    // JD 完整性门禁（true=抽取时丢弃 <180 字/无结构词的岗位；false=不过滤，照常入库评分）
+    requireFullJd: c.require_full_jd === false ? false : true,
+    // 跳词 / 排除规则（DB boss_config，控制台可编辑；默认表见 boss/skip-rules.mjs）
+    skipWords: Array.isArray(c.skip_words) ? c.skip_words : [],
+    riskKeywords: Array.isArray(c.risk_keywords) ? c.risk_keywords : [],
+    titleExclude: Array.isArray(c.title_exclude) ? c.title_exclude : [],
+    companyExclude: Array.isArray(c.company_exclude) ? c.company_exclude : [],
   };
 }
 
@@ -68,6 +76,7 @@ async function saveBossConfig(body = {}) {
     send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city,
     platform_daily_limit,
     keyword_gap_seconds, city_gap_seconds, card_gap_min_ms, card_gap_max_ms, scan_budget_factor,
+    require_full_jd,
   } = body;
   const partial = {};
   if (send_threshold != null) {
@@ -93,6 +102,20 @@ async function saveBossConfig(body = {}) {
       if (!Number.isFinite(n) || n < 0) throw new Error('节奏参数非法：必须为 ≥ 0 的数字');
       partial[k] = n;
     }
+  }
+  // JD 完整性门禁开关：布尔透传，未传保持现值
+  if (require_full_jd != null) partial.require_full_jd = Boolean(require_full_jd);
+  // 跳词 / 排除规则：接受数组或分隔符字符串；正则类字段在保存时就校验，
+  // 非法正则直接报错，而不是等到扫描时静默回落默认词表（2026-10-14）
+  for (const key of ['skip_words', 'risk_keywords', 'title_exclude', 'company_exclude']) {
+    if (body[key] == null) continue;
+    const words = splitWordList(body[key]);
+    if (words === null) throw new Error(`${key} 非法：需要数组或「逗号/换行分隔」的字符串`);
+    if (key !== 'risk_keywords') {
+      const bad = validateWordRegex(words);
+      if (bad) throw new Error(`${key} 正则非法：${bad}`);
+    }
+    partial[key] = words;
   }
   if (partial.card_gap_min_ms != null && partial.card_gap_max_ms != null
       && partial.card_gap_max_ms < partial.card_gap_min_ms) {
@@ -238,6 +261,13 @@ async function getOverview() {
       cardGapMinMs: cfg.cardGapMinMs,
       cardGapMaxMs: cfg.cardGapMaxMs,
       scanBudgetFactor: cfg.scanBudgetFactor,
+      requireFullJd: cfg.requireFullJd,
+    },
+    rules: {
+      skipWords: cfg.skipWords,
+      riskKeywords: cfg.riskKeywords,
+      titleExclude: cfg.titleExclude,
+      companyExclude: cfg.companyExclude,
     },
     total: total,
     greeted: greeted,
@@ -469,6 +499,7 @@ async function pacingEnv() {
     BOSS_CARD_GAP_MIN_MS: String(cfg.cardGapMinMs),
     BOSS_CARD_GAP_MAX_MS: String(cfg.cardGapMaxMs),
     BOSS_SCAN_BUDGET_FACTOR: String(cfg.scanBudgetFactor),
+    BOSS_REQUIRE_FULL_JD: cfg.requireFullJd ? 'true' : 'false',
   };
 }
 
@@ -774,8 +805,9 @@ const server = http.createServer(async (req, res) => {
         return json({ ok: false, needConfirm: true, cmd: RUN_ALLOWED[key],
           message: '此命令会真实向 HR 发送打招呼，不可撤销。确认后才会执行。' }, 409);
       }
-      // 扫描类命令注入节奏配置（关键词/城市/卡片间隔、预算系数），其余命令无需
-      const SCAN_KEYS = new Set(['scan', 'scan_all']);
+      // 扫描类命令注入节奏配置（关键词/城市/卡片间隔、预算系数）；score 也注入——
+      // BOSS_REQUIRE_FULL_JD 开关同时控制评分端的 JD 完整性资格闸门，保持两端一致。
+      const SCAN_KEYS = new Set(['scan', 'scan_all', 'score']);
       return json({ ok: true, job: publicJob(startRun(key, SCAN_KEYS.has(key) ? await pacingEnv() : {})) });
     }
     if (url.pathname === '/api/run' && req.method === 'GET') {

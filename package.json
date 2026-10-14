@@ -25,6 +25,7 @@
     "boss:fill": "node boss/boss-fill.mjs",
     "boss:review": "node boss/boss-review.mjs",
     "boss:apply": "node boss/boss-apply.mjs",
+    "boss:sent-log:backfill-city": "node boss/backfill-sent-log-city.mjs",
     "boss:chrome:start": "node boss/boss-chrome-start.mjs",
     "or": "node openrouter-runner.mjs",
     "or:scan": "node openrouter-runner.mjs scan",

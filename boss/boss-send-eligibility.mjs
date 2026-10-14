@@ -3,10 +3,12 @@
 import {
   countSentCompaniesToday,
   countSentCompaniesTodayByCity,
-  loadSentCompanyKeys,
+  loadSentPlacementKeys,
   loadSentKeys,
   uniqueCompanyKey,
+  uniqueCompanyPlacementKey,
   uniqueJobKey,
+  uniqueJobKeyLegacy,
 } from './boss-common.mjs';
 
 export const RECENT_CONTACT_DEDUPE_DAYS = 30;
@@ -14,7 +16,8 @@ export const RECENT_CONTACT_DEDUPE_DAYS = 30;
 export function readSendHistory(urlCity = new Map()) {
   return {
     sentJobs: loadSentKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
-    sentCompanies: loadSentCompanyKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
+    // 发送去重按公司+base 城市；旧日志无城市时由 loadSentPlacementKeys 返回公司级兼容键。
+    sentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
     todaySent: countSentCompaniesToday(),
     todayByCity: countSentCompaniesTodayByCity({ urlCity }),
   };
@@ -103,10 +106,18 @@ export function selectSendableJobs(candidates, {
     if (!Number.isFinite(score)) { markBlocked(job, 'missing_score', 'missingScore'); continue; }
     if (Number.isFinite(Number(threshold)) && score < Number(threshold)) { markBlocked(job, 'below_threshold', 'belowThreshold'); continue; }
     const role = uniqueJobKey(job);
+    const legacyRole = uniqueJobKeyLegacy(job);
     const company = uniqueCompanyKey(job);
-    if (sendHistory.sentJobs.has(role)) { markBlocked(job, 'recent_role', 'alreadySent'); continue; }
-    if (sendHistory.sentCompanies.has(company)) { markBlocked(job, 'recent_company', 'recentCompany'); continue; }
-    if (seenCompanies.has(company)) { markBlocked(job, 'duplicate_company_in_batch', 'duplicateCompanyInBatch'); continue; }
+    const companyPlacement = uniqueCompanyPlacementKey(job);
+    if (sendHistory.sentJobs.has(role) || sendHistory.sentJobs.has(legacyRole)) {
+      markBlocked(job, 'recent_role', 'alreadySent'); continue;
+    }
+    if (sendHistory.sentCompanies.has(companyPlacement) || sendHistory.sentCompanies.has(company)) {
+      markBlocked(job, 'recent_company', 'recentCompany'); continue;
+    }
+    if (seenCompanies.has(companyPlacement)) {
+      markBlocked(job, 'duplicate_company_in_batch', 'duplicateCompanyInBatch'); continue;
+    }
     const city = String(job.city || '').split('·')[0];
     if (cityLimits && !remaining.has(city)) { markBlocked(job, 'city_not_configured', 'unconfiguredCity'); continue; }
     if (remaining.has(city)) {
@@ -114,7 +125,7 @@ export function selectSendableJobs(candidates, {
     }
     if (selected.length >= remainingToday) { markBlocked(job, 'daily_limit', 'dailyLimit'); continue; }
     if (remaining.has(city)) remaining.set(city, remaining.get(city) - 1);
-    seenCompanies.add(company);
+    seenCompanies.add(companyPlacement);
     selected.push(job);
     selectedKeys.add(key);
     reasonsByKey[key] = 'sendable';
