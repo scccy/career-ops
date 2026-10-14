@@ -196,6 +196,7 @@
   #jobsTable tbody tr:has(input:checked){background:var(--indigo-soft)}
   #cityBody tr:hover{background:#fafbfd}
   .salary-mini{display:block;font-size:11px;color:var(--muted)}
+  .why{font-size:11px;color:var(--muted);white-space:nowrap;cursor:help}
   .st{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
   .st.ok{background:var(--green-soft);color:var(--green-ink)}
   /* 已发 = 已完成的中性态，不再用红（红专留给危险动作与需人工确认） */
@@ -447,7 +448,7 @@
         <button class="btn" id="btnSearch">查询</button>
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
-      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。<b>「评分」</b>：<code>有分数</code>=通过发送资格、已回写分数；<code>缺少分数</code>=<code>score IS NULL</code>（未通过发送资格判定，评分器仍写入了推荐语，可在候选详情里看原因）——选它时会自动把「发送资格」放开，否则永远是空列表。点「未评分」卡片可直接查看这批岗位。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。<b>「评分」</b>：<code>有分数</code>=通过发送资格、已回写分数；<code>缺少分数</code>=<code>score IS NULL</code>（评分器跑过、但判定为<b>不可发送</b>——按设计不回写分数，分数列「—」旁会直接标出原因，如「机会可信度较低 / 薪资不明确」，鼠标悬停看完整句子）——选它时会自动把「发送资格」放开，否则永远是空列表。点「未评分」卡片可直接查看这批岗位。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
       <div class="bulkbar idle" id="bulkbar">
         <span class="lbl">批量操作</span>
         <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
@@ -970,7 +971,7 @@ async function loadJobs(page){
         <td>${esc(m.title||'—')}</td>
         <td>${esc(m.city||'—')}</td>
         <td>${esc(m.salary||'—')}${salK}</td>
-        <td>${m.score!=null?m.score:'—'}</td>
+        <td>${m.score!=null?m.score:`<span class="why" title="${esc(m.recommendation||(m.scoreEligible===0?'未通过发送资格判定':'尚未跑 boss:score'))}">— ${esc(shortWhy(m.recommendation))}</span>`}</td>
         <td>${st}</td>
         <td>${link}</td>
       </tr>`;
@@ -1001,6 +1002,14 @@ function updateSelInfo(){
   const bar=document.getElementById('bulkbar');
   if(bar) bar.classList.toggle('idle', !on);
 }
+// 无分数岗位的原因短标签：评分器写的 recommendation 太长（如「机会可信度较低，不自动发送」），
+// 取第一段显示在分数列旁边，完整原因放 title（鼠标悬停可看）。
+function shortWhy(rec){
+  const t=String(rec||'').trim();
+  if(!t) return '未评分';
+  return t.split(/[，,（(]/)[0].slice(0,12);
+}
+
 function eligibilityBadge(m){
   const state = m.contactState || '';
   if(m.manualExcluded) return '<span class="st pend">暂不发送</span>';

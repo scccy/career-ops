@@ -403,7 +403,9 @@ async function getJobs(sp) {
     company: 'company ASC',
   };
   const rows = await q(
-    `SELECT key_hash, company, title, salary, salary_min, salary_max, city, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at
+    `SELECT key_hash, company, title, salary, salary_min, salary_max, city, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at,
+            json_unquote(json_extract(raw,'$.recommendation')) AS recommendation,
+            json_unquote(json_extract(raw,'$.score_eligible')) AS score_eligible
      FROM boss_jobs ${whereSql}
      ORDER BY ${orderMap[sort] || orderMap.score_desc}
      LIMIT ? OFFSET ?`,
@@ -433,6 +435,10 @@ async function getJobs(sp) {
       manualExclusionReason: r.manual_exclusion_reason || '',
       eligibility: scopedSelection.reasonsByKey[String(r.key_hash)] || 'not_candidate',
       score: r.score == null ? null : Number(r.score),
+      // 无分数 = 评分判定「不可发送」后按设计不回写 score。把评分器写下的原因带出来，
+      // 列表里就能显示"为什么没有分数"，而不是只看到一个「—」（2026-10-14 用户提问）。
+      recommendation: r.recommendation || '',
+      scoreEligible: r.score_eligible == null ? null : Number(r.score_eligible),
       status: r.status,
       scanned_at: r.scanned_at,
     })),
