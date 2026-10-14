@@ -41,7 +41,7 @@ export const CARD_LOADER_DEFAULTS = Object.freeze({
   initialTimeoutMs: 20000,
 });
 
-const EMPTY_STATE = Object.freeze({ total: 0, pending: 0, pos: -1, y: 0, vh: 0, sh: 0 });
+const EMPTY_STATE = Object.freeze({ total: 0, pending: 0, pos: -1, y: 0, vh: 0, sh: 0, hidden: false });
 
 // 空结果页文案：命中时可以不用等满首屏超时。
 const NO_RESULT_RE = /没有找到|未找到|暂无(符合|相关)|换个关键词/;
@@ -71,6 +71,61 @@ export function createYieldStreak(limit = 40) {
     /** 是否已触发止损。 */
     get exhausted() { return cap > 0 && streak >= cap; },
   };
+}
+
+/**
+ * 确保 BOSS 标签页在前台（可见）。
+ *
+ * 2026-10-14 实测：标签页在后台时（`document.hidden === true`）BOSS 的无限滚动**不追加新卡片**——
+ * 一直滚到底也只有首屏 15 张，扫描器会误判「列表已到底」。把标签页切到前台后，下一批卡片
+ * 会在几秒内追加（实测 15 → 30）。所以每次扫描前先把标签页切到前台并轮询可见性。
+ *
+ * 切前台由调用方注入（CDP `Page.bringToFront` + `/json/activate`），本函数只负责「读隐藏状态、
+ * 轮询等它变可见」，因此可以在测试里用一个假页面验证。
+ *
+ * @param {object} deps
+ * @param {(js: string, fallback?: any) => Promise<any>} deps.execJson
+ * @param {() => Promise<any>} [deps.bringToFront]
+ * @param {(ms: number) => Promise<void>} [deps.sleep]
+ * @param {() => number} [deps.now]
+ * @param {(msg: string) => void} [deps.log]
+ * @param {number} [deps.timeoutMs=8000] 等待可见的上限
+ * @param {number} [deps.pollMs=1000] 轮询间隔
+ * @returns {Promise<{hidden: boolean, broughtToFront: boolean}>} hidden=true 表示始终没等到可见
+ */
+export async function ensureTabVisible({
+  execJson,
+  bringToFront = null,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  now = () => Date.now(),
+  log = () => {},
+  timeoutMs = 8000,
+  pollMs = 1000,
+} = {}) {
+  const readHidden = async () => {
+    const s = await execJson('JSON.stringify({ hidden: document.hidden === true })', { hidden: false });
+    return s?.hidden === true;
+  };
+
+  if (!(await readHidden())) return { hidden: false, broughtToFront: false };
+  if (!bringToFront) {
+    log('[前台] ⚠ BOSS 标签页在后台，且当前通道无法切前台——后台页不会触发无限滚动，本次可能只看到首屏');
+    return { hidden: true, broughtToFront: false };
+  }
+
+  log('[前台] BOSS 标签页在后台（后台页不触发无限滚动）→ 切到前台');
+  await bringToFront();
+
+  const deadline = now() + timeoutMs;
+  while (now() < deadline) {
+    await sleep(pollMs);
+    if (!(await readHidden())) {
+      log('[前台] 标签页已可见，继续扫描');
+      return { hidden: false, broughtToFront: true };
+    }
+  }
+  log(`[前台] ⚠ 切前台后 ${Math.round(timeoutMs / 1000)}s 仍不可见（窗口被最小化/遮挡？）——本次可能只看到首屏`);
+  return { hidden: true, broughtToFront: true };
 }
 
 /**
@@ -119,6 +174,7 @@ export function createCardLoader({
     y: window.scrollY || window.pageYOffset || 0,
     vh: window.innerHeight || 0,
     sh: document.body.scrollHeight || 0,
+    hidden: document.hidden === true,
   });
 })()`,
       { ...EMPTY_STATE },
@@ -187,6 +243,10 @@ export function createCardLoader({
         if (stagnant >= cfg.stagnantLimit) {
           exhaustedFlag.value = true;
           log(`[补货] 连续 ${cfg.stagnantLimit} 次滚到页底仍无新卡片，判定列表已到底`);
+          if (state.hidden) {
+            log('[补货] ⚠ 但 BOSS 标签页当前在后台（document.hidden=true）——实测后台页不会触发无限滚动，'
+              + '「到底」很可能是假的；把 BOSS 窗口切到前台可恢复加载');
+          }
           return { state: after, exhausted: true };
         }
       }

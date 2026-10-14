@@ -13,7 +13,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCardLoader, createYieldStreak, CARD_SEL } from '../boss/boss-card-loader.mjs';
+import { createCardLoader, createYieldStreak, ensureTabVisible, CARD_SEL } from '../boss/boss-card-loader.mjs';
 
 // ── 假 BOSS 搜索页 ────────────────────────────────────────────────────────────
 // 卡片分批追加；只有「滚到页底」才触发下一批，而且要连续触底 appendAfterBottomHits 次
@@ -50,7 +50,7 @@ class FakeBossPage {
 
   state() {
     const pos = this.cards.findIndex((c) => !c.extracted);
-    return { total: this.cards.length, pending: this.pending(), pos, y: this.y, vh: this.viewport, sh: this.sh };
+    return { total: this.cards.length, pending: this.pending(), pos, y: this.y, vh: this.viewport, sh: this.sh, hidden: false };
   }
 
   /** 模拟「这一张卡片已经被处理掉」（真实实现里 peek 会打 dataset.bossExtracted）。 */
@@ -99,6 +99,7 @@ function makeLoader(page, config = BIG) {
     },
     execJson: async (js) => {
       assert.ok(js.includes(CARD_SEL), `快照脚本必须查 ${CARD_SEL}`);
+      assert.ok(js.includes('document.hidden'), '快照脚本必须带 document.hidden（后台标签页不触发懒加载）');
       return page.state();
     },
     assertNotBlocked: async () => ({ body: '' }),
@@ -269,6 +270,69 @@ test('产出止损：limit=0 关闭；非法值回落 40', () => {
   assert.equal(fallback.limit, 40);
   const negative = createYieldStreak(-1);
   assert.equal(negative.exhausted, false, '负数视为关闭');
+});
+
+// ── 前台可见性（后台标签页不触发 BOSS 无限滚动）─────────────────────────────
+test('前台可见性：已经可见时不做任何操作', async () => {
+  let called = 0;
+  const result = await ensureTabVisible({
+    execJson: async () => ({ hidden: false }),
+    bringToFront: async () => { called += 1; },
+    sleep: async () => {},
+    now: () => 0,
+  });
+  assert.equal(called, 0, '已可见就不该切前台');
+  assert.equal(result.hidden, false);
+  assert.equal(result.broughtToFront, false);
+});
+
+test('前台可见性：后台标签页先切前台，等到可见再继续', async () => {
+  let hidden = true;
+  let clock = 0;
+  const order = [];
+  const result = await ensureTabVisible({
+    execJson: async (js) => {
+      assert.ok(js.includes('document.hidden'), '可见性探测必须读 document.hidden');
+      return { hidden };
+    },
+    bringToFront: async () => { order.push('front'); hidden = false; },
+    sleep: async (ms) => { clock += ms; order.push(`sleep${ms}`); },
+    now: () => clock,
+    log: () => {},
+    timeoutMs: 5000,
+    pollMs: 1000,
+  });
+  assert.deepEqual(order, ['front', 'sleep1000'], '应当先切前台、再轮询一次就发现可见');
+  assert.equal(result.hidden, false);
+  assert.equal(result.broughtToFront, true);
+});
+
+test('前台可见性：切了仍不可见 → 超时并如实返回 hidden=true（调用方据此告警）', async () => {
+  let clock = 0;
+  let called = 0;
+  const result = await ensureTabVisible({
+    execJson: async () => ({ hidden: true }),
+    bringToFront: async () => { called += 1; },
+    sleep: async (ms) => { clock += ms; },
+    now: () => clock,
+    log: () => {},
+    timeoutMs: 3000,
+    pollMs: 1000,
+  });
+  assert.equal(called, 1, '只切一次，不反复抢焦点');
+  assert.equal(result.hidden, true);
+  assert.equal(result.broughtToFront, true);
+});
+
+test('前台可见性：没有切前台通道时只告警、不抛错', async () => {
+  const result = await ensureTabVisible({
+    execJson: async () => ({ hidden: true }),
+    bringToFront: null,
+    sleep: async () => {},
+    now: () => 0,
+  });
+  assert.equal(result.hidden, true);
+  assert.equal(result.broughtToFront, false);
 });
 
 // ── 主循环契约：与 boss-chrome-extract.mjs 相同的用法 ────────────────────────

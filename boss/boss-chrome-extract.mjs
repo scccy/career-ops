@@ -15,8 +15,8 @@ import {
   mergeIntoCandidates,
   saveCandidates,
 } from './boss-common.mjs';
-import { cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
-import { createCardLoader, createYieldStreak, CARD_SEL } from './boss-card-loader.mjs';
+import { cdpExecJs, closeAllConnections, bringToFront } from './boss-cdp.mjs';
+import { createCardLoader, createYieldStreak, ensureTabVisible, CARD_SEL } from './boss-card-loader.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import { buildWordRegex, NEVER_MATCH, resolveExtractSkipWords } from './skip-rules.mjs';
 
@@ -220,6 +220,10 @@ const NO_YIELD_CLICKS = (() => {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : 40;
 })();
+// 扫描前把 BOSS 标签页切到前台（2026-10-14）：后台标签页不会触发 BOSS 的无限滚动，
+// 会让每个关键词只看到首屏 15 张、并误判「列表已到底」。BOSS_FORCE_FRONT=0 可关闭。
+const FORCE_FRONT = !(process.env.BOSS_FORCE_FRONT === '0'
+  || String(process.env.BOSS_FORCE_FRONT).toLowerCase() === 'false');
 // 点击前比对库内已有岗位：已入库则跳过（不点卡片、不计入名额）。默认开启；
 // BOSS_SKIP_KNOWN=0/false 关闭；DB 不可用时自动降级为不跳过。
 const SKIP_KNOWN = !(process.env.BOSS_SKIP_KNOWN === '0' || String(process.env.BOSS_SKIP_KNOWN).toLowerCase() === 'false');
@@ -288,10 +292,19 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
     config: cardLoaderConfig(clickGapMs),
   });
 
+  // 后台标签页不会触发 BOSS 的无限滚动（2026-10-14 实测：页面 hidden 时滚到底也只有首屏 15 张），
+  // 先确保标签页可见，否则后面的「列表已到底」全是假的。
+  if (FORCE_FRONT) {
+    await ensureTabVisible({ execJson, bringToFront, log: (m) => console.error(m) });
+  }
+
   const first = await loader.waitForFirstCards();
   if (!first.total) {
     console.error('[载入] 首屏没有出现任何岗位卡片，结束本次扫描');
     return { jobs, scannedCards: 0, skippedKnown, dropReasons };
+  }
+  if (first.hidden) {
+    console.error('[载入] ⚠ BOSS 标签页在后台：无限滚动不会追加卡片，本次可能只有首屏这些卡片');
   }
   console.error(`[载入] 首屏 ${first.total} 张卡片（待处理 ${first.pending}），之后按需增量加载`);
 
