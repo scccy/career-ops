@@ -54,6 +54,12 @@ test('扫描预算字段：表单 → 载荷 → API → 子进程环境变量 �
   assert.match(serverSrc, /BOSS_KNOWN_STREAK_LIMIT:\s*String\(cfg\.knownStreakLimit\)/, 'pacingEnv 必须注入重复止损');
 });
 
+test('阻止原因表要认识 title_excluded，否则列表里显示原始代码', () => {
+  // 发送预检新增的硬闸（2026-10-15）：命中「排队·标题排除」的岗位会被标 title_excluded。
+  // 前端没有这个 label 时会落到默认的「候选池（未通过预检）」，用户看不出是校招/实习岗被拦。
+  assert.match(html, /title_excluded:\s*\[/, 'index.html 的 labels 表必须含 title_excluded');
+});
+
 test('扫描预算字段：0 是合法值（= 关闭），非法值才回落默认 135 / 60', () => {
   const fallback = normalize({});
   assert.equal(fallback.max_dom_cards, 135);

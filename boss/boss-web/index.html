@@ -1033,6 +1033,7 @@ function eligibilityBadge(m){
     recent_company:['30天内同公司已发','pend'], duplicate_company_in_batch:['同批次已有该公司','pend'],
     city_quota:['城市配额已满','pend'], daily_limit:['当日发送上限','pend'],
     manual_excluded:['暂不发送','pend'], closed:['职位已关闭','no'], city_not_configured:['城市未配置','pend'],
+    title_excluded:['校招/实习岗（标题排除）','pend'],
   };
   const [label,kind]=labels[m.eligibility]||['候选池（未通过预检）','pend'];
   return `<span class="st ${kind}">${label}</span>`;

@@ -173,6 +173,7 @@ async function getSendabilitySnapshot(cfg) {
     threshold: cfg.threshold,
     cityLimits: cfg.dailyLimitPerCity,
     platformLimit: cfg.platformDailyLimit,
+    titleExclude: cfg.titleExclude,
     history,
   });
   return { rows: candidates, urlCity, history, selection };
@@ -213,6 +214,7 @@ async function getOverview() {
       threshold: cfg.threshold,
       cityLimits: cfg.dailyLimitPerCity,
       platformLimit: cfg.platformDailyLimit,
+      titleExclude: cfg.titleExclude,
       history: snapshot.history,
     }).jobs.length;
   }
@@ -383,6 +385,7 @@ async function getJobs(sp) {
       threshold: cfg.threshold,
       cityLimits: cfg.dailyLimitPerCity,
       platformLimit: cfg.platformDailyLimit,
+      titleExclude: cfg.titleExclude,
       history: snapshot.history,
     })
     : snapshot.selection;
@@ -635,6 +638,7 @@ const server = http.createServer(async (req, res) => {
               threshold: cfgBulk.threshold,
               cityLimits: cfgBulk.dailyLimitPerCity,
               platformLimit: cfgBulk.platformDailyLimit,
+              titleExclude: cfgBulk.titleExclude,
               history: snapshot.history,
             })
             : snapshot.selection;
@@ -708,6 +712,7 @@ const server = http.createServer(async (req, res) => {
           threshold: cfg.threshold,
           cityLimits: cfg.dailyLimitPerCity,
           platformLimit: cfg.platformDailyLimit,
+          titleExclude: cfg.titleExclude,
           history: snapshot.history,
         });
         const jobs = citySelection.jobs;
@@ -786,6 +791,7 @@ const server = http.createServer(async (req, res) => {
           threshold: cfg.threshold,
           cityLimits: cfg.dailyLimitPerCity,
           platformLimit: cfg.platformDailyLimit,
+          titleExclude: cfg.titleExclude,
           history: snapshot.history,
         });
         const jobs = selection.jobs;

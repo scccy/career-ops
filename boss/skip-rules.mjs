@@ -203,3 +203,38 @@ export async function resolveExtractSkipWords({ envValue, loadControl } = {}) {
   }
   return { words: [...DEFAULT_SKIP_WORDS], source: '内置默认' };
 }
+
+/**
+ * 提取阶段「标题排除」的解析：BOSS_TITLE_EXCLUDE 环境变量 > DB 配置 > 内置默认。
+ *
+ * 2026-10-15 用户要求：校招/应届/实习…这些岗位不要等到"排队/人工点一下"才剔除，
+ * 扫描时就按**卡片标题**丢掉（不点击、不入库）。词表沿用控制台「排队·标题排除」
+ * （DB `title_exclude`），所以配置处仍然只有一处，取空数组即等于关闭。
+ *
+ * 与 skip_words 的差别：skip_words 比对卡片文本 + JD 正文，要点了才丢；本规则只比对标题，
+ * 在点击前就能丢弃，省一次点击、也不占候选池。详情页标题与卡片标题可能不同（卡片标题会截断），
+ * 所以抽取器在点击后还会用同一个词表复核一次。
+ *
+ * @param {object} deps
+ * @param {string} [deps.envValue] BOSS_TITLE_EXCLUDE 的值（逗号/换行/顿号分隔）
+ * @param {() => Promise<object>} deps.loadControl 读 DB 配置（boss-config-db 的 loadBossControl）
+ * @returns {Promise<{words: string[], source: string, error?: string}>}
+ */
+export async function resolveExtractTitleExclude({ envValue, loadControl } = {}) {
+  const fromEnv = splitRuleText(envValue);
+  if (fromEnv.length) return { words: fromEnv, source: 'env BOSS_TITLE_EXCLUDE' };
+
+  try {
+    const cfg = await loadControl();
+    if (Array.isArray(cfg?.title_exclude)) {
+      return { words: cfg.title_exclude, source: 'DB boss_config.title_exclude' };
+    }
+  } catch (err) {
+    return {
+      words: [...DEFAULT_TITLE_EXCLUDE],
+      source: '内置默认',
+      error: String(err?.message || err),
+    };
+  }
+  return { words: [...DEFAULT_TITLE_EXCLUDE], source: '内置默认' };
+}

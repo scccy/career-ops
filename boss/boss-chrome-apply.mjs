@@ -479,6 +479,8 @@ async function main() {
       limitIsExplicit,
       cityLimits,
       platformLimit: Number(BOSS_CONTROL.platform_daily_limit ?? 0),
+      // 标题排除硬闸（2026-10-15）：校招/应届/实习…无论怎么进的池子，都不进发送候选
+      titleExclude: BOSS_CONTROL.title_exclude,
       urlCity,
     });
     jobs = selection.jobs;
@@ -487,6 +489,7 @@ async function main() {
     const st = selection.stats;
     console.error(
       `[过滤统计] 队列 ${st.total} 条：缺少分数 ${st.missingScore}，低于阈值 ${st.belowThreshold}，` +
+      `标题排除 ${st.titleExcluded}，` +
       `30天内已发同岗位 ${st.alreadySent}，` +
       `30天内已发同公司 ${st.recentCompany}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
     );

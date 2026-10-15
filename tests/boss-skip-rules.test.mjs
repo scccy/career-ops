@@ -23,6 +23,7 @@ import {
   buildWordRegex,
   validateWordRegex,
   resolveExtractSkipWords,
+  resolveExtractTitleExclude,
   matchRejectHits,
 } from '../boss/skip-rules.mjs';
 
@@ -175,4 +176,40 @@ test('提取跳词解析：env > DB > 内置默认，且 DB 挂了不影响扫�
   });
   assert.deepEqual(dbDown.words, DEFAULT_SKIP_WORDS, 'DB 不可用回落内置默认');
   assert.match(dbDown.error, /ECONNREFUSED/, 'DB 失败原因要带回给调用方打日志');
+});
+
+// ── 提取阶段「标题排除」（2026-10-15）────────────────────────────────────────
+// 校招/应届/实习…以前只在「排队阶段」剔除（boss-filter-queue.mjs，实际没被任何地方调用）+
+// 人工点一下「一键剔除」。现在扫描时按卡片标题就丢，词表沿用控制台「排队·标题排除」。
+test('标题排除解析：env > DB > 内置默认，清空 = 关闭', async () => {
+  const fromEnv = await resolveExtractTitleExclude({
+    envValue: '校招,应届、实习\n秋招',
+    loadControl: async () => ({ title_exclude: ['不该生效'] }),
+  });
+  assert.deepEqual(fromEnv.words, ['校招', '应届', '实习', '秋招'], 'env 支持逗号/顿号/换行');
+  assert.match(fromEnv.source, /env/);
+
+  const fromDb = await resolveExtractTitleExclude({
+    envValue: '',
+    loadControl: async () => ({ title_exclude: ['校招', '实习'] }),
+  });
+  assert.deepEqual(fromDb.words, ['校招', '实习']);
+  assert.match(fromDb.source, /DB/);
+
+  const cleared = await resolveExtractTitleExclude({ loadControl: async () => ({ title_exclude: [] }) });
+  assert.deepEqual(cleared.words, [], '控制台清空后必须是「不按标题排除」');
+  assert.equal(buildWordRegex(cleared.words), null, '空词表编译成 null = 该规则不启用');
+
+  const dbDown = await resolveExtractTitleExclude({
+    loadControl: async () => { throw new Error('connect ECONNREFUSED'); },
+  });
+  assert.deepEqual(dbDown.words, DEFAULT_TITLE_EXCLUDE, 'DB 不可用回落内置默认');
+  assert.match(dbDown.error, /ECONNREFUSED/);
+
+  // 默认词表能真的命中校招/实习类标题
+  const re = buildWordRegex(DEFAULT_TITLE_EXCLUDE);
+  for (const t of ['AI数据开发（27届校招）', '数据工程实习生', '【2027秋招】数据湖仓工程师', '大数据开发-实习']) {
+    assert.ok(re.test(t), `应当命中：${t}`);
+  }
+  assert.ok(!re.test('高级数据开发工程师'), '正常岗位不能被误伤');
 });
