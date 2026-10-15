@@ -59,6 +59,9 @@ async function loadBossConfig() {
       Number.isFinite(Number(c.scan_budget_factor)) && Number(c.scan_budget_factor) > 0
         ? Number(c.scan_budget_factor)
         : 1.3,
+    // 单关键词扫描预算（2026-10-15）：卡片上限 / 连续重复止损，0 = 关闭（合法值，不做 >0 过滤）
+    maxDomCards: Number.isFinite(Number(c.max_dom_cards)) ? Number(c.max_dom_cards) : 135,
+    knownStreakLimit: Number.isFinite(Number(c.known_streak_limit)) ? Number(c.known_streak_limit) : 60,
     // JD 完整性门禁（true=抽取时丢弃 <180 字/无结构词的岗位；false=不过滤，照常入库评分）
     requireFullJd: c.require_full_jd === false ? false : true,
     // 跳词 / 排除规则（DB boss_config，控制台可编辑；默认表见 boss/skip-rules.mjs）
@@ -96,7 +99,7 @@ async function saveBossConfig(body = {}) {
   }
   // 扫描节奏字段（秒/毫秒/系数）：数字校验交给 boss-config-db 的 normalize 兜底，
   // 这里只把显式传入的键透传，未传的键保持 DB 现值不变。
-  for (const k of ['keyword_gap_seconds', 'city_gap_seconds', 'card_gap_min_ms', 'card_gap_max_ms', 'scan_budget_factor']) {
+  for (const k of ['keyword_gap_seconds', 'city_gap_seconds', 'card_gap_min_ms', 'card_gap_max_ms', 'scan_budget_factor', 'max_dom_cards', 'known_streak_limit']) {
     if (body[k] != null) {
       const n = Number(body[k]);
       if (!Number.isFinite(n) || n < 0) throw new Error('节奏参数非法：必须为 ≥ 0 的数字');
@@ -262,6 +265,8 @@ async function getOverview() {
       cardGapMaxMs: cfg.cardGapMaxMs,
       scanBudgetFactor: cfg.scanBudgetFactor,
       requireFullJd: cfg.requireFullJd,
+      maxDomCards: cfg.maxDomCards,
+      knownStreakLimit: cfg.knownStreakLimit,
     },
     rules: {
       skipWords: cfg.skipWords,
@@ -506,6 +511,9 @@ async function pacingEnv() {
     BOSS_CARD_GAP_MAX_MS: String(cfg.cardGapMaxMs),
     BOSS_SCAN_BUDGET_FACTOR: String(cfg.scanBudgetFactor),
     BOSS_REQUIRE_FULL_JD: cfg.requireFullJd ? 'true' : 'false',
+    // 单关键词扫描预算（2026-10-15）：0 = 关闭，抽取器按 0 处理为不限
+    BOSS_MAX_DOM_CARDS: String(cfg.maxDomCards),
+    BOSS_KNOWN_STREAK_LIMIT: String(cfg.knownStreakLimit),
   };
 }
 

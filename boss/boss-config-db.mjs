@@ -8,6 +8,7 @@
 // 存储的键（即控制台「每日城市操作流程控制」管理的全部字段）：
 //   send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city
 //   keyword_gap_seconds, city_gap_seconds, card_gap_min_ms, card_gap_max_ms, scan_budget_factor,
+//   max_dom_cards, known_streak_limit,
 //   require_full_jd
 //   skip_words / risk_keywords / title_exclude / company_exclude（跳词与排除规则，见 skip-rules.mjs）
 //
@@ -57,6 +58,15 @@ const FALLBACK = {
   card_gap_min_ms: 3000,
   card_gap_max_ms: 6000,
   scan_budget_factor: 1.3,
+  // 单关键词扫描预算（2026-10-15 用户要求，控制台可调）：
+  //   max_dom_cards       单个关键词最多**处理**多少张卡片（含被跳过/被点击的），0 = 不限。
+  //                       注意不是 DOM 总数：点击卡片会 scrollIntoView → 触发 BOSS 自己追加卡片，
+  //                       DOM 会超出任何"加载上限"（2026-10-15 实测 135 → 165），所以按处理量计。
+  //   known_streak_limit  连续这么多张卡片都是「已入库岗位」就结束本词扫描，0 = 关闭。
+  // 两道闸的理由：已入库岗位在点击前就被跳过、不占 --max-cards 点击额度，所以
+  // 「整页都是上次扫过的岗位」时点击上限与产出止损都不会触发，只能靠它们收手。
+  max_dom_cards: 135,
+  known_streak_limit: 60,
   // JD 完整性门禁（2026-10-14）：true = 抽取时 <180 字或无「岗位职责/任职要求」结构词的岗位直接丢弃，
   // 评分端同样以 JD 完整为可发送前提；false = 关闭该门禁（岗位照常入库评分，jd_detail 仍如实记录原始判定）。
   // 默认 false（用户指令 2026-10-14：门禁默认关，避免误伤大量岗位；控制台勾选「JD完整性过滤」可开启）。
@@ -78,7 +88,8 @@ function numOr(v, fallback, min) {
   return Number.isFinite(n) && n >= min ? n : fallback;
 }
 
-function normalize(v = {}) {
+// 归一化配置行（导出供测试直接验证缺省/0 值语义，不需要连库）。
+export function normalize(v = {}) {
   const out = {
     send_threshold: Number(v.send_threshold) > 0 ? Number(v.send_threshold) : FALLBACK.send_threshold,
     daily_limit_per_city:
@@ -99,6 +110,9 @@ function normalize(v = {}) {
     card_gap_min_ms: numOr(v.card_gap_min_ms, FALLBACK.card_gap_min_ms, 200),
     card_gap_max_ms: numOr(v.card_gap_max_ms, FALLBACK.card_gap_max_ms, 200),
     scan_budget_factor: numOr(v.scan_budget_factor, FALLBACK.scan_budget_factor, 1),
+    // 单关键词扫描预算：0 是合法值（= 不限 / 关闭），非法值才回落默认
+    max_dom_cards: numOr(v.max_dom_cards, FALLBACK.max_dom_cards, 0),
+    known_streak_limit: numOr(v.known_streak_limit, FALLBACK.known_streak_limit, 0),
     // 仅显式 true 才开启（缺省/非法值一律视为 false，门禁默认关）
     require_full_jd: v.require_full_jd === true ? true : false,
     // 跳词/排除规则：数组或「逗号/换行分隔的字符串」都接受；显式空数组 = 该规则不启用

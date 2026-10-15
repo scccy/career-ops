@@ -16,7 +16,7 @@ import {
   saveCandidates,
 } from './boss-common.mjs';
 import { cdpExecJs, closeAllConnections, bringToFront } from './boss-cdp.mjs';
-import { createCardLoader, createYieldStreak, ensureTabVisible, CARD_SEL } from './boss-card-loader.mjs';
+import { createCardBudget, createCardLoader, createKnownCardStreak, createYieldStreak, ensureTabVisible, CARD_SEL } from './boss-card-loader.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import { buildWordRegex, NEVER_MATCH, resolveExtractSkipWords } from './skip-rules.mjs';
 
@@ -75,6 +75,30 @@ function hasCompleteJd(job) {
 // BOSS_REQUIRE_FULL_JD=true 或控制台勾选「JD完整性过滤」可重新开启。
 const REQUIRE_FULL_JD = process.env.BOSS_REQUIRE_FULL_JD === 'true'
   || String(process.env.BOSS_REQUIRE_FULL_JD).toLowerCase() === 'true';
+
+// 单关键词 DOM 卡片上限（2026-10-15 用户要求，默认 135 张）。
+// 为什么不能只靠 --max-cards：那个上限数的是「点击」，而已入库岗位在点击前就被跳过
+// （不消耗点击额度）。所以「整页都是上次扫过的岗位」时，点击上限与产出止损都不会触发，
+// 唯一兜底是滚到真页底——每个关键词都要把同一条列表从头重走一遍。这里给每个关键词一个
+// 硬预算：DOM 里累计加载到这么多张就不再往下加载（手里那批照常处理完）。
+// BOSS_MAX_DOM_CARDS=0 关闭；非法值回落 135。
+const MAX_DOM_CARDS = (() => {
+  const raw = process.env.BOSS_MAX_DOM_CARDS;
+  if (raw === undefined || String(raw).trim() === '') return 135;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 135;
+})();
+
+// 连续多少张卡片都是「已入库岗位」就结束本词扫描（2026-10-15 用户提出，默认 60）。
+// 本词列表前半段通常全是上几次扫过的岗位；连续命中说明剩余列表对本次扫描没有产出，
+// 继续往下滚只是白跑。中间出现任何一张非「已入库」卡片即清零。
+// BOSS_KNOWN_STREAK_LIMIT=0 关闭；非法值回落 60。
+const KNOWN_STREAK_LIMIT = (() => {
+  const raw = process.env.BOSS_KNOWN_STREAK_LIMIT;
+  if (raw === undefined || String(raw).trim() === '') return 60;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 60;
+})();
 
 function normalizeJob(raw) {
   const job = {
@@ -196,6 +220,7 @@ function cardLoaderConfig(clickGapMs = 0) {
   return {
     low: Number(process.env.BOSS_CARD_BUFFER_LOW || 3),
     high: Number(process.env.BOSS_CARD_BUFFER_HIGH || 8),
+    maxTotalCards: MAX_DOM_CARDS,
     maxLoadSteps: Number(process.env.BOSS_LOAD_MAX_STEPS || 60),
     stagnantLimit: Number(process.env.BOSS_STAGNANT_LIMIT || 8),
     stepMinRatio: Number(process.env.BOSS_SCROLL_STEP_MIN_RATIO || 0.55),
@@ -312,11 +337,25 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
   let consecutivePeekFailures = 0;
   // 点击产出止损（2026-10-14 用户确认）：连续 N 次点击都没带来新公司就结束本词扫描
   const yieldStreak = createYieldStreak(NO_YIELD_CLICKS);
+  // 「连续 N 张都是已入库岗位」止损（2026-10-15 用户提出）：整页都是上次扫过的岗位时，
+  // 点击上限与产出止损都不会触发，只靠它和 DOM 上限收手。
+  const knownStreak = createKnownCardStreak(KNOWN_STREAK_LIMIT);
+  // 单关键词卡片预算（2026-10-15 用户实测修正）：按「处理过的卡片数」封顶，不按 DOM 卡片数。
+  // 点击卡片会 scrollIntoView → 触发 BOSS 自己追加卡片，DOM 会超出任何"加载上限"；
+  // 只有按处理量计数，才能保证"每个关键词最多 135 张"真的成立。
+  const cardBudget = createCardBudget(MAX_DOM_CARDS);
+  // 是否已撞到 DOM 加载上限（撞上后只是不再加载新卡片，手里的照常处理完）
+  let domCapped = false;
   let stopReason = '';
   // 先窥视（不点击）→ 与库内已有岗位比对 → 新岗位才点击展开抽取。
   while (scanned < maxCards && seenCompanies.size < targetCompanies) {
     if (yieldStreak.exhausted) {
       stopReason = `连续 ${yieldStreak.limit} 次点击都没有带来新公司（本词产出已枯竭）`;
+      break;
+    }
+    // 卡片预算用满即收工（在窥视之前判，保证处理量正好是 limit 张）
+    if (cardBudget.exhausted) {
+      stopReason = `达到单关键词卡片上限 ${cardBudget.limit} 张（已处理 ${cardBudget.used} 张卡片）`;
       break;
     }
     let state = await loader.cardState();
@@ -327,9 +366,12 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
         state.pending === 0 ? '当前卡片已处理完' : `待处理不足 ${loader.config.low} 张`,
       );
       state = filled.state;
+      if (filled.capped) domCapped = true;
     }
     if (state.pending === 0) {
-      stopReason = '列表已到底，没有可继续处理的卡片';
+      stopReason = domCapped
+        ? `达到单关键词卡片上限 ${MAX_DOM_CARDS} 张（DOM 累计加载），本词剩余列表未扫描`
+        : '列表已到底，没有可继续处理的卡片';
       break;
     }
     const pos = state.pos;
@@ -348,6 +390,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
       continue;
     }
     consecutivePeekFailures = 0;
+    cardBudget.spend(); // 窥视成功 = 这张卡片已被处理（无论随后跳过还是点击）
     // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过
     const preKey = uniqueCandidateKey({
       company: cardMeta.card_company,
@@ -356,8 +399,14 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
     });
     if (existingJobKeys && preKey && existingJobKeys.has(preKey)) {
       skippedKnown += 1;
+      knownStreak.recordKnown();
+      if (knownStreak.exhausted) {
+        stopReason = `连续 ${knownStreak.limit} 张卡片都是已入库岗位（本词剩余列表对本次扫描无产出）`;
+        break;
+      }
       continue;
     }
+    knownStreak.recordOther(); // 出现非「已入库」卡片：连续计数清零
     // 新岗位：点击展开详情面板
     await execJs(clickScript(pos));
     scanned += 1;
@@ -387,16 +436,20 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
   if (!stopReason) {
     if (seenCompanies.size >= targetCompanies) stopReason = `已凑够 ${targetCompanies} 家不同公司`;
     else if (scanned >= maxCards) stopReason = `达到点击上限 ${maxCards} 张`;
+    else if (cardBudget.exhausted) stopReason = `达到单关键词卡片上限 ${cardBudget.limit} 张（已处理 ${cardBudget.used} 张卡片）`;
+    else if (domCapped) stopReason = `达到单关键词卡片上限 ${MAX_DOM_CARDS} 张；不再加载新卡片`;
     else stopReason = '没有可继续处理的卡片';
   }
   let domTotal = null;
   try { domTotal = (await loader.cardState()).total; } catch { /* 读不到就不带这个数 */ }
   console.error(
-    `[结束] ${stopReason}；点击 ${scanned} 张（上限 ${maxCards}），入库 ${jobs.length} 条 / ${seenCompanies.size} 家公司`
-    + `${skippedKnown ? `，跳过已入库 ${skippedKnown} 张` : ''}${domTotal === null ? '' : `，DOM 累计加载 ${domTotal} 张`}`,
+    `[结束] ${stopReason}；处理 ${cardBudget.used} 张卡片（上限 ${cardBudget.limit || '不限'}），`
+    + `点击 ${scanned} 张（上限 ${maxCards}），入库 ${jobs.length} 条 / ${seenCompanies.size} 家公司`
+    + `${skippedKnown ? `，跳过已入库 ${skippedKnown} 张` : ''}`
+    + `${domTotal === null ? '' : `，DOM 累计加载 ${domTotal} 张`}`,
   );
 
-  return { jobs, scannedCards: scanned, skippedKnown, dropReasons, stopReason };
+  return { jobs, scannedCards: scanned, skippedKnown, dropReasons, stopReason, domCapped, processedCards: cardBudget.used, cardBudget: cardBudget.limit };
 }
 
 async function main() {
@@ -406,6 +459,11 @@ async function main() {
     console.log('  卡片按需加载：待处理卡片 ≤ BOSS_CARD_BUFFER_LOW（默认 3）时才向下滚一小段补货，');
     console.log('  补到 ≥ BOSS_CARD_BUFFER_HIGH（默认 8）或确认列表到底即停；不再开局预载整页卡片。');
     console.log('  产出止损：连续 BOSS_NO_YIELD_CLICKS（默认 40）次点击没带来新公司就结束本词扫描。');
+    console.log('  卡片上限：单关键词最多处理 BOSS_MAX_DOM_CARDS（默认 135）张卡片就收工——');
+    console.log('            按「处理过的卡片数」计（含被跳过/被点击的），因为点击会滚动页面、');
+    console.log('            BOSS 自己还会追加卡片，DOM 总数封不住。');
+    console.log('  重复止损：连续 BOSS_KNOWN_STREAK_LIMIT（默认 60）张卡片都是已入库岗位就结束本词扫描。');
+    console.log('  （两者都设 0 可关闭；后者针对「整页都是上次扫过的岗位」时不占点击额度的白跑。）');
     return;
   }
 
@@ -414,7 +472,7 @@ async function main() {
   const clickGapMs = Number(args['click-gap-ms'] || 1400);
   const scanCity = String(args.city || '').trim();
   const output = args.output || CANDIDATES_PATH;
-  const { jobs, scannedCards, skippedKnown, dropReasons, stopReason } = await extractJobs({
+  const { jobs, scannedCards, skippedKnown, dropReasons, stopReason, domCapped, processedCards, cardBudget } = await extractJobs({
     targetCompanies: companyLimit,
     maxCards,
     clickGapMs,
@@ -437,6 +495,10 @@ async function main() {
     scannedCards,
     stopReason,
     skippedKnown: skippedKnown || 0,
+    processedCards: processedCards || 0,
+    cardBudgetCards: cardBudget || null,
+    domCapReached: Boolean(domCapped),
+    domCapCards: MAX_DOM_CARDS || null,
     dropReasons,
     total: finalJobs.length,
     uniqueCompanies: countUniqueCompanies(finalJobs),
