@@ -18,7 +18,7 @@ import {
 import { cdpExecJs, closeAllConnections, bringToFront } from './boss-cdp.mjs';
 import { createCardBudget, createCardLoader, createKnownCardStreak, createYieldStreak, ensureTabVisible, CARD_SEL } from './boss-card-loader.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
-import { buildWordRegex, NEVER_MATCH, resolveExtractSkipWords } from './skip-rules.mjs';
+import { buildWordRegex, NEVER_MATCH, resolveExtractSkipWords, resolveExtractTitleExclude } from './skip-rules.mjs';
 
 const BASE_URL = 'https://www.zhipin.com';
 const DETAIL_HEADING = /岗位职责|工作职责|职位描述|岗位描述|职责描述|任职要求|职位要求|岗位要求|工作内容/;
@@ -279,7 +279,7 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
   const seenCompanies = new Set();
   let skippedKnown = 0;
   // 每张被点击卡片最终去向的计数（2026-10-11：extracted=0 时不再抓瞎）
-  const dropReasons = { skipWord: 0, incompleteJd: 0, dupOrNoCompany: 0, peekFailed: 0, emptyDetail: 0 };
+  const dropReasons = { skipWord: 0, titleExcluded: 0, titleExcludedLate: 0, incompleteJd: 0, dupOrNoCompany: 0, peekFailed: 0, emptyDetail: 0 };
 
   // 跳词规则（控制台可配，2026-10-14 统一到 DB boss_config）：
   // 优先级 BOSS_SKIP_WORDS 环境变量 > DB 配置 > 内置默认；命中即丢弃，连详情都不读。
@@ -291,6 +291,17 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
   const skipRe = buildWordRegex(skipWords) || NEVER_MATCH;
   const skipPreview = skipWords.join(' | ');
   console.error(`[跳词] 生效 ${skipWords.length} 条（${skipSource}）：${skipPreview.length > 140 ? `${skipPreview.slice(0, 140)}…` : skipPreview || '（空=不跳词）'}`);
+
+  // 标题排除（2026-10-15 用户要求）：校招/应届/实习…在窥视阶段就按**卡片标题**丢掉，不点击、不入库。
+  // 词表沿用控制台「排队·标题排除」（DB title_exclude），取空数组即等于关闭。
+  const { words: titleWords, source: titleSource, error: titleError } = await resolveExtractTitleExclude({
+    envValue: process.env.BOSS_TITLE_EXCLUDE,
+    loadControl: loadBossControl,
+  });
+  if (titleError) console.error(`[标题排除] 读取 DB 配置失败，改用内置默认：${titleError}`);
+  const titleRe = buildWordRegex(titleWords) || NEVER_MATCH;
+  const titlePreview = titleWords.join(' | ');
+  console.error(`[标题排除] 生效 ${titleWords.length} 条（${titleSource}）：${titlePreview || '（空=不按标题排除）'}`);
 
   await assertNotBlocked(); // 开局先确认不在风控页
 
@@ -391,6 +402,8 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
     }
     consecutivePeekFailures = 0;
     cardBudget.spend(); // 窥视成功 = 这张卡片已被处理（无论随后跳过还是点击）
+    // 标题排除：命中的卡片连点都不点（2026-10-15 用户要求），省一次点击、也不进候选池
+    if (titleRe.test(String(cardMeta.card_title || ''))) { dropReasons.titleExcluded += 1; continue; }
     // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过
     const preKey = uniqueCandidateKey({
       company: cardMeta.card_company,
@@ -421,6 +434,8 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
     if (!String(job.desc || '').trim()) { dropReasons.emptyDetail += 1; }
     const fullText = `${job.company}\n${job.title}\n${job.desc}`;
     if (skipRe.test(fullText)) { dropReasons.skipWord += 1; continue; }
+    // 标题复核：卡片标题可能被截断，用详情页标题再测一次同一个词表（词表与"点击前"完全一致）
+    if (titleRe.test(String(job.title || ''))) { dropReasons.titleExcludedLate += 1; continue; }
     if (REQUIRE_FULL_JD && !hasCompleteJd(job)) { dropReasons.incompleteJd += 1; continue; }
 
     const jobKey = uniqueCandidateKey(job);
@@ -459,6 +474,8 @@ async function main() {
     console.log('  卡片按需加载：待处理卡片 ≤ BOSS_CARD_BUFFER_LOW（默认 3）时才向下滚一小段补货，');
     console.log('  补到 ≥ BOSS_CARD_BUFFER_HIGH（默认 8）或确认列表到底即停；不再开局预载整页卡片。');
     console.log('  产出止损：连续 BOSS_NO_YIELD_CLICKS（默认 40）次点击没带来新公司就结束本词扫描。');
+    console.log('  标题排除：卡片标题命中 DB title_exclude（控制台「排队·标题排除」）直接丢弃、不点击；');
+    console.log('            点击后用详情标题再复核一次。BOSS_TITLE_EXCLUDE 可覆盖（逗号/换行分隔）。');
     console.log('  卡片上限：单关键词最多处理 BOSS_MAX_DOM_CARDS（默认 135）张卡片就收工——');
     console.log('            按「处理过的卡片数」计（含被跳过/被点击的），因为点击会滚动页面、');
     console.log('            BOSS 自己还会追加卡片，DOM 总数封不住。');
@@ -489,7 +506,7 @@ async function main() {
     if (!args['dry-run']) writeJson(output, finalJobs);
   }
 
-  console.error(`[去向统计] 点击 ${scannedCards} 张：入库 ${jobs.length}，跳词 ${dropReasons.skipWord}，JD不完整 ${dropReasons.incompleteJd}（其中详情空白 ${dropReasons.emptyDetail}），本轮重复 ${dropReasons.dupOrNoCompany}，peek失败 ${dropReasons.peekFailed}`);
+  console.error(`[去向统计] 点击 ${scannedCards} 张：入库 ${jobs.length}，标题排除 ${dropReasons.titleExcludedLate}，跳词 ${dropReasons.skipWord}，JD不完整 ${dropReasons.incompleteJd}（其中详情空白 ${dropReasons.emptyDetail}），本轮重复 ${dropReasons.dupOrNoCompany}，peek失败 ${dropReasons.peekFailed}${dropReasons.titleExcluded ? `；另有 ${dropReasons.titleExcluded} 张按卡片标题排除、未点击` : ''}`);
   console.log(JSON.stringify({
     extracted: jobs.length,
     scannedCards,

@@ -10,8 +10,26 @@ import {
   uniqueJobKey,
   uniqueJobKeyLegacy,
 } from './boss-common.mjs';
+import { buildWordRegex, DEFAULT_TITLE_EXCLUDE } from './skip-rules.mjs';
 
 export const RECENT_CONTACT_DEDUPE_DAYS = 30;
+
+// 标题排除（校招/应届/实习/秋招/春招/毕业生）在发送预检上的硬闸，2026-10-15 用户要求。
+//
+// 为什么要有这一层：提取阶段的过滤只管"以后新扫的"，而池子里已经有存量（历史扫描、手工导入、
+// 别的路径进来的），发送日志里 2026-09-20 ~ 10-14 实际发出过 24 条校招/实习岗（其中 10-14 那天
+// 4 条）。人工点「一键剔除校招」只是把当时池子里的行标了暂缓，忘点就会漏——所以把同一份词表
+// 放到发送预检这个唯一收口上，任何路径都拦得住。
+//
+// 传 undefined/null = 用内置默认词表（fail-closed，配置读不到也不会漏发）；传 [] = 显式关闭。
+const NEVER_MATCH_RE = /(?!)/;
+
+export function buildTitleExcludeRegex(titleExclude) {
+  if (titleExclude === undefined || titleExclude === null) {
+    return buildWordRegex(DEFAULT_TITLE_EXCLUDE) || NEVER_MATCH_RE;
+  }
+  return buildWordRegex(titleExclude) || NEVER_MATCH_RE;
+}
 
 export function readSendHistory(urlCity = new Map()) {
   return {
@@ -46,9 +64,11 @@ export function selectSendableJobs(candidates, {
   platformLimit = 0,
   urlCity = new Map(),
   history = null,
+  titleExclude = null,
 } = {}) {
   const source = Array.isArray(candidates) ? candidates : [];
   const sendHistory = history || readSendHistory(urlCity);
+  const titleExcludeRe = buildTitleExcludeRegex(titleExclude);
   const cityRemaining = new Map(Object.entries(cityLimits || {}).map(([city, cap]) => [
     city,
     Math.max(0, Number(cap) - (sendHistory.todayByCity[city] || 0)),
@@ -77,6 +97,7 @@ export function selectSendableJobs(candidates, {
     closed: 0,
     alreadyContacted: 0,
     manuallyExcluded: 0,
+    titleExcluded: 0,
     alreadySent: 0,
     recentCompany: 0,
     duplicateCompanyInBatch: 0,
@@ -95,6 +116,10 @@ export function selectSendableJobs(candidates, {
   for (const job of sorted) {
     const key = rowKey(job);
     if (job.manualExcluded || job.manual_excluded) { markBlocked(job, 'manual_excluded', 'manuallyExcluded'); continue; }
+    // 标题排除：与 manual_excluded 同级的硬闸（校招/应届/实习…绝不出现在发送候选里）。
+    // 放在 manual_excluded 之后：两者都命中时报「人工暂缓」——用户显式标记是更强的信号，
+    // 自动规则不该覆盖它（存量的校招岗多数已被一键剔除标过 manual_excluded）。
+    if (titleExcludeRe.test(String(job.title || ''))) { markBlocked(job, 'title_excluded', 'titleExcluded'); continue; }
     if (String(job.availability || '').toLowerCase() === 'closed' || String(job.status || '').toLowerCase() === 'closed') {
       markBlocked(job, 'closed', 'closed'); continue;
     }
