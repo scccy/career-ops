@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.1](https://github.com/scccy/career-ops/compare/career-ops-v1.10.0...career-ops-v1.10.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* boss-extract-3cities.sh 兼容 --all/--main 写法(此前 npm 入口传 --all 被参数校验拒绝) ([2777707](https://github.com/scccy/career-ops/commit/27777079ee6db2aaa1d2830dc10d67e7d574f6c8))
+* boss-web 60s 自动刷新初始化漏调 setAuto，导致池中待发不自动更新 ([9200210](https://github.com/scccy/career-ops/commit/9200210d8458a23814e33ffa8c2ac49d7c0ad484))
+
 ## [1.33.0](https://github.com/career-ops-hq/career-ops/compare/career-ops-v1.32.0...career-ops-v1.33.0) (2026-09-16)
 
 
