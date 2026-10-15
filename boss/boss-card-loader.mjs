@@ -15,10 +15,12 @@
 //   cardState()          一次 DOM 快照：卡片总数 / 待处理数 / 第一张待处理卡片下标 / 滚动位置
 //   waitForFirstCards()  等首屏卡片渲染出来（不滚动；风控页会直接抛错）
 //   fillCardBuffer()     待处理卡片 < high 时按视口分步向下滚，直到补够或确认列表到底
+//                        （或达到 maxTotalCards 上限，此时只停止加载、不中断处理）
 //   exhausted            一旦确认「滚到页底 + 连续多次没有新卡片」，后续调用直接返回，不再滚动
 //
 // config（调用方从环境变量解析后注入，见 boss-chrome-extract.mjs）：
 //   low / high                 待处理卡片的下/上水位（默认 3 / 8）
+//   maxTotalCards              单关键词 DOM 累计加载卡片上限（默认 0 = 不限；抽取器默认给 135）
 //   maxLoadSteps               单次补货最多滚动步数（默认 60）
 //   stagnantLimit              页底连续无新卡片的容忍次数（默认 8）
 //   stepMinRatio/stepMaxRatio  每步滚动的视口比例区间（默认 0.55 ~ 0.95）
@@ -31,6 +33,8 @@ export const CARD_SEL = '.job-list-container .job-card-box';
 export const CARD_LOADER_DEFAULTS = Object.freeze({
   low: 3,
   high: 8,
+  // 0 = 不限制。抽取器默认注入 135（2026-10-15 用户要求：每个关键词最多加载 135 张卡片）。
+  maxTotalCards: 0,
   maxLoadSteps: 60,
   stagnantLimit: 8,
   stepMinRatio: 0.55,
@@ -70,6 +74,71 @@ export function createYieldStreak(limit = 40) {
     recordCompany() { streak = 0; },
     /** 是否已触发止损。 */
     get exhausted() { return cap > 0 && streak >= cap; },
+  };
+}
+
+/**
+ * 「连续 N 张卡片都是已入库岗位」计数（2026-10-15 用户提出）。
+ *
+ * 为什么需要它：已入库岗位在点击前就被跳过（`dataset.bossExtracted` 已打标，不消耗
+ * `--max-cards` 点击额度），所以「整页都是上次扫过的岗位」时点击上限和 `createYieldStreak`
+ * 都不会触发，唯一兜底是滚到**真页底**——而每次扫描 BOSS 都会把同一条列表从头再喂一遍，
+ * 于是每个关键词都要把已知区域重走一遍，越跑越久。
+ *
+ * 连续若干个「已入库」命中说明本词剩余列表对本次扫描没有产出，收工即可；
+ * 中间只要出现一张非「已入库」的卡片就清零（它可能点开就是新公司）。
+ *
+ * limit <= 0 表示关闭（只靠点击上限与到底判定兜底）。
+ *
+ * @param {number} [limit=60] 连续「已入库」卡片的阈值
+ */
+export function createKnownCardStreak(limit = 60) {
+  const n = Number(limit);
+  const cap = Number.isFinite(n) && n > 0 ? n : 0;
+  let streak = 0;
+  return {
+    limit: cap,
+    /** 当前连续「已入库」卡片数。 */
+    get cards() { return streak; },
+    /** 记一张「已入库」卡片。 */
+    recordKnown() { streak += 1; return streak; },
+    /** 记一张非「已入库」卡片（已打标或即将点击的新岗位）——连续计数清零。 */
+    recordOther() { streak = 0; },
+    /** 是否已触发收工。 */
+    get exhausted() { return cap > 0 && streak >= cap; },
+  };
+}
+
+/**
+ * 单关键词「处理过的卡片数」预算（2026-10-15 用户实测后修正）。
+ *
+ * 为什么不能按 DOM 卡片数封顶：点击一张卡片会执行 `card.scrollIntoView()`（见
+ * boss-chrome-extract.mjs 的 clickScript），这次滚动会触发 BOSS 自己的无限滚动再追加一批
+ * 卡片；loader 虽然已经停止滚动，DOM 仍会从 135 涨到 165，而新追加的卡片没打标、待处理数
+ * 被重新填满，"待处理 = 0" 这个出口就永远不触发——2026-10-15 上海扫描实测正是如此：
+ * 日志写着「达到单关键词上限 135 张，停止加载」，最后却是「凑够 45 家」才停，DOM 165。
+ *
+ * 所以预算是按**处理量**记的：每窥视（peek）一张卡片算一张，不管它随后是被跳过、被点击还是
+ * 被丢弃。这样上限与页面自己追加多少卡片无关，处理满 N 张就收工。
+ *
+ * limit <= 0 表示不限制。
+ *
+ * @param {number} [limit=0] 单个关键词最多处理多少张卡片
+ */
+export function createCardBudget(limit = 0) {
+  const n = Number(limit);
+  const cap = Number.isFinite(n) && n > 0 ? n : 0;
+  let used = 0;
+  return {
+    limit: cap,
+    /** 已处理的卡片数。 */
+    get used() { return used; },
+    /** 剩余额度；不限制时为 Infinity。 */
+    get remaining() { return cap > 0 ? Math.max(0, cap - used) : Infinity; },
+    /** 记一张卡片已被处理（窥视成功即算处理过）。 */
+    spend(count = 1) { used += count; return used; },
+    /** 是否已用完额度（用满即收工）。 */
+    get exhausted() { return cap > 0 && used >= cap; },
   };
 }
 
@@ -158,6 +227,7 @@ export function createCardLoader({
   cfg.high = Math.max(cfg.low + 1, cfg.high);
   cfg.stepGapMaxMs = Math.max(cfg.stepGapMinMs, cfg.stepGapMaxMs);
   const exhaustedFlag = { value: false };
+  let capNoticeLogged = false; // 上限提示只打一次，避免每补一次货刷一行日志
 
   const between = (min, max) => min + random() * Math.max(0, max - min);
 
@@ -209,11 +279,21 @@ export function createCardLoader({
   }
 
   // 按需补货：手里的卡片不够了才滚，直到补够 high 水位或确认到底。
-  // 返回 { state, exhausted }；exhausted=true 表示列表已到底，调用方不会再拿到新卡片。
+  // 返回 { state, exhausted, capped }：
+  //   exhausted=true 列表已到底（不可恢复，调用方收工）
+  //   capped=true    已达 maxTotalCards 上限——**只是不再加载新卡片**，手里这批照常处理完，
+  //                  等待处理清零后由调用方以「达到单关键词卡片上限」收工。
   async function fillCardBuffer(reason = '') {
     let state = await cardState();
-    if (exhaustedFlag.value) return { state, exhausted: true };
-    if (state.pending >= cfg.high) return { state, exhausted: false };
+    if (exhaustedFlag.value) return { state, exhausted: true, capped: false };
+    if (cfg.maxTotalCards > 0 && state.total >= cfg.maxTotalCards) {
+      if (!capNoticeLogged) {
+        capNoticeLogged = true;
+        log(`[补货] DOM 已有 ${state.total} 张卡片，达到单关键词上限 ${cfg.maxTotalCards} 张——不再加载新卡片`);
+      }
+      return { state, exhausted: false, capped: true };
+    }
+    if (state.pending >= cfg.high) return { state, exhausted: false, capped: false };
 
     log(`[补货] 待处理 ${state.pending} 张${reason ? `（${reason}）` : ''} → 按视口分步向下滚，加载新卡片`);
 
@@ -222,12 +302,20 @@ export function createCardLoader({
     while (state.pending < cfg.high) {
       if (++steps > cfg.maxLoadSteps) {
         log(`[补货] 已滚 ${cfg.maxLoadSteps} 步仍未补够（待处理 ${state.pending} 张），本轮先停`);
-        return { state, exhausted: false };
+        return { state, exhausted: false, capped: false };
       }
       await assertNotBlocked(); // 长时间运行中风控可能中途介入
       const before = state;
       await scrollStep();
       const after = await cardState();
+      // 上限在「滚完一步、还没继续滚」的边界上检查：最多超出上限一批（BOSS 一屏 15 张）
+      if (cfg.maxTotalCards > 0 && after.total >= cfg.maxTotalCards) {
+        if (!capNoticeLogged) {
+          capNoticeLogged = true;
+          log(`[补货] 卡片 ${after.total} 张（待处理 ${after.pending}）→ 达到单关键词上限 ${cfg.maxTotalCards} 张，停止加载`);
+        }
+        return { state: after, exhausted: false, capped: true };
+      }
       const grew = after.total > before.total || after.sh > before.sh;
       const moved = after.y > before.y;
       const atBottom = after.vh > 0 && after.sh > 0 && after.y + after.vh >= after.sh - 4;
@@ -247,12 +335,12 @@ export function createCardLoader({
             log('[补货] ⚠ 但 BOSS 标签页当前在后台（document.hidden=true）——实测后台页不会触发无限滚动，'
               + '「到底」很可能是假的；把 BOSS 窗口切到前台可恢复加载');
           }
-          return { state: after, exhausted: true };
+          return { state: after, exhausted: true, capped: false };
         }
       }
       state = after;
     }
-    return { state, exhausted: false };
+    return { state, exhausted: false, capped: false };
   }
 
   return {

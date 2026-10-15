@@ -13,7 +13,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCardLoader, createYieldStreak, ensureTabVisible, CARD_SEL } from '../boss/boss-card-loader.mjs';
+import { createCardBudget, createCardLoader, createKnownCardStreak, createYieldStreak, ensureTabVisible, CARD_SEL } from '../boss/boss-card-loader.mjs';
 
 // ── 假 BOSS 搜索页 ────────────────────────────────────────────────────────────
 // 卡片分批追加；只有「滚到页底」才触发下一批，而且要连续触底 appendAfterBottomHits 次
@@ -270,6 +270,149 @@ test('产出止损：limit=0 关闭；非法值回落 40', () => {
   assert.equal(fallback.limit, 40);
   const negative = createYieldStreak(-1);
   assert.equal(negative.exhausted, false, '负数视为关闭');
+});
+
+// ── 单关键词「处理量」预算（2026-10-15 实测后修正）──────────────────────────
+// 教训：按 DOM 卡片数封顶封不住。点击卡片会执行 card.scrollIntoView()，这次滚动会触发 BOSS
+// 自己的无限滚动再追加一批卡片——loader 停止滚动也拦不住。2026-10-15 上海扫描实测：
+// 日志写着「达到单关键词上限 135 张，停止加载」，最后却靠「凑够 45 家」才停，DOM 涨到 165。
+// 所以预算只能按「处理过的卡片数」计：处理满 N 张就收工，与页面追加多少张无关。
+test('卡片预算：处理满 limit 张就停；limit=0 不限；非法值视为不限', () => {
+  const b = createCardBudget(3);
+  assert.equal(b.limit, 3);
+  assert.equal(b.exhausted, false);
+  assert.equal(b.remaining, 3);
+  b.spend();
+  b.spend();
+  assert.equal(b.used, 2);
+  assert.equal(b.remaining, 1);
+  assert.equal(b.exhausted, false, '用了 2 张、上限 3 张，还没用满');
+  b.spend();
+  assert.equal(b.used, 3);
+  assert.equal(b.exhausted, true, '第 3 张用满即收工');
+  assert.equal(b.remaining, 0);
+
+  const off = createCardBudget(0);
+  for (let i = 0; i < 500; i++) off.spend();
+  assert.equal(off.exhausted, false, 'limit=0 表示不限');
+  assert.equal(off.remaining, Infinity);
+  assert.equal(createCardBudget(-5).limit, 0);
+  assert.equal(createCardBudget('不是数字').limit, 0);
+});
+
+test('卡片预算：页面在点击时继续追加卡片也拦得住（DOM 超出上限仍按处理量收工）', async () => {
+  const page = new FakeBossPage({ firstBatch: 15, batchSize: 15, pool: 400 });
+  const { loader } = makeLoader(page, { ...BIG, maxTotalCards: 135 });
+  await loader.waitForFirstCards();
+
+  const budget = createCardBudget(60);
+  let processed = 0;
+  let stopReason = '';
+  for (let guard = 0; guard < 2000; guard++) {
+    if (budget.exhausted) { stopReason = 'budget'; break; }
+    let state = await loader.cardState();
+    if (state.pending <= loader.config.low) {
+      const filled = await loader.fillCardBuffer(state.pending === 0 ? '当前卡片已处理完' : '待处理不足');
+      state = filled.state;
+    }
+    if (state.pending === 0) { stopReason = 'empty'; break; }
+    budget.spend();
+    page.consumeFirstPending(1);
+    processed += 1;
+    // 模拟 clickScript 的 scrollIntoView：滚动触发 BOSS 追加下一批（真实页面要连续触底 2 次）
+    if (processed % 2 === 0) page.loadNextBatch();
+  }
+
+  assert.equal(processed, 60, `应正好处理 60 张卡片后收工，实际 ${processed}`);
+  assert.equal(stopReason, 'budget', `应由预算收工，实际是「${stopReason}」——预算没封住`);
+  assert.ok(page.cards.length > 60, `页面已自行追加到 ${page.cards.length} 张，应超出预算仍能收工`);
+});
+
+// ── 单关键词 DOM 卡片上限（保留：只是"不再往下加载"的兜底闸）─────────────────
+// 背景：--max-cards 只数「点击」，已入库岗位在点击前就被跳过、不占点击额度，
+// 所以「整页都是上几次扫过的岗位」时点击上限与产出止损都不会触发，只能滚到真页底。
+test('DOM 上限：加载到上限就停止加载新卡片（不是判到底），且之后不再滚动', async () => {
+  const page = new FakeBossPage({ firstBatch: 15, batchSize: 15, pool: 300 });
+  const { loader } = makeLoader(page, { ...BIG, maxTotalCards: 30 });
+  await loader.waitForFirstCards();
+
+  page.consumeFirstPending(12); // pending=3 → 触发补货
+  const filled = await loader.fillCardBuffer('待处理不足');
+  assert.equal(filled.capped, true, '达到上限应返回 capped=true');
+  assert.equal(filled.exhausted, false, '上限不是「列表已到底」，两者必须区分');
+  assert.equal(page.cards.length, 30, `应在上限处停（实际 ${page.cards.length}）`);
+
+  const scrollsAtCap = page.scrollCalls.length;
+  const again = await loader.fillCardBuffer('待处理不足');
+  assert.equal(again.capped, true);
+  assert.equal(page.scrollCalls.length, scrollsAtCap, '已达上限后不得再滚动');
+});
+
+test('DOM 上限：只停止加载，手里那批卡片照常处理完才收工', async () => {
+  const page = new FakeBossPage({ firstBatch: 15, batchSize: 15, pool: 300 });
+  const { loader } = makeLoader(page, { ...BIG, maxTotalCards: 30 });
+  await loader.waitForFirstCards();
+
+  let processed = 0;
+  let capped = false;
+  for (let guard = 0; guard < 500; guard++) {
+    let state = await loader.cardState();
+    if (state.pending <= loader.config.low) {
+      const filled = await loader.fillCardBuffer(state.pending === 0 ? '当前卡片已处理完' : '待处理不足');
+      state = filled.state;
+      if (filled.capped) capped = true;
+    }
+    if (state.pending === 0) break;
+    page.consumeFirstPending(1);
+    processed += 1;
+  }
+
+  assert.equal(capped, true, '应当撞到上限');
+  assert.equal(page.cards.length, 30, `DOM 不得越过上限继续加载（实际 ${page.cards.length}）`);
+  assert.equal(processed, 30, `上限内的卡片必须全部处理完，不能被提前中断（实际处理 ${processed}）`);
+});
+
+test('DOM 上限：上限落在两批之间时最多超出一批（BOSS 一屏 15 张），不会无界', async () => {
+  const page = new FakeBossPage({ firstBatch: 15, batchSize: 15, pool: 300 });
+  const { loader } = makeLoader(page, { ...BIG, maxTotalCards: 20 });
+  await loader.waitForFirstCards();
+  page.consumeFirstPending(12);
+
+  const filled = await loader.fillCardBuffer('待处理不足');
+  assert.equal(filled.capped, true);
+  assert.ok(page.cards.length <= 20 + 15, `超出上限不得超过一批（实际 ${page.cards.length}）`);
+});
+
+// ── 重复岗位止损（2026-10-15 用户提出）───────────────────────────────────────
+test('重复止损：连续 N 张已入库岗位才触发，出现新卡片立即清零', () => {
+  const streak = createKnownCardStreak(60);
+  for (let i = 1; i <= 59; i++) {
+    streak.recordKnown();
+    assert.equal(streak.exhausted, false, `第 ${i} 张（未到阈值）不应触发`);
+  }
+  streak.recordKnown();
+  assert.equal(streak.exhausted, true, '第 60 张连续已入库应触发收工');
+  streak.recordOther();
+  assert.equal(streak.cards, 0, '出现非已入库卡片后清零');
+  assert.equal(streak.exhausted, false);
+
+  // 中间来一张新卡片必须重新累计，而不是按总数算
+  const intermittent = createKnownCardStreak(60);
+  for (let i = 0; i < 50; i++) intermittent.recordKnown();
+  intermittent.recordOther();
+  for (let i = 0; i < 59; i++) intermittent.recordKnown();
+  assert.equal(intermittent.exhausted, false, '清零后重新数到 59 张不应触发');
+  intermittent.recordKnown();
+  assert.equal(intermittent.exhausted, true);
+});
+
+test('重复止损：limit=0 关闭；非法值视为关闭', () => {
+  const off = createKnownCardStreak(0);
+  for (let i = 0; i < 500; i++) off.recordKnown();
+  assert.equal(off.exhausted, false, 'limit=0 表示不启用重复止损');
+  assert.equal(createKnownCardStreak(-5).limit, 0);
+  assert.equal(createKnownCardStreak('不是数字').limit, 0);
+  assert.equal(createKnownCardStreak(undefined).limit, 60, '默认 60 张');
 });
 
 // ── 前台可见性（后台标签页不触发 BOSS 无限滚动）─────────────────────────────
