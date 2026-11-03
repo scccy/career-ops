@@ -1,47 +1,55 @@
 // boss-web/server.mjs — BOSS 直聘流程操作控制台：实时概览 + 候选池检索 + 白名单命令执行
-// 复用项目 node_modules 的 mysql2 / js-yaml；连接参数与 boss-common.mjs 保持一致（MYSQL_* 可覆盖）。
-// 用法：node boss/boss-web/server.mjs  →  浏览器打开 http://127.0.0.1:4173
+// 复用项目 node_modules 的 pg / js-yaml；连接参数与 boss-common.mjs 保持一致（PG* 可覆盖）。
+// 用法：node boss/boss-web/server.mjs  →  本机 http://127.0.0.1:4173，局域网 http://<本机IP>:4173
+// 绑定地址由 BOSS_DASHBOARD_HOST 控制（默认 0.0.0.0 = 局域网可访问；设为 127.0.0.1 收回本机独占）。
 
 import http from 'node:http';
+import os from 'node:os';
 import { readFile } from 'node:fs/promises';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, delimiter as PATH_DELIMITER } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import mysql from 'mysql2/promise';
-import * as yaml from 'js-yaml';
+import { query as dbQuery, PG_CONFIG } from '../pg-db.mjs';
 import { loadBossControl, saveBossControl } from '../boss-config-db.mjs';
 import { splitWordList, validateWordRegex } from '../skip-rules.mjs';
-import { ensureCandidatesSchemaReady, urlPathname as sharedUrlPathname } from '../boss-common.mjs';
+import {
+  LLM_PROTOCOLS,
+  llmStatusForClient,
+  normalizeBaseUrl,
+  resolveLlmConfig,
+  testLlmConnection,
+} from '../boss-llm.mjs';
+import { ensureCandidatesSchemaReady, urlPathname as sharedUrlPathname, saveQueue, getRuntimeState, setRuntimeState } from '../boss-common.mjs';
 import { readSendHistory as readSharedSendHistory, selectSendableJobs } from '../boss-send-eligibility.mjs';
 
 const IS_WIN = process.platform === 'win32';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.BOSS_DASHBOARD_PORT || 4173);
+// 绑定地址：默认 0.0.0.0（局域网可访问，家庭网络用法）。
+// 想收回本机独占：设 BOSS_DASHBOARD_HOST=127.0.0.1。
+// ⚠️ 控制台本身无鉴权，绑到 0.0.0.0 时同网段任何设备都能发招呼/删岗位池——只在可信网络里这么开。
+const HOST = process.env.BOSS_DASHBOARD_HOST || '0.0.0.0';
 const ROOT = join(__dirname, '..', '..');
-const PROFILE = join(ROOT, 'config', 'profile.yml');
 const HTML_PATH = join(__dirname, 'index.html');
-const LAST_SCAN_FILE = join(ROOT, 'data', 'last-scan.txt');
 
-// 读取「最近一次扫描」的起始时间戳（由扫描任务启动时写入），用于「发送新扫描的」范围界定。
-function getLastScanAt() {
-  try { const t = readFileSync(LAST_SCAN_FILE, 'utf-8').trim(); return t || null; } catch { return null; }
+// 读取「最近一次扫描」的起始时间戳（存 PG boss_runtime_state.last_scan_at），用于「发送新扫描的」范围界定。
+async function getLastScanAt() {
+  try { const t = await getRuntimeState('last_scan_at'); return t || null; } catch { return null; }
 }
 
-// ---- 读取 boss 配置（阈值 / 每城配额 / 关键词），统一来自数据库 boss_config 表 ----
+// ---- 读取 boss 配置（阈值 / 每城配额 / 关键词）----
+// PostgreSQL boss_config 是**唯一**配置基准。这里不再内置任何默认城市/阈值副本，
+// 也不再 .catch 吞掉连库错误 —— 库不可用时直接把错误带到前端，避免"看起来正常、其实用的是过期文件值"。
+// 城市清单 = daily_limit_per_city 的键（配额 0 = 只扫不发）。
 async function loadBossConfig() {
-  const c = (await loadBossControl().catch(() => null)) || {};
-  const fallback = {
-    threshold: 3.0,
-    dailyLimitPerCity: { 上海: 20, 杭州: 40, 南京: 20, 无锡: 20, 常州: 20 },
-  };
+  const c = await loadBossControl();
   return {
-    threshold: Number(c.send_threshold) > 0 ? Number(c.send_threshold) : fallback.threshold,
+    threshold: Number(c.send_threshold) > 0 ? Number(c.send_threshold) : 3.0,
     dailyLimitPerCity:
       c.daily_limit_per_city && typeof c.daily_limit_per_city === 'object'
         ? c.daily_limit_per_city
-        : fallback.dailyLimitPerCity,
+        : {},
     greetingStyle: '',
     dailyExtractQueries: Array.isArray(c.daily_extract_queries) ? c.daily_extract_queries : [],
     dailyExtractKeywordsByCity:
@@ -64,12 +72,22 @@ async function loadBossConfig() {
     knownStreakLimit: Number.isFinite(Number(c.known_streak_limit)) ? Number(c.known_streak_limit) : 60,
     // JD 完整性门禁（true=抽取时丢弃 <180 字/无结构词的岗位；false=不过滤，照常入库评分）
     requireFullJd: c.require_full_jd === false ? false : true,
+    // HR 活跃硬闸（true=hr_active 以月/半年/年计的岗位被发送预检拦截；false=关闭，只靠评分压分）
+    staleHrActiveExclude: c.stale_hr_active_exclude === false ? false : true,
     // 跳词 / 排除规则（DB boss_config，控制台可编辑；默认表见 boss/skip-rules.mjs）
     skipWords: Array.isArray(c.skip_words) ? c.skip_words : [],
     riskKeywords: Array.isArray(c.risk_keywords) ? c.risk_keywords : [],
     titleExclude: Array.isArray(c.title_exclude) ? c.title_exclude : [],
     companyExclude: Array.isArray(c.company_exclude) ? c.company_exclude : [],
+    // LLM 招呼语（2026-10-30）：base url / 模型 / 协议 / key 全部来自 DB 同一行配置。
+    // 明文 key 只留在服务端，这里给前端的是掩码（llmStatusForClient）。
+    llm: llmStatusForClient(resolveLlmConfig(c)),
   };
+}
+
+// 运行时可用的 LLM 配置（含明文 key）——只给服务端自己用（打分/测试连通），绝不进响应体。
+async function loadRuntimeLlmConfig() {
+  return resolveLlmConfig(await loadBossControl());
 }
 
 // ---- 写回 boss 配置到数据库（阈值 / 每城配额 / 关键词）----
@@ -79,7 +97,7 @@ async function saveBossConfig(body = {}) {
     send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city,
     platform_daily_limit,
     keyword_gap_seconds, city_gap_seconds, card_gap_min_ms, card_gap_max_ms, scan_budget_factor,
-    require_full_jd,
+    require_full_jd, stale_hr_active_exclude,
   } = body;
   const partial = {};
   if (send_threshold != null) {
@@ -108,6 +126,8 @@ async function saveBossConfig(body = {}) {
   }
   // JD 完整性门禁开关：布尔透传，未传保持现值
   if (require_full_jd != null) partial.require_full_jd = Boolean(require_full_jd);
+  // HR 活跃硬闸开关：布尔透传，未传保持现值（默认开）
+  if (stale_hr_active_exclude != null) partial.stale_hr_active_exclude = Boolean(stale_hr_active_exclude);
   // 跳词 / 排除规则：接受数组或分隔符字符串；正则类字段在保存时就校验，
   // 非法正则直接报错，而不是等到扫描时静默回落默认词表（2026-10-14）
   for (const key of ['skip_words', 'risk_keywords', 'title_exclude', 'company_exclude']) {
@@ -128,20 +148,60 @@ async function saveBossConfig(body = {}) {
   return loadBossConfig();
 }
 
-const DB = {
-  host: process.env.MYSQL_HOST || '127.0.0.1',
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_DB || 'career_ops',
-  connectionLimit: 5,
-  connectTimeout: 4000,
-};
-const pool = mysql.createPool(DB);
-
 async function q(sql, params) {
-  const [rows] = await pool.query(sql, params);
+  const [rows] = await dbQuery(sql, params);
   return rows;
+}
+
+// ---- LLM 招呼语配置写回（2026-10-30；独立于 /api/quota，有自己的保存/测试按钮）----
+// 校验原则：控制台填什么就校验什么，非法值直接报错，不要静默夹到默认值——否则用户以为改好了。
+// API Key 特殊：空字符串 = **保持不变**（前端永远只拿到掩码，留空不能把已配置的 key 抹掉）；
+// 要清空必须显式 clearKey: true。
+async function saveLlmConfig(body = {}) {
+  const partial = {};
+  if (body.enabled != null) partial.llm_enabled = Boolean(body.enabled);
+  if (body.protocol != null) {
+    const p = String(body.protocol).trim().toLowerCase();
+    if (!LLM_PROTOCOLS.includes(p)) {
+      throw new Error(`协议非法：${body.protocol}（可选 ${LLM_PROTOCOLS.join(' / ')}）`);
+    }
+    partial.llm_protocol = p;
+  }
+  if (body.baseUrl != null) {
+    const raw = String(body.baseUrl).trim();
+    if (raw && !/^https?:\/\//i.test(raw)) throw new Error('base url 必须以 http:// 或 https:// 开头');
+    partial.llm_base_url = normalizeBaseUrl(raw);
+  }
+  if (body.model != null) partial.llm_model = String(body.model).trim();
+  if (body.clearKey === true) partial.llm_api_key = '';
+  else if (body.apiKey != null && String(body.apiKey).trim()) partial.llm_api_key = String(body.apiKey).trim();
+  const numeric = [
+    ['temperature', 'llm_temperature', 0, 2],
+    ['maxTokens', 'llm_max_tokens', 0, 8192],
+    ['timeoutMs', 'llm_timeout_ms', 1000, 300000],
+    ['concurrency', 'llm_concurrency', 1, 16],
+    // 唯一的数量参数：每批岗位数（输出预算/超时由代码按批自动推算，不再是可填项）
+    ['batchSize', 'llm_analyze_batch_size', 1, 100],
+  ];
+  for (const [field, key, min, max] of numeric) {
+    if (body[field] == null || body[field] === '') continue;
+    const n = Number(body[field]);
+    if (!Number.isFinite(n) || n < min || n > max) throw new Error(`${field} 非法：需在 ${min}–${max} 之间`);
+    partial[key] = n;
+  }
+  // 评估开关：评分时要不要跑这一轮 LLM（匹配结构 + 招呼语）
+  if (body.analyzeEnabled != null) partial.llm_analyze_enabled = Boolean(body.analyzeEnabled);
+  // 关思维链（网关扩展参数，实测省约 4 倍费用）：显式传值才写
+  if (body.thinkingDisabled != null) partial.llm_thinking_disabled = Boolean(body.thinkingDisabled);
+  // 思考力度：空 = 不传该参数（各家网关兼容性最好）
+  if (body.reasoningEffort != null) {
+    const effort = String(body.reasoningEffort).toLowerCase();
+    if (!['', 'low', 'medium', 'high'].includes(effort)) throw new Error(`思考力度非法：${body.reasoningEffort}`);
+    partial.llm_reasoning_effort = effort;
+  }
+  if (body.prompt != null) partial.llm_prompt = String(body.prompt).slice(0, 4000);
+  await saveBossControl(partial);
+  return loadBossConfig();
 }
 
 let stateSchemaReady = false;
@@ -159,7 +219,7 @@ async function getSendabilitySnapshot(cfg) {
        FROM boss_jobs ORDER BY score IS NULL, score DESC, key_hash ASC`,
   );
   const urlCity = new Map(rows.filter((r) => r.url).map((r) => [sharedUrlPathname(r.url), String(r.city || '').split('·')[0]]));
-  const history = readSharedSendHistory(urlCity);
+  const history = await readSharedSendHistory(urlCity);
   const candidates = rows.map((r) => ({
     ...(typeof r.raw === 'string' ? JSON.parse(r.raw) : (r.raw || {})),
     key_hash: r.key_hash, company: r.company, title: r.title,
@@ -174,6 +234,7 @@ async function getSendabilitySnapshot(cfg) {
     cityLimits: cfg.dailyLimitPerCity,
     platformLimit: cfg.platformDailyLimit,
     titleExclude: cfg.titleExclude,
+    staleHrActiveExclude: cfg.staleHrActiveExclude,
     history,
   });
   return { rows: candidates, urlCity, history, selection };
@@ -197,8 +258,9 @@ async function getOverview() {
   const citiesAll = await q(
     `SELECT city,
             COUNT(*) AS total,
-            SUM(greeted=1) AS greeted,
-            SUM(greeted=0 AND score>=? AND availability <> 'closed' AND (status IS NULL OR status <> 'closed')) AS pending
+            SUM(CASE WHEN greeted=1 THEN 1 ELSE 0 END) AS greeted,
+            -- 原始候选同样排除人工排除的岗位（2026-10-30 用户：排除=彻底不出局，连候选都不算）
+            SUM(CASE WHEN greeted=0 AND manual_excluded=0 AND score>=? AND availability <> 'closed' AND (status IS NULL OR status <> 'closed') THEN 1 ELSE 0 END) AS pending
      FROM boss_jobs GROUP BY city`,
     [thr],
   );
@@ -215,6 +277,7 @@ async function getOverview() {
       cityLimits: cfg.dailyLimitPerCity,
       platformLimit: cfg.platformDailyLimit,
       titleExclude: cfg.titleExclude,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
       history: snapshot.history,
     }).jobs.length;
   }
@@ -259,6 +322,8 @@ async function getOverview() {
     generatedAt: new Date().toISOString(),
     threshold: thr,
     greetingStyle: cfg.greetingStyle,
+    // LLM 招呼语状态（掩码 key）：控制台首屏横幅与「LLM 招呼语」面板都用它回填
+    llm: cfg.llm,
     dailyExtractQueries: cfg.dailyExtractQueries,
     pacing: {
       keywordGapSeconds: cfg.keywordGapSeconds,
@@ -267,6 +332,7 @@ async function getOverview() {
       cardGapMaxMs: cfg.cardGapMaxMs,
       scanBudgetFactor: cfg.scanBudgetFactor,
       requireFullJd: cfg.requireFullJd,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
       maxDomCards: cfg.maxDomCards,
       knownStreakLimit: cfg.knownStreakLimit,
     },
@@ -274,6 +340,7 @@ async function getOverview() {
       skipWords: cfg.skipWords,
       riskKeywords: cfg.riskKeywords,
       titleExclude: cfg.titleExclude,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
       companyExclude: cfg.companyExclude,
     },
     total: total,
@@ -286,7 +353,7 @@ async function getOverview() {
     todaySent: todayInfo.todaySent,
     unknownCitySent,
     platform,
-    lastScanAt: getLastScanAt(),
+    lastScanAt: await getLastScanAt(),
     quota: quotaData,
     cities: cityRows.map((r) => ({ city: String(r.city || '未知'), n: Number(r.n) })),
     salaryBounds: {
@@ -326,11 +393,11 @@ function buildJobFilter(f, { threshold } = {}) {
   };
   if (f.jobType === 'clean') {
     const kws = ['实习', '校招', '应届', '校园', '毕业生'];
-    const likes = kws.map(() => '(title LIKE ? OR raw LIKE ?)').join(' OR ');
+    const likes = kws.map(() => '(title ILIKE ? OR raw::text ILIKE ?)').join(' OR ');
     kws.forEach((kw) => args.push(`%${kw}%`, `%${kw}%`));
     where.push('NOT (' + likes + ')');
   } else if (typePatterns[f.jobType]) {
-    const likes = typePatterns[f.jobType].map(() => '(title LIKE ? OR raw LIKE ?)').join(' OR ');
+    const likes = typePatterns[f.jobType].map(() => '(title ILIKE ? OR raw::text ILIKE ?)').join(' OR ');
     typePatterns[f.jobType].forEach((kw) => args.push(`%${kw}%`, `%${kw}%`));
     where.push('(' + likes + ')');
   }
@@ -346,10 +413,25 @@ function buildJobFilter(f, { threshold } = {}) {
   if (f.minScore !== '' && f.minScore != null && Number.isFinite(Number(f.minScore))) {
     where.push('score >= ?'); args.push(Number(f.minScore));
   }
+  // HR 活跃时间过滤（2026-10-16 用户要求）：走独立列 boss_jobs.hr_active
+  // （提取自卡片/详情页 .boss-active-time，如「刚刚活跃 / 今日活跃 / 3日内活跃 / 本周活跃 / 2月内活跃」）。
+  // 未提取到的（历史数据、空串）只在「不限」时出现；选任一档都会把它们排除。
+  if (f.hrActive === 'recent') {
+    // 近一周内有活动迹象：刚刚/今日/今天/分钟/小时/日内/天内/本周
+    where.push(`hr_active ~ '刚刚|今日|今天|分钟|小时|日内|天内|本周|在线'`);
+  } else if (f.hrActive === 'week') {
+    // 本周（含近期）：排除以「月/年」为单位的长期未活跃
+    where.push(`(hr_active ~ '刚刚|今日|今天|分钟|小时|日内|天内|本周|在线'
+      OR (hr_active <> '' AND hr_active !~ '月|年'))`);
+  } else if (f.hrActive === 'month') {
+    // 最近一个月：排除「2月内活跃」「半年」「X年」等，保留「一月内/30天内/本月活跃」及所有近期档
+    where.push(`(hr_active ~ '刚刚|今日|今天|分钟|小时|日内|天内|本周|在线|一月内|30天|本月|半个月|半月|一周内|两周'
+      OR (hr_active <> '' AND hr_active !~ '[2-9]月|半年|几月|数月|年'))`);
+  }
   if (f.keyword) {
     const terms = String(f.keyword).split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean);
     if (terms.length) {
-      const ors = terms.map(() => '(title LIKE ? OR raw LIKE ?)');
+      const ors = terms.map(() => '(title ILIKE ? OR raw::text ILIKE ?)');
       where.push('(' + ors.join(' OR ') + ')');
       terms.forEach((t) => { args.push('%' + t + '%', '%' + t + '%'); });
     }
@@ -375,6 +457,7 @@ async function getJobs(sp) {
     minScore: sp.get('minScore'),
     keyword: String(sp.get('keyword') || '').trim(),
     jobType: String(sp.get('jobType') || ''),
+    hrActive: String(sp.get('hrActive') || ''),
   };
   const sort = String(sp.get('sort') || 'score_desc');
 
@@ -386,6 +469,7 @@ async function getJobs(sp) {
       cityLimits: cfg.dailyLimitPerCity,
       platformLimit: cfg.platformDailyLimit,
       titleExclude: cfg.titleExclude,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
       history: snapshot.history,
     })
     : snapshot.selection;
@@ -409,17 +493,29 @@ async function getJobs(sp) {
     salary_desc: 'salary_max IS NULL, salary_max DESC, score DESC',
     recent: 'scanned_at IS NULL, scanned_at DESC',
     company: 'company ASC',
+    // 按 LLM 深解析的匹配分排序（没解析过的排最后）
+    // 用 coalesce 而不是裸列：llm_score 是派生列，历史上有整池重写清空过，raw.llm 才是来源
+    llm_desc: `(coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric)) IS NULL,
+               (coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric)) DESC, score DESC`,
+    // 升序版本：没有分的仍然沉底（IS NULL 前置），否则空值会占满第一页
+    llm_asc: `(coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric)) IS NULL,
+              (coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric)) ASC, score DESC`,
+    score_asc: 'score IS NULL, score ASC, salary_max DESC',
+    salary_asc: 'salary_max IS NULL, salary_max ASC, score DESC',
   };
   const rows = await q(
-    `SELECT key_hash, company, title, salary, salary_min, salary_max, city, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at,
-            json_unquote(json_extract(raw,'$.recommendation')) AS recommendation,
-            json_unquote(json_extract(raw,'$.score_eligible')) AS score_eligible
+    `SELECT key_hash, company, title, salary, salary_min, salary_max, city, hr_active, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at,
+            coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric) AS llm_score,
+            raw->'llm' AS llm,
+            raw->>'recommendation' AS recommendation,
+            raw->>'score_eligible' AS score_eligible,
+            raw->>'greetingSource' AS greeting_source,
+            raw->>'greeting' AS greeting
      FROM boss_jobs ${whereSql}
      ORDER BY ${orderMap[sort] || orderMap.score_desc}
      LIMIT ? OFFSET ?`,
     [...args, pageSize, offset],
   );
-
   return {
     ok: true,
     threshold: cfg.threshold,
@@ -427,7 +523,10 @@ async function getJobs(sp) {
     page: safePage,
     pageSize,
     totalPages,
-    rows: rows.map((r) => ({
+    rows: rows.map((r) => {
+      // 深解析结果（cv.md + JD → 标准 JSON）：raw.llm 整份带出来，列表只摘要关键几项
+      const llm = r.llm && typeof r.llm === 'object' ? r.llm : null;
+      return {
       key_hash: r.key_hash,
       company: r.company,
       title: r.title,
@@ -443,13 +542,29 @@ async function getJobs(sp) {
       manualExclusionReason: r.manual_exclusion_reason || '',
       eligibility: scopedSelection.reasonsByKey[String(r.key_hash)] || 'not_candidate',
       score: r.score == null ? null : Number(r.score),
+      // HR 活跃时间（独立列，卡片/详情页 .boss-active-time，如「今日活跃」）——展示与过滤共用
+      hrActive: r.hr_active || '',
       // 无分数 = 评分判定「不可发送」后按设计不回写 score。把评分器写下的原因带出来，
       // 列表里就能显示"为什么没有分数"，而不是只看到一个「—」（2026-10-14 用户提问）。
       recommendation: r.recommendation || '',
       scoreEligible: r.score_eligible == null ? null : Number(r.score_eligible),
+      // 招呼语来源（llm_analysis / llm / template）与文案本身：列表里能看出会不会用模板话术发出去
+      greetingSource: r.greeting_source || '',
+      greeting: r.greeting || '',
+      // LLM 深解析（参考分：不参与发送资格，规则分仍是唯一权威）
+      llmScore: r.llm_score == null ? null : Number(r.llm_score),
+      llmLevel: llm?.match?.level || '',
+      llmWhy: llm?.match?.why || '',
+      llmRisk: llm?.job?.risk_level || '',
+      llmGaps: Array.isArray(llm?.match?.gaps) ? llm.match.gaps.map((g) => g.requirement).slice(0, 4) : [],
+      llmTech: Array.isArray(llm?.job?.tech_stack) ? llm.job.tech_stack.slice(0, 8) : [],
+      llmRedFlags: Array.isArray(llm?.job?.red_flags) ? llm.job.red_flags.slice(0, 4) : [],
+      llmAnalyzedAt: llm?.analyzed_at || '',
+      llmModel: llm?.model || '',
       status: r.status,
       scanned_at: r.scanned_at,
-    })),
+      };
+    }),
   };
 }
 
@@ -460,6 +575,8 @@ const RUN_ALLOWED = {
   scan:    'npm run boss:extract:daily',
   scan_all:'npm run boss:extract:daily:all',
   score:   'npm run boss:score',
+  // 深解析已并进 score（点「扫描」一条龙就做了）；这里留一个手动入口，用于补跑/重解析少量岗位
+  analyze: 'npm run boss:analyze -- --limit 20',
   fill:    'npm run boss:fill -- --prepare',
   review:  'npm run boss:review',
   dryrun:  'npm run boss:chrome:apply -- --dry-run',
@@ -597,6 +714,54 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(data));
     }
 
+    // ---- 单岗位详情（表格里放不下招呼语全文与深解析明细，点开弹窗时按需拉这一条）----
+    if (url.pathname === '/api/jobs/llm' && req.method === 'GET') {
+      const json = (obj, code = 200) => {
+        res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(obj));
+      };
+      const keyHash = String(url.searchParams.get('key_hash') || '').trim();
+      if (!/^[A-Za-z0-9+/=_\-]{8,512}$/.test(keyHash)) return json({ ok: false, error: 'key_hash 非法' }, 400);
+      const rows = await q(
+        `SELECT key_hash, company, title, city, salary, hr_active, url, greeted, contact_state,
+                status, availability, manual_excluded, score,
+                coalesce(llm_score, (raw->'llm'->'match'->>'score')::numeric) AS llm_score,
+                raw->>'greeting' AS greeting,
+                raw->>'greetingSource' AS greeting_source,
+                raw->>'greetingModel' AS greeting_model,
+                raw->'llm' AS llm
+           FROM boss_jobs WHERE key_hash = ?`,
+        [keyHash],
+      );
+      if (!rows.length) return json({ ok: false, error: '岗位不存在（可能已被删除）' }, 404);
+      const r = rows[0];
+      const llm = r.llm && typeof r.llm === 'object' ? r.llm : null;
+      return json({
+        ok: true,
+        job: {
+          key_hash: r.key_hash,
+          company: r.company,
+          title: r.title,
+          city: r.city,
+          salary: r.salary,
+          hrActive: r.hr_active || '',
+          url: r.url || '',
+          greeted: Boolean(r.greeted),
+          contactState: r.contact_state || '',
+          status: r.status || '',
+          availability: r.availability || '',
+          manualExcluded: Boolean(r.manual_excluded),
+          score: r.score == null ? null : Number(r.score),
+          llmLevel: llm?.match?.level || '',
+        },
+        llmScore: r.llm_score == null ? null : Number(r.llm_score),
+        greeting: r.greeting || '',
+        greetingSource: r.greeting_source || '',
+        greetingModel: r.greeting_model || '',
+        llm,
+      });
+    }
+
     // ---- 批量状态操作：联系事实、人工暂缓、恢复暂缓、删除 ----
     if (url.pathname === '/api/city/purge' && req.method === 'POST') {
       // 删除城市后清掉其遗留岗位（城市表「删除」按钮配套动作）
@@ -662,13 +827,17 @@ const server = http.createServer(async (req, res) => {
         if (action === 'confirm_contact') {
           r = await q(`UPDATE boss_jobs SET greeted=1, contact_state='manual_contact_confirmed',
             manual_excluded=0, manual_exclusion_reason='',
-            raw=JSON_SET(raw, '$.greeted', CAST('true' AS JSON), '$.contactState', 'manual_contact_confirmed', '$.manualExcluded', CAST('false' AS JSON), '$.manualExclusionReason', '') ` + target.whereSql, target.args);
+            raw=jsonb_set(jsonb_set(jsonb_set(jsonb_set(raw,
+              '{greeted}', to_jsonb(true)),
+              '{contactState}', to_jsonb('manual_contact_confirmed'::text)),
+              '{manualExcluded}', to_jsonb(false)),
+              '{manualExclusionReason}', to_jsonb(''::text)) ` + target.whereSql, target.args);
         } else if (action === 'exclude') {
           r = await q(`UPDATE boss_jobs SET manual_excluded=1, manual_exclusion_reason='user',
-            raw=JSON_SET(raw, '$.manualExcluded', CAST('true' AS JSON), '$.manualExclusionReason', 'user') ` + target.whereSql, target.args);
+            raw=jsonb_set(jsonb_set(raw, '{manualExcluded}', to_jsonb(true)), '{manualExclusionReason}', to_jsonb('user'::text)) ` + target.whereSql, target.args);
         } else if (action === 'restore_exclusion') {
           r = await q(`UPDATE boss_jobs SET manual_excluded=0, manual_exclusion_reason='',
-            raw=JSON_SET(raw, '$.manualExcluded', CAST('false' AS JSON), '$.manualExclusionReason', '') ` + target.whereSql, target.args);
+            raw=jsonb_set(jsonb_set(raw, '{manualExcluded}', to_jsonb(false)), '{manualExclusionReason}', to_jsonb(''::text)) ` + target.whereSql, target.args);
         } else {
           r = await q('DELETE FROM boss_jobs ' + target.whereSql, target.args);
         }
@@ -693,6 +862,57 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // ---- LLM 招呼语：读配置（key 只给掩码）/ 保存 / 测试连通 ----
+    if (url.pathname === '/api/llm') {
+      const json = (obj, code = 200) => {
+        res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(obj));
+      };
+      if (req.method === 'GET') {
+        const cfg = await loadBossConfig();
+        return json({ ok: true, llm: cfg.llm });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req);
+        try {
+          const cfg = await saveLlmConfig(body);
+          return json({ ok: true, llm: cfg.llm });
+        } catch (e) {
+          return json({ ok: false, error: e.message }, 400);
+        }
+      }
+      return json({ ok: false, error: `不支持的方法：${req.method}` }, 405);
+    }
+    // 测试连通：优先用前端表单里**当前**的值（未保存也能先试），留空的字段回落到库里已保存的值；
+    // key 留空则用库里那份（前端拿不到明文，只能这样）。只发一句最小请求，不写库、不产生打招呼文案。
+    if (url.pathname === '/api/llm/test' && req.method === 'POST') {
+      const json = (obj, code = 200) => {
+        res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(obj));
+      };
+      let body = {};
+      try { body = await readBody(req); } catch { body = {}; }
+      try {
+        const stored = await loadRuntimeLlmConfig();
+        const candidate = {
+          ...stored,
+          enabled: true,
+          protocol: body.protocol ? String(body.protocol).toLowerCase() : stored.protocol,
+          baseUrl: body.baseUrl ? normalizeBaseUrl(body.baseUrl) : stored.baseUrl,
+          model: body.model ? String(body.model).trim() : stored.model,
+          apiKey: (body.apiKey && String(body.apiKey).trim()) || stored.apiKey,
+        };
+        for (const [field, key] of [['temperature', 'temperature'], ['maxTokens', 'maxTokens'], ['timeoutMs', 'timeoutMs']]) {
+          const n = Number(body[field]);
+          if (body[field] != null && body[field] !== '' && Number.isFinite(n)) candidate[key] = n;
+        }
+        const result = await testLlmConnection(candidate);
+        return json({ ok: true, ...result, model: candidate.model, protocol: candidate.protocol });
+      } catch (e) {
+        return json({ ok: false, error: e.message }, 200);
+      }
+    }
+
     // ---- 执行引擎 ----
     if (url.pathname === '/api/run' && req.method === 'POST') {
       const body = await readBody(req);
@@ -713,24 +933,23 @@ const server = http.createServer(async (req, res) => {
           cityLimits: cfg.dailyLimitPerCity,
           platformLimit: cfg.platformDailyLimit,
           titleExclude: cfg.titleExclude,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
           history: snapshot.history,
         });
         const jobs = citySelection.jobs;
         if (!jobs.length) {
-          return json({ ok: false, error: `${city} 当前没有进入本轮可发送队列的岗位（评分、联系状态、职位状态、30 天去重或当日配额未通过）` }, 400);
+          return json({ ok: false, error: `${city} 当前没有进入本轮可发送队列的岗位（评分、联系状态、职位状态、30 天同岗位去重或当日配额未通过）` }, 400);
         }
-        mkdirSync(join(ROOT, 'data'), { recursive: true });
-        const rel = `data/boss-queue-${city}.json`;
-        writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
-        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
+        await saveQueue(city, jobs);
+        const cmd = `npm run boss:chrome:apply -- --queue ${city} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
         if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
-            message: `已按控制台“本轮可发送”预检生成 ${city} 临时队列，共 ${jobs.length} 条。确认后仍会在发送前检查 BOSS 实时页面状态。` }, 409);
+            message: `已按控制台“本轮可发送”预检生成 ${city} 临时队列（PG boss_queue），共 ${jobs.length} 条。确认后仍会在发送前检查 BOSS 实时页面状态。` }, 409);
         }
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'confirm';
-        return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
+        return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 PG boss_queue（queue_name=${city}）` });
       }
 
       // 动态命令：单城一键准备 = ②扫描该城关键词 → ③评分 → ④排队（除发送外全部自动完成，发送仍是人工检查点）。
@@ -764,8 +983,9 @@ const server = http.createServer(async (req, res) => {
         } else {
           kwArg = ' --all';
         }
-        try { mkdirSync(join(ROOT, 'data'), { recursive: true }); writeFileSync(LAST_SCAN_FILE, new Date().toISOString()); } catch { /* ignore */ }
-        const cmd = `npm run boss:extract:daily -- --city "${city}"${kwArg} && npm run boss:score && npm run boss:fill -- --prepare`;
+        try { await setRuntimeState('last_scan_at', new Date().toISOString()); } catch { /* ignore */ }
+        // --analyze-city：评分里的深解析只解析本城（点南京的扫描不去解析上海/厦门的岗位）
+        const cmd = `npm run boss:extract:daily -- --city "${city}"${kwArg} && npm run boss:score -- --analyze-city "${city}" && npm run boss:fill -- --prepare`;
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'safe';
         const scope = kwArg === ' --all' ? '全部关键词' : `关键词子集（${body.keywords.length} 个）`;
@@ -792,6 +1012,7 @@ const server = http.createServer(async (req, res) => {
           cityLimits: cfg.dailyLimitPerCity,
           platformLimit: cfg.platformDailyLimit,
           titleExclude: cfg.titleExclude,
+      staleHrActiveExclude: cfg.staleHrActiveExclude,
           history: snapshot.history,
         });
         const jobs = selection.jobs;
@@ -805,18 +1026,16 @@ const server = http.createServer(async (req, res) => {
           if (uns.n > 0) hint = `检测到 ${city} 有 ${uns.n} 条新扫描岗位尚未评分，请先执行主流程③评分（boss:score）再发新扫。`;
           return json({ ok: false, error: `${city} 最近扫描新增岗位中没有通过本轮可发送预检的岗位。${hint}` }, 400);
         }
-        mkdirSync(join(ROOT, 'data'), { recursive: true });
-        const rel = `data/boss-queue-${city}.json`;
-        writeFileSync(join(ROOT, rel), JSON.stringify(jobs, null, 2), 'utf-8');
-        const cmd = `npm run boss:chrome:apply -- --input ${rel} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
+        await saveQueue(city, jobs);
+        const cmd = `npm run boss:chrome:apply -- --queue ${city} --threshold ${cfg.threshold} --confirmed-review && node merge-tracker.mjs`;
         if (body.confirm !== true) {
           return json({ ok: false, needConfirm: true, cmd, count: jobs.length,
-            message: `已按本轮发送规则从最近扫描新增岗位中预检出 ${jobs.length} 条。确认后仍会在发送前检查 BOSS 实时页面状态。` }, 409);
+            message: `已按本轮发送规则从最近扫描新增岗位中预检出 ${jobs.length} 条（PG boss_queue）。确认后仍会在发送前检查 BOSS 实时页面状态。` }, 409);
         }
         if (runningId !== null) return json({ ok: false, busy: true, error: '已有任务在运行，请先等待或终止' }, 409);
         RUN_ALLOWED[key] = cmd;
         RUN_TIER[key] = 'confirm';
-        return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 ${rel}` });
+        return json({ ok: true, job: publicJob(startRun(key)), note: `临时队列已写入 PG boss_queue（queue_name=${city}）` });
       }
 
       if (!RUN_ALLOWED[key]) return json({ ok: false, error: `命令不在白名单：${key}` }, 400);
@@ -856,7 +1075,30 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+// 列出本机非回环 IPv4，方便直接照抄到手机/另一台电脑打开控制台。
+function lanUrls(port) {
+  const out = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const ni of list || []) {
+      if (ni.family === 'IPv4' && !ni.internal) out.push(`http://${ni.address}:${port}`);
+    }
+  }
+  return out;
+}
+
+server.listen(PORT, HOST, () => {
   console.log(`BOSS 流程操作控制台已启动: http://127.0.0.1:${PORT}`);
-  console.log(`MySQL: ${DB.host}:${DB.port}/${DB.database}  user=${DB.user}`);
+  if (HOST === '0.0.0.0' || HOST === '::') {
+    const urls = lanUrls(PORT);
+    if (urls.length) console.log(`局域网访问: ${urls.join('  ')}`);
+    else console.log('局域网访问: 未检测到非回环 IPv4 网卡');
+    console.log('（控制台无鉴权，仅限可信网络；收回本机独占设 BOSS_DASHBOARD_HOST=127.0.0.1）');
+  } else {
+    console.log(`绑定地址: ${HOST}（仅此地址可访问）`);
+  }
+  console.log(`PostgreSQL: ${PG_CONFIG.host}:${PG_CONFIG.port}/${PG_CONFIG.database}  user=${PG_CONFIG.user}`);
 });
+
+
+
+

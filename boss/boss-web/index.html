@@ -188,6 +188,12 @@
   th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
   th{font-size:11.5px;letter-spacing:.3px;color:var(--muted);white-space:nowrap;font-weight:700;
     background:#f8fafc;border-bottom:1px solid var(--line)}
+  /* 可排序列头（2026-10-30）：点一下切降序、再点切升序；没有 LLM 分的永远沉底 */
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--indigo)}
+  th.sortable .sarw{font-style:normal;display:inline-block;min-width:9px;margin-left:3px;opacity:.35}
+  th.sortable.on{color:var(--indigo)}
+  th.sortable.on .sarw{opacity:1}
   td a{color:var(--indigo);font-weight:600;text-decoration:none;white-space:nowrap}
   td a:hover{text-decoration:underline}
   /* 长列表可读性：斑马纹 + hover 高亮 */
@@ -253,6 +259,23 @@
   .modal p{margin:0 0 12px;font-size:13.5px;color:var(--muted)}
   .modal pre{background:#0a2540;color:#cfe3ff;padding:11px 13px;border-radius:10px;font-size:12px;white-space:pre-wrap;overflow:auto;margin:0}
   .macts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+  /* 岗位详情弹窗（招呼语 + 深解析明细）：表格里放不下，点开看全文 */
+  .jobmodal{max-width:780px;max-height:86vh;overflow:auto}
+  .jm-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .jm-badges{display:flex;gap:6px;flex-wrap:wrap}
+  .jm-meta{margin:6px 0 2px;font-size:12.5px;color:var(--muted);line-height:1.9}
+  .jm-meta b{color:#0a2540}
+  .jm-sec{margin-top:16px}
+  .jm-st{margin:0 0 8px;font-size:13px;font-weight:700;color:#0a2540;display:flex;gap:8px;align-items:baseline}
+  .jm-greet{background:#f6f8fb;border:1px solid #e3e9f2;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.85;white-space:pre-wrap;word-break:break-word}
+  .jm-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
+  .jm-kv{display:grid;grid-template-columns:96px 1fr;gap:6px 12px;font-size:13px;line-height:1.75}
+  .jm-kv dt{color:var(--muted)}
+  .jm-kv dd{margin:0;word-break:break-word}
+  .jm-list{margin:0;padding-left:18px;font-size:13px;line-height:1.8}
+  .jm-chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:#eef1f6;color:#33415c;margin:2px 4px 2px 0}
+  .jm-chip.hard{background:var(--red-soft);color:var(--red)}
+  .jm-link{color:var(--indigo);cursor:pointer;text-decoration:underline}
   .btn.danger{background:var(--red)}
   .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
   .btn:active:not(:disabled){transform:translateY(0)}
@@ -288,7 +311,7 @@
     <div class="cards" id="cards">
       <div class="card"><div class="k">候选池总数</div><div class="v" id="cTotal">—</div><div class="x" id="cTotalX">boss_jobs</div></div>
       <div class="card good"><div class="k">已打招呼</div><div class="v" id="cGreeted">—</div><div class="x">greeted=1</div></div>
-      <div class="card accent"><div class="k">本轮可发送</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">实际可发送 · 30天去重 · 配额后</div></div>
+      <div class="card accent"><div class="k">本轮可发送</div><div class="v" id="cPending">—</div><div class="x" id="cPendingX">实际可发送 · 30天同岗位去重 · 配额后</div></div>
       <div class="card warn"><div class="k">今日已发</div><div class="v" id="cToday">—</div><div class="x">发送日志</div></div>
       <div class="card" id="cardUnscored" style="cursor:pointer" title="点击查看缺少分数（score IS NULL）的岗位"><div class="k">未评分</div><div class="v" id="cUnscored">—</div><div class="x">点击查看 · 待 boss:score</div></div>
     </div>
@@ -339,6 +362,7 @@
       <label title="单个关键词最多处理多少张卡片（含被跳过、被点击的）；处理满就收工，不管 BOSS 自己又追加了多少卡片（点击会滚动页面→触发追加，所以按处理量计数才封得住）。0 = 不限。改动对下一次扫描生效">单关键词卡片上限 <input type="number" id="fMaxDomCards" min="0" step="15" style="width:70px" /></label>
       <label title="连续这么多张卡片都是「已入库岗位」（重复）就结束本词扫描，中间出现任何一张新卡片即清零。0 = 关闭。改动对下一次扫描生效">重复止损(张) <input type="number" id="fKnownStreak" min="0" step="10" style="width:70px" /></label>
       <label title="勾选=抽取时丢弃 JD 偏短（<180字）或无「岗位职责/任职要求」结构词的岗位；取消勾选=不过滤，照常入库评分（可减少岗位流失）。改动对下一次扫描生效"><input type="checkbox" id="fRequireFullJd" /> JD完整性过滤</label>
+      <label title="勾选=HR活跃时间以月/半年/年计的岗位（如「2月内活跃」「半年活跃」）被发送预检拦截（stale_hr_active），绝不出现在发送候选；取消勾选=只靠评分压分不硬拦。立即生效"><input type="checkbox" id="fStaleHrActive" /> HR长期未活跃不发</label>
       <span class="hint" style="margin:0">⚠ 间隔调小会提高风控风险；改动对下一次扫描生效</span>
     </div>
     <!-- 跳词与排除规则（2026-10-14 统一到控制台；提取/评分/排队三处共用一份 DB 配置） -->
@@ -363,7 +387,7 @@
       <button class="btn sm" id="btnSaveQuota">保存配置</button>
       <button class="btn sm" id="btnCheckClosed" title="逐个打开评分达标且未打招呼的数据库候选岗位，检查是否已在 BOSS 下线；命中的标记出局，不再进入发送候选">检查关闭岗位</button>
       <span class="hint" id="platformInfo" style="margin:0"></span>
-      <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（读取该城评分达标且未打招呼的数据库候选，执行时应用30天去重和配额）/ <b>发新扫</b>（只取最近一次扫描新增，执行时同样应用去重和配额）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
+      <span class="hint" style="margin:0">每城三步流：<b>扫描</b>（一键②③④：抓取该城全部关键词→评分→排队，关键词量由每城词表控制）→ <b>发送</b>（读取该城评分达标且未打招呼的数据库候选，执行时应用30天同岗位去重和配额）/ <b>发新扫</b>（只取最近一次扫描新增，执行时同样应用同岗位去重和配额）。发送仍需确认；配额按城强制。全局主流程面板仍保留主/主+补充扫描与预演 dry-run。</span>
     </div>
     <div class="city-add">
       <input id="addCityName" placeholder="城市名，如 苏州" />
@@ -389,7 +413,60 @@
       <tbody id="cityBody"></tbody>
     </table>
     </div>
-    <div class="hint">数字实时查 MySQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。自动刷新只更新数字、不重置你的编辑。</div>
+    <div class="hint">数字实时查 PostgreSQL / 发送日志，无缓存；配额日界每天早上 <b>08:00</b>（UTC 0 点）重置，不是北京时间 0 点。自动刷新只更新数字、不重置你的编辑。</div>
+  </section>
+
+  <!-- LLM 招呼语（2026-10-30）：评分时为每个岗位生成打招呼文案，失败自动回落模板 -->
+  <section>
+    <p class="sec-title">LLM 招呼语<span class="more">评分时一批岗位一次请求：每个岗位回一条文案，标了 deep 的再回完整解析 · 失败回落模板</span></p>
+    <div class="cfgbar" style="flex-wrap:wrap;gap:10px">
+      <label title="勾选后 npm run boss:score 会为每个评分岗位调用一次模型改写招呼语；未勾选、超时、报错、返回空一律使用内置模板文案"><input type="checkbox" id="fLlmEnabled" /> 启用 LLM 写招呼语</label>
+      <label title="三种协议任选：chat=/chat/completions（OpenAI 兼容：DeepSeek、OpenAI、Ollama/v1、vLLM、各类中转）；responses=OpenAI Responses API；messages=Anthropic Messages API">协议
+        <select id="fLlmProtocol">
+          <option value="chat">chat · /chat/completions（OpenAI 兼容）</option>
+          <option value="responses">responses · /responses（OpenAI Responses）</option>
+          <option value="messages">messages · /messages（Anthropic）</option>
+        </select>
+      </label>
+      <label title="协议根地址，不要带 /chat/completions；例：https://api.deepseek.com、https://api.openai.com/v1、http://127.0.0.1:11434/v1、https://api.anthropic.com/v1">base url
+        <input id="fLlmBaseUrl" placeholder="https://api.deepseek.com" style="width:250px" />
+      </label>
+      <label title="模型名，例：deepseek-chat、gpt-4o-mini、qwen2.5:14b">模型
+        <input id="fLlmModel" placeholder="deepseek-chat" style="width:150px" />
+      </label>
+      <label title="本地模型（Ollama / LM Studio）可留空；已保存的 key 不会回显，留空 = 保持不变">API Key
+        <input id="fLlmKey" type="password" autocomplete="new-password" placeholder="留空 = 不修改已保存的 key" style="width:190px" />
+      </label>
+      <button class="btn ghost sm" id="btnLlmClearKey" title="清空数据库里已保存的 API Key">清除 key</button>
+    </div>
+    <div class="cfgbar" style="flex-wrap:wrap;gap:10px">
+      <label title="写打招呼建议 0.4–0.8；越高越有变化">温度 <input type="number" id="fLlmTemp" min="0" max="2" step="0.1" style="width:70px" /></label>
+      <label title="单条招呼语的最大输出 token 数。推理模型的思维链也计入这个预算：实测 400 会被思考吃光导致正文为空，建议 ≥1500。填 0 = 不限制（不传该参数，由网关/模型自己定上限）">max tokens <input type="number" id="fLlmMaxTokens" min="0" max="8192" step="100" style="width:80px" /></label>
+      <label title="单次请求超时（毫秒），超时即回落模板文案">超时(ms) <input type="number" id="fLlmTimeout" min="1000" max="300000" step="1000" style="width:88px" /></label>
+      <label title="同时发出多少个请求；配大了容易被服务端限流">并发 <input type="number" id="fLlmConcurrency" min="1" max="16" step="1" style="width:64px" /></label>
+      <button class="btn sm" id="btnSaveLlm">保存 LLM 配置</button>
+      <button class="btn ghost sm" id="btnTestLlm" title="用表单里当前的值发一句最小请求，验证 base url / 协议 / 模型 / key 是否都对；不写库、不生成打招呼文案">测试连通</button>
+      <span class="saved" id="llmSaved"></span>
+      <span class="hint" id="llmStatus" style="margin:0"></span>
+    </div>
+    <div class="cfgbar" style="flex-wrap:wrap;gap:10px">
+      <label title="勾选=评分流程里跑这一轮 LLM：把简历 + 这批岗位的 JD 一起发过去，每个岗位返回「匹配结构 + 招呼语」。已有结果的岗位默认跳过（增量）">「评分时 LLM 评估（匹配 + 招呼语）」<input type="checkbox" id="fLlmAnalyze" /></label>
+      <label title="**唯一的数量参数**：一次请求带几个岗位。批次数由脚本算：待处理岗位数 ÷ 这个值 = 请求次数（日志会直接写出来）。实测 20 条/次 ≈ 86 秒 / 2.57 credit（0.13 credit/条）。设太大容易撞网关输出上限（响应被截断→自动拆批重试，反而更慢更贵），建议 20–30">每批岗位数 <input type="number" id="fLlmBatchSize" min="1" max="100" step="5" style="width:70px" /></label>
+      <label title="要求网关关闭思维链（thinking:{type:'disabled'}）。单条实测：开思考 28.6 秒 / 0.78 credit，关思考 5.5 秒 / 0.21 credit。批量时思考成本会被摊薄，默认按你的要求用 high，不建议关">关闭思考链<input type="checkbox" id="fLlmNoThinking" /></label>
+      <label title="推理模型的思考力度。默认 high：思考成本在整批里摊薄，质量更稳">思考力度
+        <select id="fLlmReasoningEffort">
+          <option value="low">low（省时省钱）</option>
+          <option value="high" selected>high（默认 · 质量最好）</option>
+          <option value="max">max（最慢最贵）</option>
+        </select>
+      </label>
+      <span class="hint" id="llmAutoBudget" style="margin:0"></span>
+    </div>
+    <div class="globalkw rules">
+      <label title="系统提示词，留空 = 使用内置默认提示词（禁止编造画像外的事实 / 60–120 字 / 只输出正文）。改这里等于改写作规则，慎改">系统提示词</label>
+      <textarea id="fLlmPrompt" rows="3" spellcheck="false" placeholder="留空 = 使用内置默认提示词（禁止编造事实 / 60–120 字 / 只输出正文）"></textarea>
+    </div>
+    <div class="hint">流程③评分只跑<b>一轮</b> LLM：把 <code>cv.md</code> + 这一批岗位的 JD 一起发过去，<b>每个岗位返回「匹配结构 + 招呼语」</b>（资历/外包/技术栈/红线/匹配分/文案一起回来）。数量上只有<b>一个参数</b>——每批岗位数；批次数 = 待处理岗位数 ÷ 每批岗位数，日志会直接写「待处理 N 条 ÷ 每批 M = K 次请求」。输出预算与超时按批自动推算，不用填。<b>失败、超时、返回空一律回落内置模板文案</b>，绝不留空招呼语；报告与 <code>boss_jobs.raw.greetingSource</code> 如实标注来源（<code>llm</code> = 本次生成 / <code>llm_analysis</code> = 历史解析复用 / <code>template</code> = 模板兜底）。Key 存在 PostgreSQL（页面只显示掩码），但控制台<b>无鉴权</b> —— 绑到 0.0.0.0 时同网段任何设备都能改这里。</div>
   </section>
 
   <!-- 候选池检索：纯查看器 -->
@@ -420,6 +497,9 @@
           <div class="f"><label>原始标记</label><select id="fGreeted">
             <option value="">不限</option><option value="unscored">未评分（= 评分「缺少分数」）</option><option value="0">greeted=0</option><option value="1">greeted=1</option>
           </select></div>
+          <div class="f"><label title="按 HR/BOSS 活跃时间过滤（卡片上的 .boss-active-time）。扫描时未提取到活跃时间的岗位（历史数据等）只在「不限」时出现">HR活跃</label><select id="fHrActive">
+            <option value="">不限</option><option value="recent">刚刚/今日/几小时内</option><option value="week">本周内活跃</option><option value="month">最近一个月内</option>
+          </select></div>
         </div>
       </div>
       <div class="fgroup">
@@ -438,7 +518,7 @@
         <div class="filters">
           <div class="f"><label>关键词（标题/正文·逗号分隔）</label><input id="fKeyword" placeholder="校招,应届,实习" /></div>
           <div class="f"><label>排序</label><select id="fSort">
-            <option value="score_desc">分数 ↓</option><option value="salary_desc">薪资 ↓</option>
+            <option value="score_desc">分数 ↓</option><option value="score_asc">分数 ↑</option><option value="llm_desc">LLM 匹配分 ↓</option><option value="llm_asc">LLM 匹配分 ↑</option><option value="salary_desc">薪资 ↓</option><option value="salary_asc">薪资 ↑</option>
             <option value="recent">最近扫描</option><option value="company">公司名</option>
           </select></div>
           <div class="f"><label>每页</label><select id="fSize">
@@ -450,7 +530,7 @@
         <button class="btn" id="btnSearch">查询</button>
         <button class="btn ghost" id="btnReset">重置筛选</button>
       </div>
-      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天发送日志、公司去重和每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。<b>「评分」</b>：<code>有分数</code>=通过发送资格、已回写分数；<code>缺少分数</code>=<code>score IS NULL</code>（评分器跑过、但判定为<b>不可发送</b>——按设计不回写分数，分数列「—」旁会直接标出原因，如「机会可信度较低 / 薪资不明确」，鼠标悬停看完整句子）——选它时会自动把「发送资格」放开，否则永远是空列表。点「未评分」卡片可直接查看这批岗位。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
+      <div class="hint">默认显示评分达标且未打招呼的<b>数据库候选池</b>：<code>greeted=0</code>、<code>score≥阈值</code> 且非已关闭；列表保留近期重复岗位。城市表中的「池中待发」是按数据库岗位匹配近30天同岗位发送记录与每日配额后实际可发送的数量；仍可能受 BOSS 页面实时状态影响。要看全池把「打招呼状态」切回「全部」。薪资区间按<b>重叠</b>匹配：岗位最高薪 ≥ 下限 且 最低薪 ≤ 上限。<b>「HR活跃」</b>按扫描时提取的 HR/BOSS 活跃时间（如「今日活跃」「本周活跃」「2月前活跃」）过滤——「最近一个月内」会排除以月/年计的长期未活跃岗位；扫描时未提取到活跃时间的岗位只在「不限」时出现。「面议」和按天/时计价的岗位 <code>salary_min/max</code> 为 NULL，用薪资筛选时会被排除。<b>「评分」</b>：<code>有分数</code>=通过发送资格、已回写分数；<code>缺少分数</code>=<code>score IS NULL</code>（评分器跑过、但判定为<b>不可发送</b>——按设计不回写分数，分数列「—」旁会直接标出原因，如「机会可信度较低 / 薪资不明确」，鼠标悬停看完整句子）——选它时会自动把「发送资格」放开，否则永远是空列表。点「未评分」卡片可直接查看这批岗位。点「打开岗位 ↗」直接跳 BOSS 详情页。</div>
       <div class="bulkbar idle" id="bulkbar">
         <span class="lbl">批量操作</span>
         <button class="btn ghost sm" id="selAllFilter">全选过滤结果</button>
@@ -484,6 +564,37 @@
     </div>
   </div>
 
+  <!-- 岗位详情弹窗：招呼语全文 + LLM 深解析明细（表格里放不下，点开看） -->
+  <div class="mask" id="jobMask">
+    <div class="modal jobmodal">
+      <div class="jm-head">
+        <h3 id="jmTitle">岗位详情</h3>
+        <span class="jm-badges" id="jmBadges"></span>
+      </div>
+      <div class="jm-meta" id="jmMeta"></div>
+      <div class="jm-sec">
+        <p class="jm-st">招呼语 <span class="hint" id="jmGreetSrc" style="margin:0;font-weight:400"></span></p>
+        <div class="jm-greet" id="jmGreeting">—</div>
+        <div class="jm-actions">
+          <button class="btn sm" id="jmCopy" type="button">复制招呼语</button>
+        </div>
+      </div>
+      <div class="jm-sec" id="jmMatchSec" style="display:none">
+        <p class="jm-st">LLM 匹配判断 <span class="hint" style="margin:0;font-weight:400">参考分，不参与发送资格</span></p>
+        <div id="jmMatch"></div>
+      </div>
+      <div class="jm-sec" id="jmJobSec" style="display:none">
+        <p class="jm-st">JD 解析</p>
+        <div id="jmJob"></div>
+      </div>
+      <div class="macts">
+        <a class="btn ghost sm" id="jmLink" target="_blank" rel="noopener" style="display:none">打开 BOSS 岗位 ↗</a>
+        <span style="flex:1"></span>
+        <button class="btn" id="jmClose" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <footer>BOSS 直聘无公开 API，扫描/发送走真实 Chrome + CDP · 数据来自 career_ops.boss_jobs 与发送日志 · career-ops / boss-web</footer>
 </div>
 
@@ -495,10 +606,10 @@ const STAGES = [
    note:'CDP 驱动真实 Chrome 逐城逐词提取（禁 Playwright）。单条补 JD：boss:import:url / boss:import:detail。',
    preset:{}, viewLabel:'查看扫描到的候选池（全部）'},
   {n:3, t:'评分 score', cmd:'npm run boss:score', type:'normal',
-   note:'阈值默认来自数据库配置 boss_city_control（原 profile.yml boss.send_threshold）；输出 opportunity_legitimacy，可疑/面议不进队列。',
+   note:'阈值默认来自数据库配置 boss_city_control（原 profile.yml boss.send_threshold）；输出 opportunity_legitimacy，可疑/面议不进队列。这一步还会顺带做 LLM 深解析（cv.md + JD → 标准 JSON：资历/外包/技术栈/职责/红线/匹配点/缺口/匹配分）并生成招呼语；只解析评分达标那批、已解析的自动跳过、每次有上限（见下方「LLM 招呼语」）。失败一律回落模板文案。',
    preset:{scored:'1'}, viewLabel:'查看已评分岗位'},
   {n:4, t:'排队 fill', cmd:'npm run boss:fill -- --prepare', type:'normal',
-   note:'每日城市配额 + 30 天公司去重。重跑 score 会重建队列，须重新剔除已发/外包/校招等公司。',
+   note:'每日城市配额 + 30 天同岗位去重（同公司不同岗位不互相阻拦）。重跑 score 会重建队列，须重新剔除已发/外包/校招等公司。',
    preset:{eligibility:'sendable'}, viewLabel:'查看本轮可发送'},
   {n:5, t:'复核 review', cmd:'npm run boss:review', type:'checkpoint',
    note:'🔴 必须向你展示前 N 家 + 文案，获得明确确认；--confirmed-review 只是脚本门槛，确认来自你。',
@@ -521,7 +632,7 @@ const STAGES = [
 const STAGE_RUNS = {
   1:[{key:'doctor', label:'▶ 执行 doctor', short:'▶ doctor'}],
   2:[{key:'scan', label:'▶ 扫描（主关键词）', short:'▶ 扫描'},{key:'scan_all', label:'▶ 扫描（主+补充）', short:'▶ 扫描(全)'}],
-  3:[{key:'score', label:'▶ 执行评分', short:'▶ 评分'}],
+  3:[{key:'score', label:'▶ 执行评分（含深解析+招呼语）', short:'▶ 评分'},{key:'analyze', label:'▶ 补跑深解析（20 条）', short:'▶ 深解析'}],
   4:[{key:'fill', label:'▶ 生成队列', short:'▶ 排队'}],
   5:[{key:'review', label:'▶ 生成复核清单', short:'▶ 复核'}],
   6:[{key:'dryrun', label:'▶ 执行 dry-run', short:'▶ 预演'}],
@@ -535,12 +646,12 @@ let currentPage = 1;
 let selected = new Set();        // 勾选的 key_hash
 let allFilterSelected = false;   // 是否"全选过滤结果"（发送 filter 而非逐条 keyHash）
 const queryHint=document.querySelector('#querySection .hint');
-if(queryHint) queryHint.textContent='默认显示本轮可发送岗位；资格判断与发送命令共用评分、联系事实、关闭状态、30 天去重、批次公司去重和城市/平台配额。城市范围会按单城发送规则预检；不限城市时显示全局本轮队列。选择“不限”可浏览原始候选，并查看阻止原因。预检后 BOSS 页面状态仍可能变化，发送时会再次检查。';
+if(queryHint) queryHint.textContent='默认显示本轮可发送岗位；资格判断与发送命令共用评分、联系事实、关闭状态、30 天同岗位去重、批次内一家公司一条和城市/平台配额。城市范围会按单城发送规则预检；不限城市时显示全局本轮队列。选择“不限”可浏览原始候选，并查看阻止原因。预检后 BOSS 页面状态仍可能变化，发送时会再次检查。';
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // 命令 key → 主流程步骤号（城市级按钮映射到对应的全局步骤）
-const KEY_STAGE={doctor:1,scan:2,scan_all:2,scan_city:2,scan_city_all:2,score:3,fill:4,review:5,dryrun:6,send:7,send_city:7,send_city_new:7,merge:8};
+const KEY_STAGE={doctor:1,scan:2,scan_all:2,scan_city:2,scan_city_all:2,score:3,analyze:3,fill:4,review:5,dryrun:6,send:7,send_city:7,send_city_new:7,merge:8};
 const stageDone=new Set();   // 本次会话内执行成功的步骤
 let runningStage=null;       // 当前运行中的步骤号
 let currentRunKey=null;
@@ -630,6 +741,7 @@ function applyPreset(preset){
   setVal('fMinScore', preset.minScore==='THR'?String(THRESHOLD):(preset.minScore||''));
   setVal('fKeyword', preset.keyword||'');
   setVal('fJobType', preset.jobType||'');
+  setVal('fHrActive', preset.hrActive||'');
   document.getElementById('querySection').scrollIntoView({behavior:'smooth'});
   currentPage=1; loadJobs();
 }
@@ -651,6 +763,7 @@ function fillConfigInputs(d){
   document.getElementById('fMaxDomCards').value=p.maxDomCards??135;
   document.getElementById('fKnownStreak').value=p.knownStreakLimit??60;
   document.getElementById('fRequireFullJd').checked=p.requireFullJd===true;
+  document.getElementById('fStaleHrActive').checked=p.staleHrActiveExclude!==false;
   const rules=d.rules||{};
   // 回填要按元素类型选分隔符：<textarea> 用换行（一行一条）；万一哪天又变回单行 <input>，
   // 它会把换行吞掉、多条粘成一条，所以退化成逗号分隔（2026-10-14 正是这么把 6 条粘成 1 条的）。
@@ -681,24 +794,136 @@ function fillConfigInputs(d){
   if(Array.isArray(rules.titleExclude)) rulesLoaded=true;
 }
 
-async function loadOverview(){
-  const b=document.getElementById('banner');
+// ===== LLM 招呼语（2026-10-30）=====
+// 与服务端 /api/llm 对应：读回来的 key 永远是掩码，输入框留空 = 不修改已保存的 key。
+let llmDirty=false;
+
+function fillLlmInputs(d){
+  const l=(d&&d.llm)||null;
+  if(!l) return;
+  document.getElementById('fLlmEnabled').checked=l.enabled===true;
+  document.getElementById('fLlmProtocol').value=l.protocol||'chat';
+  document.getElementById('fLlmBaseUrl').value=l.baseUrl||'';
+  document.getElementById('fLlmModel').value=l.model||'';
+  // 明文 key 不会下发；只在 placeholder 里显示掩码，输入框本身清空
+  const keyEl=document.getElementById('fLlmKey');
+  keyEl.value='';
+  keyEl.placeholder=l.hasKey?`已配置 ${l.keyMask||'***'} · 留空=不修改`:'未配置（本地模型可留空）';
+  document.getElementById('fLlmTemp').value=l.temperature??0.6;
+  document.getElementById('fLlmMaxTokens').value=l.maxTokens??1500;
+  document.getElementById('fLlmTimeout').value=l.timeoutMs??60000;
+  document.getElementById('fLlmConcurrency').value=l.concurrency??3;
+  document.getElementById('fLlmAnalyze').checked=l.analyzeEnabled!==false;
+  document.getElementById('fLlmBatchSize').value=l.batchSize??25;
+  renderLlmBudget(l.batchSize??25);
+  document.getElementById('fLlmReasoningEffort').value=l.reasoningEffort||'high';
+  document.getElementById('fLlmNoThinking').checked=l.thinkingDisabled===true;
+  document.getElementById('fLlmPrompt').value=l.prompt||'';
+  document.getElementById('fLlmPrompt').placeholder=(l.defaultPrompt||'留空 = 使用内置默认提示词').split('\n')[0];
+  renderLlmStatus(l);
+  llmDirty=false;
+}
+
+function renderLlmStatus(l){
+  const el=document.getElementById('llmStatus');
+  if(!el) return;
+  if(!l.enabled){ el.innerHTML='未启用 → 评分全部使用内置模板文案'; return; }
+  if(!l.ready){ el.innerHTML=`<b style="color:#b42318">未就绪：${esc(l.reason)}</b>`; return; }
+  el.innerHTML=`已就绪 · <code>${esc(l.protocol)}</code> · <code>${esc(l.model)}</code> · key ${esc(l.keyMask||'（无 · 按本地模型处理）')}${l.keySource==='env'?'（来自环境变量）':''}`;
+}
+
+// 输出预算与超时由脚本按「每批岗位数 × 思考力度」自动推算（与 boss-llm.mjs 的 autoBudgets 一致），
+// 这里只把算出来的数字显示给人看——不再让人填第二、第三个参数。
+// 思考 token 也计入同一个 max_tokens：实测关思考 544/条、low 约 1270/条、high 约 3900/条。
+function renderLlmBudget(n){
+  const el=document.getElementById('llmAutoBudget');
+  if(!el) return;
+  const size=Math.max(1,Math.min(Number(n)||25,100));
+  const noThink=(document.getElementById('fLlmNoThinking')||{}).checked===true;
+  const effort=noThink?'关思考':String((document.getElementById('fLlmReasoningEffort')||{}).value||'high');
+  const timeout=Math.min(1800000,size*20000);
+  el.textContent=`每批 ${size} 条 → 单批超时 ≈${Math.round(timeout/1000)} 秒 · max_tokens 不传（模型上限 393k）· 思考档 ${effort}`;
+}
+
+function collectLlm(){
+  const num=(id,def)=>{ const v=document.getElementById(id).value.trim(); return v===''?def:Number(v); };
+  const payload={
+    enabled:document.getElementById('fLlmEnabled').checked,
+    protocol:document.getElementById('fLlmProtocol').value,
+    baseUrl:document.getElementById('fLlmBaseUrl').value.trim(),
+    model:document.getElementById('fLlmModel').value.trim(),
+    temperature:num('fLlmTemp',0.6),
+    maxTokens:num('fLlmMaxTokens',1500),
+    timeoutMs:num('fLlmTimeout',60000),
+    concurrency:num('fLlmConcurrency',3),
+    analyzeEnabled:document.getElementById('fLlmAnalyze').checked,
+    batchSize:num('fLlmBatchSize',25),
+    reasoningEffort:document.getElementById('fLlmReasoningEffort').value||'high',
+    thinkingDisabled:document.getElementById('fLlmNoThinking').checked,
+    prompt:document.getElementById('fLlmPrompt').value,
+  };
+  const key=document.getElementById('fLlmKey').value.trim();
+  if(key) payload.apiKey=key;   // 空 = 不提交，服务端保持原 key 不变
+  return payload;
+}
+
+async function saveLlm(){
+  try{
+    const r=await postJson('/api/llm', collectLlm()); const d=await r.json();
+    if(!d.ok){ alert('保存失败：'+(d.error||'')); return; }
+    document.getElementById('llmSaved').textContent='已保存 ✓';
+    setTimeout(()=>{document.getElementById('llmSaved').textContent='';},2500);
+    llmDirty=false;
+    fillLlmInputs({llm:d.llm});
+  }catch(e){ alert('保存失败：'+e.message); }
+}
+
+async function clearLlmKey(){
+  if(!confirm('清空数据库里已保存的 API Key？清空后若模型需要鉴权，招呼语会回落模板文案。')) return;
+  try{
+    const r=await postJson('/api/llm',{clearKey:true}); const d=await r.json();
+    if(!d.ok){ alert('操作失败：'+(d.error||'')); return; }
+    document.getElementById('llmSaved').textContent='key 已清除';
+    setTimeout(()=>{document.getElementById('llmSaved').textContent='';},2500);
+    fillLlmInputs({llm:d.llm});
+  }catch(e){ alert('操作失败：'+e.message); }
+}
+
+// 测试连通：用表单当前值发一句最小请求（不写库、不生成招呼语），base url/协议/模型/key 哪里错了一眼能看到
+async function testLlm(){
+  const btn=document.getElementById('btnTestLlm');
+  const el=document.getElementById('llmStatus');
+  btn.disabled=true; if(el) el.textContent='正在测试…';
+  try{
+    const r=await postJson('/api/llm/test', collectLlm()); const d=await r.json();
+    if(d.ok){
+      if(el) el.innerHTML=`<b style="color:#067a4f">连通 ✓ ${d.latencyMs}ms</b> · ${esc(d.protocol)} · ${esc(d.model)} · 返回「${esc(d.sample)}」`;
+    }else{
+      if(el) el.innerHTML=`<b style="color:#b42318">测试失败：</b>${esc(d.error||'未知错误')}`;
+    }
+  }catch(e){
+    if(el) el.innerHTML=`<b style="color:#b42318">测试失败：</b>${esc(e.message)}`;
+  }finally{ btn.disabled=false; }
+}
+
+async function loadOverview(){  const b=document.getElementById('banner');
   try{
     const r=await fetch('/api/overview'); const d=await r.json();
     if(!d.ok) throw new Error(d.error||'数据获取失败');
     THRESHOLD = d.threshold;
     document.getElementById('dbDot').classList.remove('bad');
-    document.getElementById('dbText').textContent='MySQL 已连接';
+    document.getElementById('dbText').textContent='PostgreSQL 已连接';
     setNum('cTotal', d.total);
     setNum('cGreeted', d.greeted);
     setNum('cPending', d.sendable);
     setNum('cToday', d.todaySent);
     setNum('cUnscored', d.unscored);
-    document.getElementById('cPendingX').textContent=`30天岗位/公司去重 · 城市配额后`;
+    document.getElementById('cPendingX').textContent=`30天同岗位去重 · 城市配额后`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
 
     // 有未保存改动时不要覆盖用户正在编辑的输入框，只更新统计数字
     if(!cityDirty) fillConfigInputs(d);
+    if(!llmDirty) fillLlmInputs(d);
 
     const sel=document.getElementById('fCity'); const keep=sel.value;
     sel.innerHTML='<option value="">全部城市</option>'+
@@ -708,12 +933,14 @@ async function loadOverview(){
     if(cityDirty) updateCityStats(d); else renderCityTable(d);
     b.className='banner ok';
     const ts=new Date(d.generatedAt).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    b.textContent=`已连接 · 阈值 ${d.threshold} · 风格「${d.greetingStyle||'—'}」 · 更新于 ${ts}`;
+    const llm=d.llm||{};
+    const llmText = !llm.enabled ? 'LLM 关' : (llm.ready ? `LLM 开（${llm.model}）` : 'LLM 开但未就绪');
+    b.textContent=`已连接 · 阈值 ${d.threshold} · 风格「${d.greetingStyle||'—'}」 · ${llmText} · 更新于 ${ts}`;
   }catch(e){
     document.getElementById('dbDot').classList.add('bad');
     document.getElementById('dbText').textContent='连接失败';
     b.className='banner err';
-    b.textContent='无法连接 MySQL：'+e.message;
+    b.textContent='无法连接 PostgreSQL：'+e.message;
   }
 }
 
@@ -755,7 +982,7 @@ function renderCityTable(d){
             <div class="kwd-actions"><button class="btn xs" data-act="scan_city_kw" data-city="${esc(c.city)}">用选中词扫描</button></div>
           </div>
         </details>
-        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：从该城评分达标且未打招呼的数据库候选中，按30天岗位/公司去重与城市配额筛选后发送">发送</button>
+        <button class="btn sm danger" data-act="send_city" data-city="${esc(c.city)}" title="对应主流程⑦真实发送·单城版：从该城评分达标且未打招呼的数据库候选中，按30天同岗位去重与城市配额筛选后发送">发送</button>
         <button class="btn sm" data-act="send_city_new" data-city="${esc(c.city)}" title="⑦的变体：只发「最近一次扫描才开始出现」的岗位（scanned_at≥扫描基准），时间降序；是发送不是抓取">发新扫</button>
         <button class="btn sm ghost" data-act="del_city" data-city="${esc(c.city)}" title="从控制台移除该城市（配额与关键词一并删除；岗位数据保留）">删除</button>
       </td>`;
@@ -815,9 +1042,10 @@ async function refreshStats(){
     setNum('cPending', d.sendable);
     setNum('cToday', d.todaySent);
     setNum('cUnscored', d.unscored);
-    document.getElementById('cPendingX').textContent=`30天岗位/公司去重 · 城市配额后`;
+    document.getElementById('cPendingX').textContent=`30天同岗位去重 · 城市配额后`;
     document.getElementById('cTotalX').textContent=`已评分 ${d.scored} · 未评分 ${d.unscored}`;
     if(!cityDirty) fillConfigInputs(d);
+    if(!llmDirty) fillLlmInputs(d);
     updateCityStats(d);
   }catch(e){ /* 忽略刷新失败 */ }
 }
@@ -868,6 +1096,7 @@ async function postConfig(limits, kwByCity){
     max_dom_cards:maxDomCards,
     known_streak_limit:knownStreak,
     require_full_jd:document.getElementById('fRequireFullJd').checked,
+    stale_hr_active_exclude:document.getElementById('fStaleHrActive').checked,
   };
   // 只有成功读到过规则才提交这四项：否则（例如刚打开页面 DB 就连不上）空输入框
   // 会被当成「清空规则」写进 DB，把跳词表抹掉。
@@ -953,6 +1182,7 @@ function buildQuery(page){
   if(v('fMinScore')) p.set('minScore',v('fMinScore'));
   if(v('fKeyword')) p.set('keyword',v('fKeyword'));
   if(v('fJobType')) p.set('jobType',v('fJobType'));
+  if(v('fHrActive')) p.set('hrActive',v('fHrActive'));
   p.set('sort',document.getElementById('fSort').value);
   return p.toString();
 }
@@ -979,16 +1209,23 @@ async function loadJobs(page){
         <td>${esc(m.company||'—')}</td>
         <td>${esc(m.title||'—')}</td>
         <td>${esc(m.city||'—')}</td>
+        <td>${esc(m.hrActive||'—')}</td>
         <td>${esc(m.salary||'—')}${salK}</td>
         <td>${m.score!=null?m.score:`<span class="why" title="${esc(m.recommendation||(m.scoreEligible===0?'未通过发送资格判定':'尚未跑 boss:score'))}">— ${esc(shortWhy(m.recommendation))}</span>`}</td>
+        <td>${llmBadge(m)}</td><td>${greetingBadge(m)}</td>
         <td>${st}</td>
         <td>${link}</td>
       </tr>`;
     }).join('');
     out.innerHTML=`<table id="jobsTable"><thead><tr>
       <th class="chkcol"><input type="checkbox" id="selAllPage" title="全选本页"></th>
-      <th>公司</th><th>岗位</th><th>城市</th><th>薪资</th><th>分数</th><th>状态</th><th>BOSS 地址</th>
+      <th>公司</th><th>岗位</th><th>城市</th><th>HR活跃</th>
+      <th class="sortable" data-sort="salary" title="点击按薪资排序（再点切换升/降）">薪资<i class="sarw"></i></th>
+      <th class="sortable" data-sort="score" title="点击按规则分排序（再点切换升/降）">分数<i class="sarw"></i></th>
+      <th class="sortable" data-sort="llm" title="点击按 LLM 匹配分排序（再点切换升/降）；没有 LLM 分的永远排在最后">LLM<i class="sarw"></i></th>
+      <th>招呼语</th><th>状态</th><th>BOSS 地址</th>
       </tr></thead><tbody>${rows}</tbody></table>`;
+    syncSortHeaders();
     // 本页全选框初始态：仅当本页所有行都已选时勾上
     const pageRows = document.querySelectorAll('#jobsTable .rowchk');
     const allOn = pageRows.length && [...pageRows].every((cb) => selected.has(cb.dataset.key));
@@ -1003,7 +1240,38 @@ async function loadJobs(page){
   }
 }
 
+// ===== 可排序列头（2026-10-30 用户要求：点 LLM 列头就能按匹配度排序）=====
+// 排序在后端 SQL 里做（不是前端数组排序），所以翻页/筛选后的顺序也是对的。
+const SORT_COLUMNS = { salary: ["salary_desc","salary_asc"], score: ["score_desc","score_asc"], llm: ["llm_desc","llm_asc"] };
+function currentSort(){ return document.getElementById('fSort').value; }
+// 把当前排序同步到表头：显示 ▲/▼，并高亮当前排序列
+function syncSortHeaders(){
+  const cur = currentSort();
+  const col = Object.keys(SORT_COLUMNS).find((k) => SORT_COLUMNS[k].includes(cur)) || '';
+  document.querySelectorAll('#jobsTable th.sortable').forEach((th) => {
+    const on = th.dataset.sort === col;
+    th.classList.toggle('on', on);
+    const arrow = th.querySelector('.sarw');
+    if (arrow) arrow.textContent = on ? (cur.endsWith('_asc') ? '▲' : '▼') : '';
+  });
+}
+// 点列头：当前列 → 升降翻转；换列 → 默认降序
+function toggleSortByColumn(name){
+  const pair = SORT_COLUMNS[name];
+  if (!pair) return;
+  const cur = currentSort();
+  const next = pair.includes(cur) ? pair[1 - pair.indexOf(cur)] : pair[0];
+  document.getElementById('fSort').value = next;
+  syncSortHeaders();
+  loadJobs(1);
+}
+document.addEventListener('click', (e) => {
+  const th = e.target.closest('#jobsTable th.sortable');
+  if (th) toggleSortByColumn(th.dataset.sort);
+});
+
 function updateSelInfo(){
+
   const el=document.getElementById('selInfo');
   const on = allFilterSelected || selected.size>0;
   if(el) el.textContent = allFilterSelected ? '已选：过滤结果全部'
@@ -1019,6 +1287,25 @@ function shortWhy(rec){
   return t.split(/[，,（(]/)[0].slice(0,12);
 }
 
+// 招呼语：表格里只放「来源」徽标，点一下弹窗看全文（表格宽度放不下整段文案）。
+// 用户 2026-10-30 要求：查看招呼语要点击弹窗看详细。
+function greetingBadge(m){
+  const text = String(m.greeting||'').trim();
+  if(!text) return '<span style="color:var(--muted)">—</span>';
+  const label = m.greetingSource==='llm_analysis' ? '深解析' : (m.greetingSource==='llm' ? 'LLM' : '模板');
+  const cls = m.greetingSource==='template' ? 'pend' : 'ok';
+  return `<span class="st ${cls} jm-link" data-jm="${esc(m.key_hash)}" title="点击查看招呼语全文与解析明细">${label} ↗</span>`;
+}
+
+// LLM 深解析徽标：只放分数+等级+风险，点开看理由/缺口/红线/技术栈。
+// 这是**参考分**：发送资格仍以规则分为准（用户 2026-10-30 确认）。
+function llmBadge(m){
+  if(m.llmScore==null) return '<span style="color:var(--muted)" title="还没跑深解析（评分时会自动跑，或点「补跑深解析」）">—</span>';
+  const risk = m.llmRisk==='high' ? '<span style="color:#b42318">·高险</span>'
+    : m.llmRisk==='medium' ? '<span style="color:#b35309">·中险</span>' : '';
+  return `<span class="jm-link" data-jm="${esc(m.key_hash)}" title="点击查看 LLM 解析明细"><b>${m.llmScore}</b> ${esc(m.llmLevel||'')}${risk}</span>`;
+}
+
 function eligibilityBadge(m){
   const state = m.contactState || '';
   if(m.manualExcluded) return '<span class="st pend">暂不发送</span>';
@@ -1030,10 +1317,11 @@ function eligibilityBadge(m){
   const labels={
     sendable:['本轮可发送','ok'], missing_score:['缺少分数','pend'], below_threshold:['低于阈值','pend'],
     already_contacted:['已联系','no'], recent_role:['30天内同岗位已发','pend'],
-    recent_company:['30天内同公司已发','pend'], duplicate_company_in_batch:['同批次已有该公司','pend'],
+duplicate_company_in_batch:['同批次已有该公司','pend'],
     city_quota:['城市配额已满','pend'], daily_limit:['当日发送上限','pend'],
     manual_excluded:['暂不发送','pend'], closed:['职位已关闭','no'], city_not_configured:['城市未配置','pend'],
     title_excluded:['校招/实习岗（标题排除）','pend'],
+    stale_hr_active:['HR长期未活跃（月/半年/年计）','pend'],
   };
   const [label,kind]=labels[m.eligibility]||['候选池（未通过预检）','pend'];
   return `<span class="st ${kind}">${label}</span>`;
@@ -1048,7 +1336,7 @@ function setNum(id, v){
 }
 function currentFilter(){
   const v=id=>document.getElementById(id).value.trim();
-  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), scored:v('fScored'), contactState:v('fContactState'), availability:v('fAvailability'), manualExclusion:v('fManualExclusion'), eligibility:v('fEligibility'), minScore:v('fMinScore'), keyword:v('fKeyword'), jobType:v('fJobType') };
+  return { city:v('fCity'), salaryMin:v('fSalMin'), salaryMax:v('fSalMax'), greeted:v('fGreeted'), scored:v('fScored'), contactState:v('fContactState'), availability:v('fAvailability'), manualExclusion:v('fManualExclusion'), eligibility:v('fEligibility'), minScore:v('fMinScore'), keyword:v('fKeyword'), jobType:v('fJobType'), hrActive:v('fHrActive') };
 }
 async function legacyBulkActionUnused(action){
   const useFilter = allFilterSelected;
@@ -1130,6 +1418,112 @@ function showConfirm(msg, cmd, onOk){
 }
 function closeModal(){ document.getElementById('mask').classList.remove('show'); }
 
+// ===== 岗位详情弹窗：招呼语全文 + LLM 深解析明细（表格放不下，点开看）=====
+let currentDetail=null;
+function kv(pairs){
+  return '<div class="jm-kv">'+pairs.filter(Boolean).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')+'</div>';
+}
+function chips(list,cls){
+  return (list||[]).map(x=>`<span class="jm-chip ${cls||''}">${esc(x)}</span>`).join('') || '—';
+}
+function ulList(list){
+  return '<ul class="jm-list">'+list.map(x=>`<li>${x}</li>`).join('')+'</ul>';
+}
+function closeJobMask(){ document.getElementById('jobMask').classList.remove('show'); }
+
+async function openJobDetail(keyHash){
+  if(!keyHash) return;
+  document.getElementById('jmTitle').textContent='加载中…';
+  document.getElementById('jmBadges').innerHTML='';
+  document.getElementById('jmMeta').textContent='';
+  document.getElementById('jmGreeting').textContent='读取中…';
+  document.getElementById('jmGreetSrc').textContent='';
+  document.getElementById('jmMatchSec').style.display='none';
+  document.getElementById('jmJobSec').style.display='none';
+  document.getElementById('jmLink').style.display='none';
+  document.getElementById('jobMask').classList.add('show');
+  try{
+    const r=await fetch('/api/jobs/llm?key_hash='+encodeURIComponent(keyHash));
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'读取失败');
+    renderJobDetail(d);
+  }catch(e){
+    document.getElementById('jmTitle').textContent='读取失败';
+    document.getElementById('jmGreeting').textContent=String(e.message||e);
+  }
+}
+
+function renderJobDetail(d){
+  currentDetail=d;
+  const job=d.job||{};
+  document.getElementById('jmTitle').textContent=`${job.company||'—'} · ${job.title||'—'}`;
+  const badges=[];
+  if(job.score!=null) badges.push(`<span class="st ok">规则 ${job.score}</span>`);
+  if(d.llmScore!=null) badges.push(`<span class="st pend">LLM ${d.llmScore}${job.llmLevel?(' '+job.llmLevel):''}（参考）</span>`);
+  if(job.availability==='closed'||job.status==='closed') badges.push('<span class="st no">职位已关闭</span>');
+  if(job.greeted) badges.push('<span class="st no">已打过招呼</span>');
+  if(job.manualExcluded) badges.push('<span class="st pend">暂不发送</span>');
+  document.getElementById('jmBadges').innerHTML=badges.join(' ');
+  document.getElementById('jmMeta').innerHTML=[
+    `城市 <b>${esc(job.city||'—')}</b>`,
+    `薪资 <b>${esc(job.salary||'—')}</b>`,
+    job.hrActive?`HR <b>${esc(job.hrActive)}</b>`:'',
+  ].filter(Boolean).join(' ｜ ');
+
+  const g=String(d.greeting||'').trim();
+  document.getElementById('jmGreeting').textContent=g||'（这个岗位还没有招呼语——先跑一次评分，或用「补跑深解析」）';
+  const src=d.greetingSource==='llm_analysis'?'来源：深解析（cv.md + JD 一次生成）'
+    : d.greetingSource==='llm'?'来源：轻量 LLM（内置模板改写）'
+    : d.greetingSource==='template'?'来源：内置模板（LLM 未启用或调用失败）'
+    : '来源：—';
+  document.getElementById('jmGreetSrc').textContent=src+(d.greetingModel?` · ${d.greetingModel}`:'');
+  document.getElementById('jmCopy').disabled=!g;
+  if(job.url){ const l=document.getElementById('jmLink'); l.href=job.url; l.style.display=''; }
+
+  const llm=d.llm;
+  if(llm && llm.match){
+    const m=llm.match;
+    const pairs=[
+      ['匹配分', `<b>${m.score}</b> / 5 · ${esc(m.level||'')}`],
+      ['理由', esc(m.why||'—')],
+    ];
+    if(Array.isArray(m.matched)&&m.matched.length){
+      pairs.push(['匹配点', ulList(m.matched.map(x=>`${esc(x.jd_requirement)} → <b>${esc(x.resume_evidence)}</b>`))]);
+    }
+    if(Array.isArray(m.gaps)&&m.gaps.length){
+      pairs.push(['缺口', ulList(m.gaps.map(x=>`<span class="jm-chip ${x.severity==='hard'?'hard':''}">${x.severity==='hard'?'硬缺':'软缺'}</span>${esc(x.requirement)}${x.note?` — ${esc(x.note)}`:''}`))]);
+    }
+    if(llm.greeting && Array.isArray(llm.greeting.basis) && llm.greeting.basis.length){
+      pairs.push(['文案依据', chips(llm.greeting.basis)]);
+    }
+    document.getElementById('jmMatch').innerHTML=kv(pairs);
+    document.getElementById('jmMatchSec').style.display='';
+  }
+
+  if(llm && llm.job){
+    const j=llm.job;
+    const pairs=[
+      ['资历', esc(j.seniority||'—')],
+      ['用工类型', esc(j.employment_type||'—')],
+      ['外包/派遣', j.is_outsourcing?'<b style="color:#b42318">是</b>':'否'],
+      ['JD 完整度', esc(j.jd_completeness||'—')],
+      j.years_required!=null?['年限要求', `${esc(String(j.years_required))} 年`]:null,
+      j.education_required?['学历要求', esc(j.education_required)]:null,
+      ['技术栈', chips(j.tech_stack)],
+      Array.isArray(j.responsibilities)&&j.responsibilities.length?['主要职责', ulList(j.responsibilities.map(esc))]:null,
+      ['业务领域', chips(j.domain)],
+      Array.isArray(j.red_flags)&&j.red_flags.length
+        ? ['红线', ulList(j.red_flags.map(f=>`<span class="jm-chip hard">${esc(f.type||'其他')}</span>${esc(f.quote||'')}${f.reason?` — ${esc(f.reason)}`:''}`))]
+        : ['红线', '未识别'],
+      ['风险等级', esc(j.risk_level||'—')],
+      llm.analyzed_at?['解析时间', esc(new Date(llm.analyzed_at).toLocaleString('zh-CN',{hour12:false}))]:null,
+      ['模型 / 模板', `${esc(llm.model||'—')} · v${esc(String(llm.schema_version||'—'))}`],
+    ];
+    document.getElementById('jmJob').innerHTML=kv(pairs);
+    document.getElementById('jmJobSec').style.display='';
+  }
+}
+
 function saveRunMeta(id,key){ try{ localStorage.setItem('bossweb:run', JSON.stringify({id,key})); }catch(e){} }
 function loadRunMeta(){ try{ return JSON.parse(localStorage.getItem('bossweb:run')||'null'); }catch(e){ return null; } }
 
@@ -1174,8 +1568,10 @@ async function pollRun(){
 
 document.getElementById('refresh').onclick=loadOverview;
 document.getElementById('btnSearch').onclick=()=>{currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);};
+// 排序下拉改了也同步表头箭头（点列头会反向同步下拉，两边永远一致）
+document.getElementById('fSort').addEventListener('change',()=>{ syncSortHeaders(); });
 document.getElementById('btnReset').onclick=()=>{
-  ['fCity','fSalMin','fSalMax','fContactState','fAvailability','fGreeted','fScored','fMinScore','fKeyword','fJobType'].forEach(i=>document.getElementById(i).value='');
+  ['fCity','fSalMin','fSalMax','fContactState','fAvailability','fGreeted','fScored','fMinScore','fKeyword','fJobType','fHrActive'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('fEligibility').value='sendable';
   document.getElementById('fManualExclusion').value='active';
   currentPage=1;selected.clear();allFilterSelected=false;loadJobs(1);
@@ -1195,6 +1591,12 @@ document.getElementById('bulkRestore').onclick=()=>bulkAction('restore_exclusion
 document.getElementById('bulkDelete').onclick=()=>bulkAction('delete');
 document.getElementById('selAllFilter').onclick=()=>{ allFilterSelected=true; updateSelInfo(); };
 document.getElementById('presetCampus').onclick=presetCampus;
+// 点「LLM」分或「招呼语」徽标 → 弹窗看招呼语全文与解析明细（表格宽度放不下整段文案）
+// 事件委托：#result 每次渲染都重建，直接绑定会失效
+document.getElementById('result').addEventListener('click',(e)=>{
+  const link=e.target.closest('[data-jm]');
+  if(link){ e.preventDefault(); openJobDetail(link.dataset.jm); }
+});
 // 行勾选 / 本页全选（#result 内的复选框随每次渲染重建，用事件委托）
 document.getElementById('result').addEventListener('change',(e)=>{
   if(e.target.id==='selAllPage'){
@@ -1214,9 +1616,20 @@ document.getElementById('btnCheckClosed').onclick=()=>doRun('check_closed');
 document.getElementById('btnAddCity').onclick=addCity;
 document.getElementById('btnKill').onclick=()=>{if(currentJobId)postJson('/api/run/kill',{id:currentJobId});};
 document.getElementById('mCancel').onclick=closeModal;
+// 岗位详情弹窗：关闭 / 遮罩点击 / ESC / 复制招呼语
+document.getElementById('jmClose').onclick=closeJobMask;
+document.getElementById('jobMask').addEventListener('click',(e)=>{ if(e.target.id==='jobMask') closeJobMask(); });
+document.getElementById('jmCopy').onclick=async()=>{
+  const text=String(currentDetail&&currentDetail.greeting||'').trim();
+  if(!text) return;
+  const btn=document.getElementById('jmCopy');
+  try{ await navigator.clipboard.writeText(text); btn.textContent='已复制 ✓'; }
+  catch(e){ btn.textContent='复制失败（手动选中）'; }
+  setTimeout(()=>{ btn.textContent='复制招呼语'; },1800);
+};
 // 确认弹窗：ESC 关闭 + 点遮罩空白处关闭
 document.getElementById('mask').addEventListener('click',(e)=>{ if(e.target.id==='mask') closeModal(); });
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeModal(); });
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ closeModal(); closeJobMask(); } });
 // 日志滚动跟随：用户向上翻阅则暂停自动滚动，并给出「回到底部」入口
 const clog=document.getElementById('cLog');
 clog.addEventListener('scroll',()=>{
@@ -1285,13 +1698,29 @@ document.getElementById('cityBody').addEventListener('input',(e)=>{
   const tr=t.closest('tr'); if(tr) tr.classList.add('dirty-row');
   markDirty();
 });
-['fGlobalKw','fThreshold','fKwGap','fCityGap','fCardGapMin','fCardGapMax','fBudgetFactor','fMaxDomCards','fKnownStreak','fRequireFullJd','fSkipWords','fRiskKeywords','fTitleExclude','fCompanyExclude'].forEach(id=>{
+['fGlobalKw','fThreshold','fKwGap','fCityGap','fCardGapMin','fCardGapMax','fBudgetFactor','fMaxDomCards','fKnownStreak','fRequireFullJd','fStaleHrActive','fSkipWords','fRiskKeywords','fTitleExclude','fCompanyExclude'].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener('input',()=>{ el.classList.add('dirty'); markDirty(); });
 });
 document.getElementById('btnUnsavedSave').onclick=saveQuota;
+// LLM 招呼语面板：保存 / 测试连通 / 清除 key；改动单独标脏（不影响城市配置的未保存提示）
+document.getElementById('btnSaveLlm').onclick=saveLlm;
+document.getElementById('btnTestLlm').onclick=testLlm;
+document.getElementById('btnLlmClearKey').onclick=clearLlmKey;
+['fLlmEnabled','fLlmProtocol','fLlmBaseUrl','fLlmModel','fLlmKey','fLlmTemp','fLlmMaxTokens','fLlmTimeout','fLlmConcurrency','fLlmAnalyze','fLlmBatchSize','fLlmReasoningEffort','fLlmNoThinking','fLlmPrompt'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox' ? 'change' : 'input',()=>{
+    llmDirty=true;
+    if(id==='fLlmBatchSize') renderLlmBudget(el.value);
+    // 思考力度/关思考会改变每条岗位的预算额度，显示要跟着变
+    if(id==='fLlmReasoningEffort'||id==='fLlmNoThinking'){
+      renderLlmBudget(document.getElementById('fLlmBatchSize').value);
+    }
+  });
+});
 window.addEventListener('beforeunload',(e)=>{
-  if(cityDirty){ e.preventDefault(); e.returnValue=''; }
+  if(cityDirty||llmDirty){ e.preventDefault(); e.returnValue=''; }
 });
 
 let autoTimer=null;
@@ -1316,3 +1745,12 @@ setAuto(true); // 默认勾选则立即启动 60s 自动刷新（仅刷新统计
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+

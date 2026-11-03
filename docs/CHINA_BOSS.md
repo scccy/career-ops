@@ -73,6 +73,8 @@ npm run boss:chrome:apply -- --threshold 4.0 --daily-limit 20 --confirmed-review
 
 `boss:scan` 默认从已确认的 `config/profile.yml` 读取 `target.cities`，并把第一个目标城市转换成 BOSS 搜索城市。只有用户明确指定 `--city` 时才覆盖画像城市。例如当前画像目标城市是深圳，搜索 URL 应使用 BOSS 的深圳城市码 `101280600`；如果用户画像改成北京，则应自动搜索北京。
 
+**配置来源（2026-10 起，已由 MySQL 迁 PostgreSQL）**：BOSS 通道的**操作配置只有 PostgreSQL 一个基准** —— 评分阈值、每城配额、统一/每城词表、扫描节奏、门禁开关、平台日限、跳词与排除规则全部在 `career_ops.boss_config`（`name='boss_city_control'`），在控制台「每日城市操作流程控制」里改；改 `config/profile.yml` 不生效。**城市清单 = `daily_limit_per_city` 的键**（配额 `0` = 只扫不发），不再单独维护城市列表。`config/profile.yml` 只保留求职画像（`target.cities`、`greeting_style`、`jd_focus_terms`、`skills_core` 等）。连库失败时脚本直接报错，不再回落文件值。
+
 如果 BOSS 触发安全校验，不要让自动化浏览器停在登录页等待。稳定路径是：用户先用正常 Chrome 登录 BOSS，并手动搜索到目标岗位列表页；用户告知“已登录”后，再运行 `npm run boss:chrome:extract -- --company-limit 30 --max-cards 120 --click-gap-ms 2200 --append` 读取当前 Chrome 页面。
 
 如果页面几秒后自动变成 `about:blank`，说明 BOSS 没有允许当前自动化浏览器继续访问。此时不要继续重试刷新；改用正常 Chrome 手动搜索岗位，再把页面文本或后续支持的导出数据交给工具评分。
@@ -115,7 +117,7 @@ URL：https://www.zhipin.com/...
 
 ```text
 读取 30 家公司的完整 JD
-→ 评分并按公司去重
+→ 评分并按公司去重（每批一家公司只留 1 条；30 天去重只针对同一岗位）
 → 达标公司数 >= 20：停止读取，按评分从高到低取前 20 家
 → 达标公司数 < 20：继续读取下一批 30 家公司
 → 重复直到可打招呼公司满 20 家
@@ -135,7 +137,7 @@ URL：https://www.zhipin.com/...
 `boss:fill` 是推荐的日常总控入口：
 
 - 不加 `--prepare`：只判断当前候选池够不够 20 家达标公司，并告诉你还要补读多少家。
-- 加 `--prepare`：当达标公司已经够 20 家时，自动刷新 `data/boss-queue.json`，生成 `data/boss-review.md` 确认清单，并输出按评分排序的 `boss:chrome:apply --dry-run` 预览。
+- 加 `--prepare`：当达标公司已经够 20 家时，自动刷新 PostgreSQL `boss_queue`（queue_name=all），生成 `data/boss-review.md` 确认清单，并输出按评分排序的 `boss:chrome:apply --dry-run` 预览。
 - 如果还不够 20 家，`--prepare` 也不会发送或生成发送动作，只会提示继续补读下一批公司。
 - 后续补读必须用 `--append`，避免覆盖前面已经读取的候选池。
 
@@ -248,10 +250,11 @@ npm run boss:chrome:apply -- --threshold 4.0 --daily-limit 20 --confirmed-review
 
 ## 数据文件
 
-- `data/boss-candidates.json`：扫描到的候选岗位。
-- `data/boss-queue.json`：评分达标的待发送队列。
+- PostgreSQL `career_ops.boss_jobs`：扫描到的候选岗位（权威）。
+- PostgreSQL `career_ops.boss_queue`：评分达标的待发送队列（按 `queue_name` 区分 `all` / 城市）。
+- PostgreSQL `career_ops.boss_sent_log`：发送成功和失败日志，用于去重与配额。
 - `data/boss-review.md`：发送前给用户确认的前 20 家企业清单。
-- `data/boss-sent-log.tsv`：发送成功和失败日志，用于去重。
+- `data/boss-candidates.json`：岗位池的 JSON 备份镜像（非权威）。
 - `data/applications.md`：申请追踪表。
 - `reports/`：岗位评估报告。
 

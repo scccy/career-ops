@@ -13,39 +13,45 @@
 | 依赖 | 版本 / 说明 |
 |------|-------------|
 | Node.js | ≥ 18 |
-| MySQL | 5.7+ / 8.x；库名默认 `career_ops`（脚本自动建库建表） |
+| PostgreSQL | 14+；库名默认 `career_ops`（脚本自动建库建表；本机 PG 18 已就绪） |
 | Chrome | 任意现代版本（136+ 必须用**独立数据目录**才能开调试端口） |
 | bash | **不需要**（Windows 原生可用；驱动已改为 Node 实现） |
 
 装依赖：
 
 ```bash
-npm install          # 需要 mysql2 / js-yaml / ws（Node 18 CDP WebSocket 兼容）
+npm install          # 需要 pg / js-yaml / ws（Node 18 CDP WebSocket 兼容）
 ```
 
-### MySQL 连接
+### PostgreSQL 连接
 
-脚本读环境变量，缺省值见下表。**若你的库密码不是代码里的默认值，必须显式设置 `MYSQL_PASSWORD`**，否则连库失败：
-
-```bash
-export MYSQL_PASSWORD='你的密码'          # Linux / macOS
-$env:MYSQL_PASSWORD='你的密码'            # Windows PowerShell
-```
+BOSS 流程的数据面**全部以 PostgreSQL 为准**（2026-10 由 MySQL 迁移）。连接参数读环境变量，缺省值见下表；本地凭据放在 `boss/.env.local`（gitignored，`boss/pg-db.mjs` 会自动加载）：
 
 | 变量 | 默认值 |
 |------|--------|
-| `MYSQL_HOST` | `127.0.0.1` |
-| `MYSQL_PORT` | `3306` |
-| `MYSQL_USER` | `root` |
-| `MYSQL_PASSWORD` | `从 boss/.env.local 读取` |
-| `MYSQL_DB` | `career_ops` |
+| `PGHOST` | `127.0.0.1` |
+| `PGPORT` | `5432` |
+| `PGUSER` | `root` |
+| `PGPASSWORD` | `从 boss/.env.local 读取` |
+| `PGDATABASE` | `career_ops` |
 
-首次运行会自动 `CREATE DATABASE IF NOT EXISTS career_ops` 并建表：
+首次运行会自动建库建表（见 `boss/pg-schema.mjs`）：
 
-- **`boss_jobs`** — 候选岗位池（16 列）：`key_hash`(唯一，按 `公司+岗位+base城市` 生成) / `company` / `title` / `salary` / `city` / `url` / `greeted` / `salary_min` / `salary_max` / `score` / `status` / `scanned_at` / `raw`(JSON 完整岗位) / 时间戳；索引：`key_hash` 唯一索引 + 5 个查询索引（city+score / company / greeted / salary / scanned）
-- **`boss_config`** — 单一配置行 `boss_city_control`(JSON)：评分阈值、每城配额、词表、平台日限
+- **`boss_jobs`** — 候选岗位池：`key_hash`(唯一，按 `岗位名称+公司+base城市` 生成) / `company` / `title` / `salary` / `city` / `url` / `greeted` / `salary_min` / `salary_max` / `score` / `status` / `scanned_at` / `raw`(JSONB 完整岗位) / 时间戳；索引：`key_hash` 唯一索引 + 查询索引（city+score / company / greeted / salary / scanned / hr_active）
+- **`boss_config`** — 单一配置行 `boss_city_control`(JSON 文本)：评分阈值、每城配额、统一/每城词表、扫描节奏、门禁开关、平台日限、跳词与排除规则
+- **`boss_sent_log`** — 打招呼发送日志（原 `data/boss-sent-log.tsv`，去重与配额依据）
+- **`boss_queue`** — 待发队列（原 `data/boss-queue*.json`；按 `queue_name` 区分 `all` / 城市）
+- **`boss_runtime_state`** — 运行时状态（原 `data/last-scan.txt` 等）
 
-`data/boss-candidates.json` 降级为**写入时的备份镜像**，权威数据在 MySQL。
+`data/boss-candidates.json` 仍作为**写入时的备份镜像**，权威数据在 PostgreSQL。
+
+> **配置唯一基准 = PostgreSQL**：操作配置不再有 `config/profile.yml` 副本，也不再回落 profile。
+> 连库失败时脚本**直接报错**（历史事故：无数据库凭据时静默回落过期文件值，把厦门每日配额 120 写成了 20）。
+> **城市清单 = `daily_limit_per_city` 的键**（配额 `0` = 只扫不发），不再单独维护城市列表，
+> 所以控制台「＋ 添加城市」加完即可被全量跑（`boss-extract-driver` 不带 `--city`）覆盖。
+> `config/profile.yml` 现在只保留**求职画像**（`greeting_style` / `jd_focus_terms` / `skills_core` 等），改它不影响扫描与发送参数。
+
+> **从 MySQL 迁移**：一次性脚本 `npm run boss:migrate:pg`（迁移 `boss_jobs` / `boss_config` / 发送日志 / 队列 / last-scan，幂等，`--force` 可强制重导）。
 
 ---
 
@@ -120,7 +126,7 @@ npm run boss:extract:daily -- --city 上海 --all --dry-run
 ### ② 评分
 
 ```bash
-npm run boss:score                                  # 用 profile.yml / DB 的阈值
+npm run boss:score                                  # 用 DB（boss_config）的阈值
 npm run boss:score -- --threshold 3.0               # 临时覆盖阈值
 npm run boss:score -- --dry-run                     # 只算不写
 ```
@@ -129,13 +135,96 @@ npm run boss:score -- --dry-run                     # 只算不写
 
 评分结果回写 `boss_jobs.score`，并输出机会可信度 `opportunity_legitimacy`。
 
+### ②.5 LLM：一个批次 = 一次请求（匹配结构 + 招呼语一起回来）
+
+评分阶段只跑**一轮** LLM，**点控制台「扫描」一条龙就做完了**（extract → score → fill，LLM 挂在 score 里）。
+口径（2026-10-30 用户定的，替换掉早先「深解析 + 招呼语两趟」的做法）：
+
+```
+待处理岗位  ÷  每批岗位数  =  请求次数        ← 批次数由脚本算，日志直接写出来
+每次请求   =  cv.md 全文 + 这一批每个岗位的 JD
+返回       = 每个岗位一份 { job, match, greeting }：资历/外包/技术栈/职责/红线/匹配分 + 打招呼文案
+```
+
+**只有一个数量参数**：每批岗位数（`llm_analyze_batch_size`，默认 25）。输出预算与超时由 `autoBudgets()` 自动推算（`min(128000, N×1600)` token / `min(1800s, N×20s)`），不再让用户填第二、第三个数字。
+
+```json
+{ "analyses": [ { "id": "1",
+    "job":   { "seniority", "employment_type", "is_outsourcing", "jd_completeness",
+               "years_required", "education_required", "tech_stack[]", "responsibilities[]",
+               "domain[]", "red_flags[{type,quote,reason}]", "risk_level" },
+    "match": { "score": "1.0-5.0", "level", "matched[{jd_requirement,resume_evidence}]",
+               "gaps[{requirement,severity,note}]", "why" },
+    "greeting": { "text": "60-120 字", "basis[]" } } ] }
+```
+
+编号：请求里每个岗位写的是 **`boss_jobs.id`**（`loadCandidates()` 会带出 `dbId`），模型原样回填，所以日志和返回都能直接对回库里那一行；模型把 5 位 id 抄错时按**位置兜底**认领并在日志留痕，不丢岗位。每批发送前会打印一行 `82349=睿服科技 · 82350=中电金信 …` 便于对账。（不用 key_hash 当编号：64 位哈希抄错一位就等于这条白花钱。）
+
+落库：整份存 `boss_jobs.raw.llm`（`schema_version` / `model` / `analyzed_at`），匹配分另存 `llm_score` 列（有索引），文案写 `raw.greeting` 且 `greetingSource = llm`；写库条件仍是 `WHERE key_hash = ?`（跨库/重灌数据都不影响）。模型不复述公司/岗位/城市/薪资，落库前用库里那行补齐（`withJobIdentity`）。
+
+**实测（`cn:deepseek-v4.1-flash`，思考 token 也计入同一个 `max_tokens`）**：
+
+| 思考档 | 每批 | 结果 | 用时 | completion（其中思考） | 花费 | 每条成本 |
+|--------|-----|------|------|----------------------|------|---------|
+| **关** | 10 | 10/10 ✅ | **22 s** | 5442（0） | **0.41** | **0.041** |
+| low | 10 | 10/10 ✅ | 65 s | 12723（8371） | 0.83 | 0.083 |
+| high | 3 | 3/3 ✅ | 31 s | 6364（4087） | 0.37 | 0.123 |
+| high | 5 | 5/5 ✅ | 93 s | 19560（15761） | 1.15 | 0.230 |
+| high | 10 | ✗ 整批截断 | 3 min+ | 16000 全被思考吃光，JSON 半截 | 0.97（0 条结果） | — |
+
+> ⚠️ **思考链和「每批条数」是互相挤占的**：思考 token 算在同一个 `max_tokens` 里，`high` 约 1400–3100 token/条。所以同样是这批代码：
+> - **默认（关思考）每批 10–25 条**，0.041 credit/条；
+> - **想开 `high` 就把每批压到 3–5 条**（`autoBudgets` 会自动按 4000/条给预算，不用你算）；
+> - `high` 单价是关思考的 3–6 倍、慢 4 倍，10 条一批必被截断——这不是网关硬顶，是思考把预算花完了。
+
+花钱闸（都不需要额外参数）：
+
+1. **已发送/已联系过的岗位永久跳过**——消息都发出去了，再评估没有意义；
+2. **增量**：`raw.llm` 已有结果的直接跳过（`--llm-force` 才重跑）；
+3. **单城扫描只评估本城**（控制台点某城市的「扫描」带 `--analyze-city`）；
+4. 整批失败/模型漏项 → 对半拆重试，仍失败的单条回落模板文案（绝不留空招呼语）。
+
+```bash
+npm run boss:score -- --dry-run        # 先看「待处理 N 条 ÷ 每批 M = K 次请求」，不花钱
+npm run boss:score -- --limit 10       # 只处理前 10 条（测试/补跑用；不带 limit = 全部待处理）
+npm run boss:score -- --llm-force      # 重跑已有结果的岗位
+npm run boss:score -- --no-llm         # 本次不调模型，全部模板
+npm run boss:analyze -- --limit 5      # 独立补跑（同样按批，一个参数）
+```
+
+> **权威边界（用户 2026-10-30 确认）**：LLM 分只作参考（控制台「LLM」列，点开看理由/缺口/红线/技术栈），**发送资格仍以规则评分为准** `score` 列。同一 JD 跑两次，`seniority` / `jd_completeness` 这类字段会不一致——适合当素材，不适合当硬门禁。
+
+配置在控制台「LLM」面板（存 PostgreSQL `boss_config`，与其它操作配置同一行）：
+
+| 字段 | 说明 |
+|------|------|
+| 启用 | 不勾选 = 全程用模板，不产生任何模型调用 |
+| 协议 | `chat` = `/chat/completions`（OpenAI 兼容：DeepSeek / OpenAI / Ollama `/v1` / vLLM / 各类中转）；`responses` = OpenAI Responses API；`messages` = Anthropic Messages API |
+| base url | 协议根地址，**不要**带 `/chat/completions`。例：`https://api.deepseek.com`、`https://api.openai.com/v1`、`http://127.0.0.1:11434/v1`、`https://api.anthropic.com/v1` |
+| 模型 | 如 `deepseek-chat`、`gpt-4o-mini`、`qwen2.5:14b` |
+| API Key | 存库，页面只回显掩码 `sk-***abcd`；输入框留空 = 保持原值，清空要点「清除 key」。本地模型可留空 |
+| 每批岗位数 | **唯一的数量参数**。批次数 = 待处理 ÷ 它。关思考时 10–25 条一批（≈22 s / 0.41 credit 每 10 条）；开 `high` 时压到 3–5 条 |
+| 关闭思考链 | 网关扩展参数 `thinking:{type:'disabled'}`。**批量评估默认勾选**：high 的思考约 1400–3100 token/条，会把同一份输出预算吃光（见上表）；不支持的中转会 400，取消勾选即可 |
+| 思考力度 | 关思考时无效；要开思考建议 `low` 并配小批次 |
+| 系统提示词 | 留空 = 内置默认（禁止编造简历外的事实 / 每条 60–120 字） |
+
+```
+
+来源会如实记录：报告里标 `_来源：LLM（模型名）_` / `_来源：内置模板（…）_`，数据库 `boss_jobs.raw.greetingSource`（`llm_analysis` / `llm` / `template`）与 `raw.greetingError`，控制台候选池「招呼语」列区分 **深解析** / **LLM** / **模板**（悬停看文案）。
+
+环境变量兜底（CLI 场景可免建配置，只补空字段，控制台填过的值优先）：
+`BOSS_LLM_ENABLED` / `BOSS_LLM_BASE_URL` / `BOSS_LLM_MODEL` / `BOSS_LLM_API_KEY` / `BOSS_LLM_PROTOCOL`，
+或通用别名 `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY`。
+
+> 提示词硬性禁止编造画像外的事实（公司、学历、年限、数字指标），并由 `boss-llm.mjs` 统一清洗输出（去引号/代码块/「文案：」前缀、压成一段话、限 160 字）。但这只是第一道闸：**发送前仍要人工复核文案**（见 ④ 复核）。
+
 ### ③ 排队
 
 ```bash
 npm run boss:fill -- --prepare
 ```
 
-按每日配额 + 30 天公司去重，从候选池筛出今日待发队列。
+按每日配额 + 30 天同岗位去重，从候选池筛出今日待发队列（同公司不同岗位互不阻拦）。
 
 ### ④ 复核（人工检查点）
 
@@ -235,7 +324,7 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 
 | 丢弃原因 | 说明 |
 |----------|------|
-| 已入库跳过 | `BOSS_SKIP_KNOWN` 开启时，库里已有的岗位**不点击**直接跳过 |
+| 已入库跳过 | `BOSS_SKIP_KNOWN` 开启时，库里已有的岗位**不点击**直接跳过。比对用岗位键（岗位名称+公司+base城市）；卡片 href 缺失也不影响判定 |
 | 标题排除（校招/实习） | 卡片标题命中控制台「排队·标题排除」（`title_exclude`）即**不点击、不入库**；点击后还会用详情标题复核一次。2026-10-15 起从"排队阶段才剔"提前到提取阶段 |
 | 黑名单（提取跳词） | 命中即**不入库**（连详情都不读）；词表在控制台「提取跳词」里维护，默认 `外包 / 派遣 / 猎头 / 驻场 / 某XX公司 / 催收 / 电催 / 贷后 / 信用卡逾期 / 纯销售 / 电话销售 / 不缴社保 / 无社保 / 大小周` |
 | JD 不完整 | < 180 字，或无「岗位职责/任职要求」结构 |
@@ -247,7 +336,7 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 >
 > 顺序说明：同时命中 `manual_excluded`（人工暂缓）与标题排除时，报 `manual_excluded`——用户显式标记是更强的信号，自动规则不覆盖它。控制台列表里标题排除一条显示为「校招/实习岗（标题排除）」。
 
-所以外派多、重复多的关键词，实际入库可能远低于目标值。每个关键词独立计数，但入库时按 `key_hash` 在 DB 层合并。`key_hash` 现在包含 base 城市：同一公司在上海、杭州发布同名岗位会分别入库；同一 base 内仍按公司/岗位去重。发送阶段的岗位去重和同公司批次去重也按 base 城市作用域，旧的无城市发送日志会继续按兼容的公司级规则拦截。
+所以外派多、重复多的关键词，实际入库可能远低于目标值。每个关键词独立计数，但入库时按 `key_hash` 在 DB 层合并。`key_hash` = 岗位名称 + 公司 + base 城市：同一公司在上海、杭州发布同名岗位会分别入库；同公司同标题同城的多个 job id 视为同一岗位（合并/去重），不同标题仍是不同岗位。发送阶段的岗位去重与批次内一家公司一条也按 base 城市作用域；旧的无城市发送日志只按 unknown 城市匹配，不会再把其他城市的同名岗位误杀。
 
 **想调总数，改这几个地方：**
 
@@ -273,7 +362,7 @@ while (scanned < maxCards && seenCompanies.size < targetCompanies)
 - **留空 = 该规则不启用**（不是「恢复默认」）：想完全不跳词就清空「提取跳词」。
 - 正则非法在**保存那一步**就被拒绝并提示原因，不会等到扫描时静默失效。
 - 改动分别对**下一次**扫描 / 评分 / 排队生效，正在跑的任务不受影响。
-- 手动命令行跑提取时：`BOSS_SKIP_WORDS`（多项用换行或分号分隔）优先，其次读同一份 DB 配置（需要 `MYSQL_PASSWORD`，与控制台一致），最后才是内置默认。
+- 手动命令行跑提取时：`BOSS_SKIP_WORDS`（多项用换行或分号分隔）优先，其次读同一份 DB 配置（需要 PG 连接，与控制台一致），最后才是内置默认。
 
 ---
 
@@ -315,32 +404,74 @@ node boss/boss-web/server.mjs          # 或设 BOSS_DASHBOARD_PORT 改端口
 浏览器打开 **http://127.0.0.1:4173**。功能：
 
 - **实时概览** — 候选池总数 / 已评分 / 待发 / 今日已发、每城配额与剩余
-- **候选池检索** — 按城市、分数、greeted 状态筛选，查看岗位详情
+- **候选池检索** — 按城市、分数、greeted 状态、HR活跃时间（刚刚/今日/本周/最近一个月内，读 `raw.$.hr_active`）筛选，查看岗位详情
 - **白名单命令执行** — 一键跑扫描/评分/排队/复核/发送，实时日志、可中途终止
 - **配置管理** — 评分阈值、每城配额、统一/每城词表（写回 `boss_config`）
+- **LLM 招呼语** — base url / 模型 / 协议（chat·responses·messages）/ key / 温度 / 并发 / 系统提示词，带「测试连通」（发一句最小请求，不写库、不生成文案）
 - **每城三步流** — 扫描（抓取该城全部关键词→评分→排队）/ 发送 / 发新扫
 
 命令走**白名单**，`send` 属危险档需前端显式二次确认。任务有超时保护（`BOSS_RUN_TIMEOUT_MS`，默认 90 分钟）。
 
+### 6.0 局域网访问（手机 / 另一台电脑）
+
+控制台默认绑 `0.0.0.0`，启动日志会直接打印可用的局域网地址（例如 `http://192.168.31.149:4173`），照抄到手机浏览器即可。
+
+```bash
+# 绑定地址（默认 0.0.0.0 = 局域网可访问）
+set BOSS_DASHBOARD_HOST=127.0.0.1    # 想收回本机独占时设这个
+```
+
+Windows 防火墙：**先确认再决定要不要加规则**，多数机器已经不用加——`node.exe` 常在首次运行时就生成了入站允许规则。检查当前 Wi-Fi 的网络类别，以及 `node.exe` 的规则是否覆盖该类别：
+
+```powershell
+Get-NetConnectionProfile | Select-Object InterfaceAlias,Name,NetworkCategory
+Get-NetFirewallRule -DisplayName 'Node.js JavaScript Runtime' |
+  Select-Object Enabled,Profile,Direction,Action
+```
+
+- `node.exe` 规则为 **Enabled / Inbound / Allow**，且 `Profile` 覆盖当前网络类别（`Public` 或 `Private`）→ **无需任何操作**（本机即此情况：WLAN 为 Public，已有 Public 档 node.exe 入站放行）。
+- 不覆盖（例如网络是 `Private` 而规则只有 `Public`）→ 用**管理员** PowerShell 补一条：
+
+```powershell
+New-NetFirewallRule -DisplayName 'BOSS Console 4173' -Direction Inbound -Protocol TCP `
+  -LocalPort 4173 -Action Allow -Profile Private -RemoteAddress LocalSubnet
+```
+
+> ⚠️ **控制台没有任何鉴权**（无令牌、无口令、不校验 Origin）。绑到 `0.0.0.0` 后，同网段任何设备打开页面就能执行 `/api/run` 真实发招呼、`/api/jobs/bulk` 删除岗位、`/api/quota` 改配额、`/api/llm` 改模型配置（含把 base url 指向任意地址、触发模型调用产生费用）。API Key 本身不会下发到浏览器（只回掩码），但这不构成鉴权。只在可信的家庭/办公网络里这么开；访客网络、公司共享网段、公共 Wi-Fi 不要开。这也是 `BOSS_DASHBOARD_HOST=127.0.0.1` 这个回退开关存在的原因。
+>
+> 执行仍全部发生在本机：扫描走本机 Chrome 的 CDP（9222），发送、PostgreSQL 读写在服务器进程里完成。局域网浏览器只是遥控器——本机关机/睡眠，控制台对外即断。
+
 ### 6.1 后台静默运行（持久化，Windows）
 
-控制台由**计划任务 `BossConsole`** 托管：登录自动拉起、失败自动重启（3 次/间隔 1 分钟）、全程无可见窗口、不依赖任何终端。
+控制台由**两个计划任务**托管，全程无可见窗口、不依赖任何终端：
+
+| 任务 | 触发 | 作用 |
+|------|------|------|
+| `BossConsole` | 登录时 | 拉起控制台 |
+| `BossConsoleWatchdog` | 每 2 分钟 | 4173 没在监听就重新拉起（挂了自动恢复） |
+
+> 为什么需要看门狗：`BossConsole` 的动作是 `wscript → cmd /c start-console.cmd`，wscript 启动子进程后**立即退出**，所以计划任务本身瞬间「成功完成」，Task Scheduler 的 `RestartCount`（失败重试 3 次）根本管不到真正在跑的 `node`。结果是 node 一旦退出（崩溃、被杀、手工关窗口），控制台就一直缺席到下次登录——2026-10-20 那次就是这样静默消失的。看门狗补上了这个缺口。
 
 ```powershell
 # 立即启动（无窗口）
 Start-ScheduledTask -TaskName 'BossConsole'
 
-# 手动停止（只杀 4173 端口，安全）
+# 手动停止（只杀 4173 端口，安全；会留下 .stopped 标记，看门狗不会自动拉起）
 D:\github\career-ops\boss\stop-console.cmd
 
 # 查看运行状态
 netstat -ano | findstr /c:":4173 " | findstr LISTENING
 
-# 取消登录自启
+# 取消登录自启 + 解除看门狗
 Unregister-ScheduledTask -TaskName 'BossConsole' -Confirm:$false
+Unregister-ScheduledTask -TaskName 'BossConsoleWatchdog' -Confirm:$false
 ```
 
 启动链：`计划任务 → wscript（boss/start-console-hidden.vbs，窗口样式 0）→ cmd /c start-console.cmd /noopen → node boss/boss-web/server.mjs`。`start-console.cmd` 自带端口守卫：4173 已在监听就静默退出，不会重复起实例。
+
+**日志**：`start-console.cmd` 把 node 的 stdout/stderr 追加到 `boss/boss-web/console.log`（每次启动写一行 `start`、退出写一行 `exit code=...`，超过 ~5 MB 轮转为 `console.log.1`）。控制台「静默消失」时先看这个文件——它记录了退出码和最后输出的报错。
+
+**停止语义**：`stop-console.cmd` 会写 `boss/boss-web/.stopped` 标记；看门狗看到该标记就不拉起。下次手动启动（桌面快捷方式 / `start-console.cmd`）或下次登录会清掉标记并恢复托管。也就是说：**手工停 = 停到下次启动/登录，不是停 2 分钟**。
 
 > **重建任务**（换机器或误删后，PowerShell 管理员不需要，普通权限即可）：
 >
@@ -349,6 +480,12 @@ Unregister-ScheduledTask -TaskName 'BossConsole' -Confirm:$false
 > $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 > $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 > Register-ScheduledTask -TaskName 'BossConsole' -Action $action -Trigger $trigger -Settings $settings -Force
+>
+> # 看门狗：每 2 分钟检查端口，没在监听就用同一个隐藏启动器拉起
+> $wdAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '"D:\github\career-ops\boss\watchdog-console.vbs"' -WorkingDirectory 'D:\github\career-ops'
+> $wdTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 2) -RepetitionDuration (New-TimeSpan -Days 3650)
+> $wdSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
+> Register-ScheduledTask -TaskName 'BossConsoleWatchdog' -Action $wdAction -Trigger $wdTrigger -Settings $wdSettings -Force
 > ```
 
 > **坑（已修复，勿回退）**：cmd 的 `findstr /r "A B"` 中空格会把模式拆成"或"条件，端口守卫必须写 `findstr /r /c:":4173 .*LISTENING"`（`/c:` 才是一个整体正则）。`start-console.cmd` 和 `stop-console.cmd` 都依赖这一写法——写错成裸空格形式时，stop 会误杀**所有**监听端口的进程。
@@ -359,14 +496,23 @@ Unregister-ScheduledTask -TaskName 'BossConsole' -Confirm:$false
 
 | 位置 | 内容 |
 |------|------|
-| MySQL `career_ops.boss_jobs` | **权威**岗位池 |
-| MySQL `career_ops.boss_config` | 阈值 / 配额 / 词表配置 |
+| PostgreSQL `career_ops.boss_jobs` | **权威**岗位池 |
+| PostgreSQL `career_ops.boss_config` | 阈值 / 配额 / 词表配置 |
+| PostgreSQL `career_ops.boss_sent_log` | 打招呼发送日志（去重与配额依据） |
+| PostgreSQL `career_ops.boss_queue` | 待发队列（按 `queue_name` 区分 `all` / 城市） |
+| PostgreSQL `career_ops.boss_runtime_state` | 运行时状态（`last_scan_at` 等） |
 | `data/boss-candidates.json` | 岗位池的 JSON 备份镜像 |
-| `data/boss-queue.json` | 待发队列 |
 | `data/boss-review.md` | 复核清单 |
-| `data/boss-sent-log.tsv` | 打招呼发送日志（去重与配额依据） |
-| `data/last-scan.txt` | 最近一次扫描起始时间（"发新扫"的范围界定） |
 | `batch/tracker-additions/*.tsv` | 追踪表新增（由 `merge-tracker.mjs` 合并） |
+
+**`boss_jobs` 的写入语义（2026-10-30 改）**：整池写入不再 `TRUNCATE`，改成 `INSERT … ON CONFLICT (key_hash) DO UPDATE`。
+
+- 同一岗位（同一 `key_hash`）**永远命中同一行、同一个 `id`** —— 所以 LLM 批次可以直接拿 `id` 当岗位编号；
+- 冲突时 `raw` 用 `旧 || 新` **合并**（扫描对象里没有 `llm`/`greeting` 键，合并才不会抹掉 LLM 结果）；
+- `score` / `llm_score` 用 `COALESCE(新, 旧)`，扫描对象不带分数时不会把旧值写成 NULL；
+- `greeted` / `contact_state` / `status` / `availability` / `manual_*` **保持旧值**（由发送、复核、关闭检测这些专门流程维护）；
+- 代价：池子不再自动删除消失的岗位，靠 `npm run boss:check_closed`（`status='closed'`）收口；
+- 注意：`ON CONFLICT` 也会消耗 identity 序列，所以 `id` 稳定但**不连续**（每次整池写约跳 2600），这是 PG 行为，无副作用。
 
 ---
 
@@ -376,13 +522,14 @@ Unregister-ScheduledTask -TaskName 'BossConsole' -Confirm:$false
 |------|-------------|
 | `spawn /bin/bash ENOENT` | 旧版控制台硬编码 Linux 路径。已修复为跨平台（Windows 用 `cmd.exe`，Unix 用 `/bin/sh`） |
 | 报「未知城市 `["上海"]`」 | `cmd.exe` 不剥离双引号，已由驱动的 `unquote()` 处理 |
-| 任务秒挂、日志只有 `[spawn error]` | 检查 Node/MySQL 环境变量；先用 `npm run doctor` 自检 |
-| 连库失败 | `MYSQL_PASSWORD` 未设置或与库不符 |
+| 任务秒挂、日志只有 `[spawn error]` | 检查 Node/PostgreSQL 环境变量；先用 `npm run doctor` 自检 |
+| 连库失败（报 `读取 PostgreSQL 配置失败`） | `PGPASSWORD` 未设置或与库不符。注意：**不会**再回落 `config/profile.yml`，必须让库连通才能跑 |
 | 提取报登录/安全验证，或页面变 `about:blank` | **风控介入**。立即停止重试（连续重试会加重限制）；到 Chrome 窗口手动完成验证，确认能正常搜索后再跑 |
 | 卡片抽取数为 0 | 页面未登录 / 被重定向到登录页；或 JD 结构变化 |
 | 找不到 Chrome | 用 `BOSS_CHROME_BIN` 指定可执行文件路径 |
 | 9222 在监听但 `/json/version` 返回 404 | Chrome 在跑但**没开调试接口**（日常双击启动会这样）。完全退出 Chrome 后用 `npm run boss:chrome:start` 重启 |
 | 控制台任务永远 running | 用界面终止按钮；进程树会被整组杀掉（Windows 走 `taskkill /T /F`） |
+| 打开 4173 连不上 | 先看 `boss/boss-web/console.log` 末尾：有 `exit code=` 说明进程退出了，上面的报错就是原因；没有 `exit` 行且没监听 = 被外部杀掉的。看门狗每 2 分钟会重新拉起；如果 `boss/boss-web/.stopped` 标记还在（之前手工停止过），手动启动一次即可清掉 |
 
 自检：
 
@@ -401,7 +548,7 @@ npm run doctor
 - 不破解验证码、不绕过风控、不加隐身/反检测逻辑
 - 打招呼文案默认不含手机号、微信
 - 评分必须基于完整 JD；岗位标题或卡片文本不作评分依据
-- 失败/未验证的发送不计入当日额度与 30 天公司去重
+- 失败/未验证的发送不计入当日额度与 30 天同岗位去重
 - 质量优先：低于阈值的岗位明确不建议投递
 
 ---
@@ -413,7 +560,13 @@ npm run boss:chrome:start                    # 启动 Chrome（9222）
 npm run boss:extract:daily                   # 扫描（主关键词）
 npm run boss:extract:daily:all               # 扫描（全部关键词）
 npm run boss:extract:daily -- --city 上海 --all
-npm run boss:score                           # 评分
+npm run boss:score                           # 评分（+ LLM 评估：匹配结构 + 招呼语，一个批次一次请求）
+npm run boss:score -- --dry-run              # 只看「待处理 ÷ 每批 = 几次请求」，不花钱
+npm run boss:score -- --limit 10             # 只跑前 10 条（测试/补跑）
+npm run boss:score -- --llm-force            # 重跑已有 LLM 结果的岗位
+npm run boss:analyze -- --city 南京 --limit 5 # 独立补跑（同样按批）
+node boss/boss-analyze.mjs --dry-run         # 只处理 1 条并打印，不写库
+npm run boss:score -- --no-llm               # 评分但不调 LLM（全部模板）
 npm run boss:fill -- --prepare               # 排队
 npm run boss:review                          # 复核清单 ← 人工看
 npm run boss:chrome:apply -- --dry-run       # 预览打招呼文案
@@ -437,3 +590,9 @@ D:\github\career-ops\boss\stop-console.cmd   # 停止后台控制台
 - PATH 用 `path.delimiter` 拼接（Windows `;`），不再硬编码 `:`
 
 > 注意：部分 Node 版本在受限沙箱下可能报 `WebAssembly.instantiate(): Out of memory`，换用常规安装的 Node 即可。
+
+
+
+
+
+
