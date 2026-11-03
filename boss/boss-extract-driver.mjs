@@ -2,7 +2,8 @@
 // boss-extract-driver.mjs — 跨平台 BOSS 搜索页提取驱动；shell 入口也委托到这里
 //
 // 与 bash 版保持一致的语义：
-//   - 城市列表来自 config/profile.yml 的 boss.daily_extract_cities
+//   - 城市清单 = PostgreSQL boss_config(boss_city_control).daily_limit_per_city 的键（配额 0 = 只扫不发）；
+//     **不再读 config/profile.yml**（操作配置全部以 PostgreSQL 为唯一基准）
 //   - 词表：--keywords 显式覆盖 > 每城词表(DB) > 统一词表(DB)，与 boss-extract-3cities.sh 的 city_keywords 一致
 //   - 主轮 = 词表前 3 个；--all 追加补充轮（其余词）
 //   - 单城扫描预算 = 该城每日配额 × BOSS_SCAN_BUDGET_FACTOR(默认 1.3)，按词数均分
@@ -10,7 +11,7 @@
 //   - 每个关键词：CDP 导航搜索页 → sleep 3s → boss-chrome-extract.mjs --append
 //
 // 只负责「抓取」；评分/排队由调用方串联（控制台命令里已接 `&& npm run boss:score && npm run boss:fill -- --prepare`）。
-// 需要在项目根目录运行，且环境变量 MYSQL_PASSWORD 正确（写库用）。
+// 需要在项目根目录运行，且 PostgreSQL 连接可用（PG* 环境变量 / boss/.env.local，见 pg-db.mjs）。
 //
 // 用法：
 //   node boss/boss-extract-driver.mjs                          # 全部城市，主轮（每城前 3 词）
@@ -20,10 +21,8 @@
 //   BOSS_KEYWORD_GAP_SECONDS=0 node boss/boss-extract-driver.mjs --city 上海 --all   # 调试用：关间隔
 
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import * as yaml from 'js-yaml';
 import { resolveBossCityCode } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import { gotoUrl, closeAllConnections } from './boss-cdp.mjs';
@@ -57,20 +56,11 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadProfileBoss() {
-  try {
-    const profile = yaml.load(readFileSync(join(ROOT, 'config', 'profile.yml'), 'utf-8')) || {};
-    return profile.boss || {};
-  } catch (e) {
-    throw new Error(`读取 config/profile.yml 失败：${e.message}`);
-  }
-}
-
-// 该城生效词表：每城词表(非空) > 统一词表，与 bash 版 city_keywords 一致
-function cityKeywords(city, control, fallbackQueries) {
+// 该城生效词表：每城词表(非空) > 统一词表，与 bash 版 city_keywords 一致。两处都来自 DB，无文件兜底。
+function cityKeywords(city, control) {
   const byCity = control.daily_extract_keywords_by_city || {};
   const list = Array.isArray(byCity[city]) && byCity[city].length ? byCity[city] : (control.daily_extract_queries || []);
-  return list.length ? list : fallbackQueries;
+  return list;
 }
 
 function cityQuota(city, control) {
@@ -106,21 +96,31 @@ async function extractOne({ city, code, query, companyLimit, maxCards, dryRun })
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!process.env.MYSQL_PASSWORD) {
-    console.error('[warn] 未设置 MYSQL_PASSWORD：若 boss-common 默认密码与当前库不一致，写库会失败。');
+  // 配置全部来自 PostgreSQL（唯一基准）：读不到就直接失败，不再有 profile.yml 兜底。
+  const control = await loadBossControl();
+  const dbCities = Object.keys(control.daily_limit_per_city || {});
+  const cities = args.city ? [args.city] : dbCities;
+  if (!cities.length) {
+    throw new Error(
+      '城市清单为空：库内 boss_config(boss_city_control).daily_limit_per_city 没有任何城市。' +
+        '请先在控制台「每日城市操作流程控制」添加城市并保存（配额 0 = 只扫不发），或显式传 --city。',
+    );
   }
 
-  const profileBoss = loadProfileBoss();
-  const profileCities = Array.isArray(profileBoss.daily_extract_cities) ? profileBoss.daily_extract_cities : [];
-  const profileQueries = Array.isArray(profileBoss.daily_extract_queries) ? profileBoss.daily_extract_queries : [];
-  if (!profileCities.length) throw new Error('config/profile.yml 缺少 boss.daily_extract_cities');
-
-  const control = await loadBossControl().catch(() => ({}));
-  const cities = args.city ? [args.city] : profileCities;
-
-  const keywordGapSec = Number(process.env.BOSS_KEYWORD_GAP_SECONDS ?? 300);
-  const cityGapSec = Number(process.env.BOSS_CITY_GAP_SECONDS ?? 600);
-  const factor = Number(process.env.BOSS_SCAN_BUDGET_FACTOR || 1.3);
+  // 扫描节奏：环境变量（控制台 pacedEnv() 注入）= 显式覆盖；否则取 DB 值；最后才是内置常量。
+  // 这样命令行直跑与「控制台一键准备」用的是同一份节奏配置，不会出现 300s vs DB 120s 的分叉。
+  const pickNum = (envKey, dbVal, hardDefault) => {
+    const raw = process.env[envKey];
+    if (raw != null && raw !== '') {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    const n = Number(dbVal);
+    return Number.isFinite(n) && n >= 0 ? n : hardDefault;
+  };
+  const keywordGapSec = pickNum('BOSS_KEYWORD_GAP_SECONDS', control.keyword_gap_seconds, 300);
+  const cityGapSec = pickNum('BOSS_CITY_GAP_SECONDS', control.city_gap_seconds, 600);
+  const factor = pickNum('BOSS_SCAN_BUDGET_FACTOR', control.scan_budget_factor, 1.3);
 
   const kwOverride = args.keywords ? args.keywords.split(',').map((s) => s.trim()).filter(Boolean) : [];
   if (kwOverride.length && !args.city) throw new Error('--keywords 必须配合 --city 使用');
@@ -131,7 +131,8 @@ async function main() {
     cityIdx++;
     if (cityIdx > 1 && cityGapSec > 0) {
       console.log(`（城市间隔休息 ${cityGapSec}s，降低风控压力…）`);
-      await sleep(cityGapSec * 1000);
+      // dry-run 只预演，不真的等：否则「全部城市」预演要睡十几分钟
+      if (!args.dryRun) await sleep(cityGapSec * 1000);
     }
 
     const code = resolveBossCityCode(city);
@@ -140,7 +141,7 @@ async function main() {
       continue;
     }
 
-    const queries = kwOverride.length ? kwOverride : cityKeywords(city, control, profileQueries);
+    const queries = kwOverride.length ? kwOverride : cityKeywords(city, control);
     if (!queries.length) {
       console.log(`⚠ 城市 [${city}] 无可用词表，跳过`);
       continue;

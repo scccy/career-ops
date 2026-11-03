@@ -6,7 +6,6 @@ import {
   CANDIDATES_PATH,
   list,
   loadProfile,
-  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   readJson,
@@ -15,13 +14,13 @@ import {
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 
-// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+// 阈值/配额统一来自 PostgreSQL（boss_config.boss_city_control，唯一配置基准）；连库失败直接抛错，不回落 profile.yml。
+const BOSS_CONTROL = await loadBossControl();
 import { planQuota } from './boss-quota.mjs';
 
 const DEFAULT_TARGET_COMPANIES = 20;
 const DEFAULT_BATCH_COMPANIES = 30;
-const RECENT_COMPANY_DEDUPE_DAYS = 30;
+const RECENT_ROLE_DEDUPE_DAYS = 30;
 
 // 兄弟脚本用「本文件所在目录」解析，而不是 CWD——脚本位于 boss/ 子目录，
 // 裸文件名会在仓库根解析失败（2026-09-30 迁移后修复）。
@@ -90,7 +89,7 @@ node boss-fill.mjs --input data/boss-candidates.json --prepare
 
 Rules:
 - 每批至少读取 30 家公司的右侧完整 JD
-- 最近 30 天沟通过的公司排除
+- 最近 30 天沟通过的同一岗位（公司+岗位+base城市）排除；同公司其他岗位不排除
 - 达标公司数 >= 20 后停止读取
 - 发送前只生成 dry-run，不真实发送`);
     return;
@@ -100,11 +99,10 @@ Rules:
   const profile = loadProfile({ allowUnconfirmed: Boolean(args['allow-unconfirmed']) });
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const plan = planQuota(jobs, profile, {
-    targetCompanies: Number(args['target-companies'] ?? profile?.boss?.daily_limit ?? DEFAULT_TARGET_COMPANIES),
+    targetCompanies: Number(args['target-companies'] ?? DEFAULT_TARGET_COMPANIES),
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
-    threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0),
-    sentJobs: loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
-    recentSentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
+    threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 4.0),
+    sentJobs: await loadSentKeys({ lookbackDays: RECENT_ROLE_DEDUPE_DAYS }),
   });
   const nextStep = buildNextStep(plan, input, profile);
   const output = {

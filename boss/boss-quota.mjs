@@ -5,26 +5,23 @@ import {
   CANDIDATES_PATH,
   list,
   loadProfile,
-  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   readJson,
-  uniqueCompanyKey,
   uniqueCompanyPlacementKey,
   uniqueJobKey,
-  uniqueJobKeyLegacy,
   isCandidatesPath,
   loadCandidates,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 
-// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+// 阈值/配额统一来自 PostgreSQL（boss_config.boss_city_control，唯一配置基准）；连库失败直接抛错，不回落 profile.yml。
+const BOSS_CONTROL = await loadBossControl();
 import { evaluateJob } from './boss-score.mjs';
 
 const DEFAULT_TARGET_COMPANIES = 20;
 const DEFAULT_BATCH_COMPANIES = 30;
-const RECENT_COMPANY_DEDUPE_DAYS = 30;
+const RECENT_ROLE_DEDUPE_DAYS = 30;
 
 function uniqueByCompany(jobs) {
   const seen = new Set();
@@ -43,13 +40,10 @@ export function planQuota(jobs, profile, {
   batchCompanies = DEFAULT_BATCH_COMPANIES,
   threshold = 4.0,
   sentJobs = new Set(),
-  recentSentCompanies = new Set(),
 } = {}) {
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
-    if (sentJobs.has(uniqueJobKey(result)) || sentJobs.has(uniqueJobKeyLegacy(result))) result.eligible = false;
-    if (recentSentCompanies.has(uniqueCompanyPlacementKey(result))
-      || recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
+    if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
     if (result.score < threshold) result.eligible = false;
     return result;
   });
@@ -76,8 +70,7 @@ export function planQuota(jobs, profile, {
       : job.jd_detail?.ok === false ? '缺少完整JD'
       : job.can_chat === false ? '不可立即沟通'
       : job.already_contacted ? '已沟通'
-      : recentSentCompanies.has(uniqueCompanyPlacementKey(job)) || recentSentCompanies.has(uniqueCompanyKey(job)) ? '最近30天已沟通该公司同一基地'
-      : sentJobs.has(uniqueJobKey(job)) || sentJobs.has(uniqueJobKeyLegacy(job)) ? '该岗位已沟通'
+      : sentJobs.has(uniqueJobKey(job)) ? '该岗位已沟通'
       : Number(job.score) < threshold ? '评分低于阈值'
       : '其他';
     rejectionSummary[reason] = (rejectionSummary[reason] || 0) + 1;
@@ -90,8 +83,7 @@ export function planQuota(jobs, profile, {
     totalJobs: jobs.length,
     candidateCompanies,
     eligibleCompanies,
-    dedupeDays: RECENT_COMPANY_DEDUPE_DAYS,
-    recentSentCompanies: recentSentCompanies.size,
+    dedupeDays: RECENT_ROLE_DEDUPE_DAYS,
     additionalEligibleCompanies,
     currentBatchTarget,
     nextBatchTarget: shouldContinueReading ? nextBatchTarget : candidateCompanies,
@@ -122,11 +114,10 @@ async function main() {
   const input = args.input || CANDIDATES_PATH;
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const plan = planQuota(jobs, profile, {
-    targetCompanies: Number(args['target-companies'] ?? profile?.boss?.daily_limit ?? DEFAULT_TARGET_COMPANIES),
+    targetCompanies: Number(args['target-companies'] ?? DEFAULT_TARGET_COMPANIES),
     batchCompanies: Number(args['batch-companies'] ?? DEFAULT_BATCH_COMPANIES),
-    threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0),
-    sentJobs: loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
-    recentSentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS }),
+    threshold: Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 4.0),
+    sentJobs: await loadSentKeys({ lookbackDays: RECENT_ROLE_DEDUPE_DAYS }),
   });
   console.log(JSON.stringify({ input, ...plan }, null, 2));
 }

@@ -404,11 +404,14 @@ async function extractJobs({ targetCompanies, maxCards, clickGapMs, scanCity = '
     cardBudget.spend(); // 窥视成功 = 这张卡片已被处理（无论随后跳过还是点击）
     // 标题排除：命中的卡片连点都不点（2026-10-15 用户要求），省一次点击、也不进候选池
     if (titleRe.test(String(cardMeta.card_title || ''))) { dropReasons.titleExcluded += 1; continue; }
-    // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过
+    // 新增环节（用户要求 2026-10-08）：点击前与库内已有岗位比对，已入库则跳过。
+    // 2026-10 岗位身份 = 岗位名称+公司+base城市（URL 不参与），preKey 用卡片上的
+    // 公司/标题/城市即可与库内键对上；card_url 仍传入但不再影响键。
     const preKey = uniqueCandidateKey({
       company: cardMeta.card_company,
       title: cardMeta.card_title,
       city: cardMeta.card_city || scanCity,
+      url: cardMeta.card_url,
     });
     if (existingJobKeys && preKey && existingJobKeys.has(preKey)) {
       skippedKnown += 1;
@@ -497,7 +500,7 @@ async function main() {
   });
   let finalJobs;
   if (isCandidatesPath(output)) {
-    // 职位池走 MySQL（2026-09-23 用户确认）：dry-run 只读不写；append 库内合并，非 append 整池重写；saveCandidates 落 JSON 备份镜像
+    // 职位池走 PostgreSQL（2026-09-23 用户确认）：dry-run 只读不写；append 库内合并，非 append 整池重写；saveCandidates 落 JSON 备份镜像
     finalJobs = args['dry-run']
       ? (args.append ? mergeJobs(await loadCandidates(), jobs) : jobs)
       : (args.append ? await mergeIntoCandidates(jobs) : await saveCandidates(jobs));

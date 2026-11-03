@@ -2,28 +2,25 @@
 
 import { chromium } from 'playwright';
 import {
-  QUEUE_PATH,
   appendApplication,
   appendSentLog,
   countSentCompaniesToday,
   loadProfile,
-  loadSentPlacementKeys,
+  loadQueue,
   loadSentKeys,
   parseArgs,
   readJson,
-  uniqueCompanyKey,
   uniqueCompanyPlacementKey,
   uniqueJobKey,
-  uniqueJobKeyLegacy,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 
-// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+// 阈值/配额统一来自 PostgreSQL（boss_config.boss_city_control，唯一配置基准）；连库失败直接抛错，不回落 profile.yml。
+const BOSS_CONTROL = await loadBossControl();
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 
-const RECENT_COMPANY_DEDUPE_DAYS = 30;
+const RECENT_ROLE_DEDUPE_DAYS = 30;
 
 async function loadCookies(context, cookiesPath) {
   if (!cookiesPath || !existsSync(cookiesPath)) return;
@@ -59,23 +56,22 @@ async function main() {
     return;
   }
   const profile = loadProfile();
-  const queue = readJson(args.input || QUEUE_PATH, []);
-  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
-  const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
+  const queue = args.input ? readJson(args.input, []) : await loadQueue(args.queue || 'all');
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 4.0);
+  const limit = Number(args['daily-limit'] ?? 20);
   const cookiesPath = args.cookies || profile?.boss?.cookies_path || 'data/boss-cookies.json';
-  const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const recentSentCompanies = loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const sentToday = countSentCompaniesToday();
+  const sentJobs = await loadSentKeys({ lookbackDays: RECENT_ROLE_DEDUPE_DAYS });
+  const sentToday = await countSentCompaniesToday();
   const remainingToday = Math.max(0, limit - sentToday);
   const seenCompanies = new Set();
   const candidates = queue
     .slice()
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .filter((job) => Number(job.score) >= threshold)
-    .filter((job) => !sentJobs.has(uniqueJobKey(job)) && !sentJobs.has(uniqueJobKeyLegacy(job)))
+    .filter((job) => !sentJobs.has(uniqueJobKey(job)))
     .filter((job) => {
+      // 批次上限：本批一家公司只取一条（30 天公司去重已取消）
       const key = uniqueCompanyPlacementKey(job);
-      if (recentSentCompanies.has(key) || recentSentCompanies.has(uniqueCompanyKey(job))) return false;
       if (seenCompanies.has(key)) return false;
       seenCompanies.add(key);
       return true;
@@ -88,8 +84,8 @@ async function main() {
       threshold,
       dailyLimit: limit,
       sentCompaniesToday: sentToday,
-      dedupeDays: RECENT_COMPANY_DEDUPE_DAYS,
-      recentSentCompanies: recentSentCompanies.size,
+      dedupeDays: RECENT_ROLE_DEDUPE_DAYS,
+      dedupeScope: 'role(company+title+city)',
       remainingToday,
       uniqueCompanyMode: true,
       willSend: candidates.map((job) => ({
@@ -120,11 +116,11 @@ async function main() {
     for (const job of candidates) {
       try {
         await sendOne(page, job);
-        appendSentLog({ job, status: 'sent', message: job.greeting });
+        await appendSentLog({ job, status: 'sent', message: job.greeting });
         appendApplication({ job, score: `${job.score}/5`, status: 'Applied', report: job.report || '—', notes: 'BOSS 自动打招呼' });
         console.log(`sent: ${job.company} - ${job.title}`);
       } catch (err) {
-        appendSentLog({ job, status: 'failed', message: job.greeting, error: err.message });
+        await appendSentLog({ job, status: 'failed', message: job.greeting, error: err.message });
         console.error(`failed: ${job.company} - ${job.title}: ${err.message}`);
         break;
       }

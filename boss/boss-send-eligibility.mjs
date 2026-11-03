@@ -3,16 +3,29 @@
 import {
   countSentCompaniesToday,
   countSentCompaniesTodayByCity,
-  loadSentPlacementKeys,
   loadSentKeys,
-  uniqueCompanyKey,
   uniqueCompanyPlacementKey,
   uniqueJobKey,
-  uniqueJobKeyLegacy,
 } from './boss-common.mjs';
 import { buildWordRegex, DEFAULT_TITLE_EXCLUDE } from './skip-rules.mjs';
 
 export const RECENT_CONTACT_DEDUPE_DAYS = 30;
+
+// HR 活跃时间硬闸（2026-10-16 用户确认）：hr_active 以「月/年」计（如「2月内活跃」「半年活跃」「1年内活跃」）
+// 或「半年/几月/数月」的岗位，绝不出现在发送候选里——HR 长期没看过这个岗位，打招呼大概率石沉大海，
+// 还白占当日配额。评分端早就把 周/月/年 压分（hrActivity=1.5 + 机会可信度 -0.7），但压分不是拦截，
+// 阈值调整或分数刚好过线时仍会发出去；这里与「标题排除」同一层硬闸，任何路径都拦得住。
+//
+// 判定正则与控制台检索区「最近一个月内」档的排除语义保持一致（skip 见 tests/boss-hr-active-filter.test.mjs）：
+//   命中 = 月/半年/年计的长期未活跃；hr_active 为空（未提取到）不拦——不能因解析缺失误伤正常岗位。
+const STALE_HR_ACTIVE_RE = /[2-9]月|半年|几月|数月|年/;
+
+// 传 undefined/null = 启用（fail-closed）；传 false = 显式关闭（控制台开关）。
+export function isStaleHrActive(hrActive, { staleHrActiveExclude } = {}) {
+  if (staleHrActiveExclude === false) return false;
+  const text = String(hrActive || '');
+  return Boolean(text) && STALE_HR_ACTIVE_RE.test(text);
+}
 
 // 标题排除（校招/应届/实习/秋招/春招/毕业生）在发送预检上的硬闸，2026-10-15 用户要求。
 //
@@ -31,15 +44,18 @@ export function buildTitleExcludeRegex(titleExclude) {
   return buildWordRegex(titleExclude) || NEVER_MATCH_RE;
 }
 
-export function readSendHistory(urlCity = new Map()) {
+export async function readSendHistory(urlCity = new Map()) {
   return {
-    sentJobs: loadSentKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
-    // 发送去重按公司+base 城市；旧日志无城市时由 loadSentPlacementKeys 返回公司级兼容键。
-    sentCompanies: loadSentPlacementKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
-    todaySent: countSentCompaniesToday(),
-    todayByCity: countSentCompaniesTodayByCity({ urlCity }),
+    // 30 天去重只剩岗位级（公司+岗位+base城市）。公司级 30 天去重已在 2026-10-23 取消：
+    // 同一家公司的不同部门/子项目是不同的机会，公司层拉黑会把它们一起挡掉。
+    sentJobs: await loadSentKeys({ lookbackDays: RECENT_CONTACT_DEDUPE_DAYS }),
+    todaySent: await countSentCompaniesToday(),
+    todayByCity: await countSentCompaniesTodayByCity({ urlCity }),
   };
 }
+
+// 无发送历史时的空快照（纯函数调用方/测试可直接用；生产路径必须传入真实 history）。
+export const EMPTY_HISTORY = { sentJobs: new Set(), todaySent: 0, todayByCity: {} };
 
 function rowKey(job) {
   return String(job.key_hash || uniqueJobKey(job));
@@ -65,9 +81,10 @@ export function selectSendableJobs(candidates, {
   urlCity = new Map(),
   history = null,
   titleExclude = null,
+  staleHrActiveExclude = true,
 } = {}) {
   const source = Array.isArray(candidates) ? candidates : [];
-  const sendHistory = history || readSendHistory(urlCity);
+  const sendHistory = history || EMPTY_HISTORY;
   const titleExcludeRe = buildTitleExcludeRegex(titleExclude);
   const cityRemaining = new Map(Object.entries(cityLimits || {}).map(([city, cap]) => [
     city,
@@ -98,8 +115,8 @@ export function selectSendableJobs(candidates, {
     alreadyContacted: 0,
     manuallyExcluded: 0,
     titleExcluded: 0,
+    staleHrActive: 0,
     alreadySent: 0,
-    recentCompany: 0,
     duplicateCompanyInBatch: 0,
     cityQuota: 0,
     dailyLimit: 0,
@@ -120,6 +137,11 @@ export function selectSendableJobs(candidates, {
     // 放在 manual_excluded 之后：两者都命中时报「人工暂缓」——用户显式标记是更强的信号，
     // 自动规则不该覆盖它（存量的校招岗多数已被一键剔除标过 manual_excluded）。
     if (titleExcludeRe.test(String(job.title || ''))) { markBlocked(job, 'title_excluded', 'titleExcluded'); continue; }
+    // HR 活跃硬闸（2026-10-16）：hr_active 以月/半年/年计的岗位不入发送候选。
+    // 放在标题排除之后：同层硬闸，两者都命中时标题排除优先报（与控制台同一词序）。
+    if (isStaleHrActive(job.hr_active, { staleHrActiveExclude })) {
+      markBlocked(job, 'stale_hr_active', 'staleHrActive'); continue;
+    }
     if (String(job.availability || '').toLowerCase() === 'closed' || String(job.status || '').toLowerCase() === 'closed') {
       markBlocked(job, 'closed', 'closed'); continue;
     }
@@ -131,15 +153,13 @@ export function selectSendableJobs(candidates, {
     if (!Number.isFinite(score)) { markBlocked(job, 'missing_score', 'missingScore'); continue; }
     if (Number.isFinite(Number(threshold)) && score < Number(threshold)) { markBlocked(job, 'below_threshold', 'belowThreshold'); continue; }
     const role = uniqueJobKey(job);
-    const legacyRole = uniqueJobKeyLegacy(job);
-    const company = uniqueCompanyKey(job);
+    // 无 city 列的历史日志行由 loadSentKeys 统一归入 unknown 城市位（见 uniqueJobKeyUnknown），
+    // 这里只需比对岗位键：城市未知的岗位键同样是 ::unknown，跨城岗位自然不撞。
     const companyPlacement = uniqueCompanyPlacementKey(job);
-    if (sendHistory.sentJobs.has(role) || sendHistory.sentJobs.has(legacyRole)) {
+    if (sendHistory.sentJobs.has(role)) {
       markBlocked(job, 'recent_role', 'alreadySent'); continue;
     }
-    if (sendHistory.sentCompanies.has(companyPlacement) || sendHistory.sentCompanies.has(company)) {
-      markBlocked(job, 'recent_company', 'recentCompany'); continue;
-    }
+    // 批次上限：同一批次里一家公司最多一条（同公司其他岗位下一轮还能进）。
     if (seenCompanies.has(companyPlacement)) {
       markBlocked(job, 'duplicate_company_in_batch', 'duplicateCompanyInBatch'); continue;
     }

@@ -1,35 +1,41 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import {
   BOSS_CITY_CODES,
   CANDIDATES_PATH,
-  QUEUE_PATH,
   includesAny,
   list,
   loadProfile,
-  loadSentPlacementKeys,
   loadSentKeys,
   parseArgs,
   salaryScore,
   todayIso,
-  uniqueCompanyKey,
   uniqueCompanyPlacementKey,
   uniqueJobKey,
-  uniqueJobKeyLegacy,
-  writeJson,
+  urlPathname,
   readJson,
   isCandidatesPath,
   loadCandidates,
   persistJobScores,
+  saveJobAnalysis,
+  saveQueue,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import { DEFAULT_RISK_KEYWORDS, matchRejectHits } from './skip-rules.mjs';
+import { withJobIdentity } from './boss-llm-schema.mjs';
+import { selectSendableJobs, readSendHistory } from './boss-send-eligibility.mjs';
+import {
+  analyzeJobsChunked,
+  selectLlmTargets,
+  llmReadiness,
+  resolveLlmConfig,
+} from './boss-llm.mjs';
 
-// 评分阈值统一来自数据库（控制台 boss_city_control）；DB 不可用时退化到 profile.yml 默认值。
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+// 阈值/配额统一来自 PostgreSQL（boss_config.boss_city_control，唯一配置基准）；连库失败直接抛错，不回落 profile.yml。
+const BOSS_CONTROL = await loadBossControl();
 
 // 评分阶段风险词（2026-10-14 统一到控制台）：DB boss_config.risk_keywords 为唯一来源，
 // 缺省/DB 不可用时回落内置默认；这里按**纯子串**匹配（用户写什么就匹配什么，不必懂正则）。
@@ -49,7 +55,7 @@ const JD_FOCUS_TERMS = [
   '尽职调查', '投融资', '股权架构', '股权激励', '董秘',
   '战略规划', '行业研究',
 ];
-const RECENT_COMPANY_DEDUPE_DAYS = 30;
+const RECENT_ROLE_DEDUPE_DAYS = 30;
 
 function clamp(n, min = 1, max = 5) {
   return Math.max(min, Math.min(max, Number(n.toFixed(2))));
@@ -161,6 +167,8 @@ export function evaluateJob(job, profile) {
     : '不建议投递';
 
   const greetingContext = buildGreetingContext(job, profile, titleAndDesc);
+  // 模板文案先算好：它既是 LLM 的兜底，也是 LLM 未启用时的最终文案（2026-10-30）。
+  const templateGreeting = buildGreeting(job, profile, { total, skillMatches, responsibilityMatches, greetingContext });
 
   return {
     ...job,
@@ -173,7 +181,9 @@ export function evaluateJob(job, profile) {
     risk_penalty: Number(riskPenalty.toFixed(2)),
     recommendation,
     eligible,
-    greeting: buildGreeting(job, profile, { total, skillMatches, responsibilityMatches, greetingContext }),
+    greeting: templateGreeting,
+    greeting_template: templateGreeting,
+    greeting_source: 'template',
     greeting_basis: greetingContext,
     scored_at: new Date().toISOString(),
   };
@@ -393,16 +403,243 @@ function writeReport(job) {
     .join('\n');
   const jdStatus = job.jd_detail?.ok ? '已读取右侧完整 JD' : `未读取完整 JD：${job.jd_detail?.reason || '未知原因'}`;
   const legitimacy = job.opportunity_legitimacy || {};
-  writeFileSync(path, `# BOSS 岗位评估：${job.company || ''} - ${job.title || ''}\n\n**Date:** ${todayIso()}\n**URL:** ${job.url || ''}\n**Score:** ${job.score}/5\n**Recommendation:** ${job.recommendation}\n\n## 岗位摘要\n\n- 公司：${job.company || ''}\n- 岗位：${job.title || ''}\n- 薪资：${job.salary || ''}\n- 城市：${job.city || job.location || ''}\n- HR 活跃：${job.hr_active || ''}\n\n## 分项评分\n\n| 维度 | 分数 |\n|---|---:|\n${rows}\n\n## 机会可信度\n\n- 结论：${legitimacy.label || legitimacy.tier || '未评估'}\n- 等级：${legitimacy.tier || '未评估'}\n- 分数：${legitimacy.score || '-'} / 5\n\n| 信号 | 发现 | 权重 |\n|---|---|---:|\n${formatLegitimacySignals(legitimacy.signals)}\n\n## 风险点\n\n${job.risk_hits?.length ? job.risk_hits.map((r) => `- ${r}`).join('\n') : '- 暂未识别硬性风险'}\n\n## JD 完整性\n\n- ${jdStatus}\n\n## 打招呼生成依据\n\n- JD 关注点：${job.greeting_basis?.jd_focus?.length ? job.greeting_basis.jd_focus.join('、') : '未识别到明确关键词'}\n- 画像匹配技能：${job.greeting_basis?.skills?.length ? job.greeting_basis.skills.join('、') : '使用默认核心技能'}\n- 画像匹配经历：${job.greeting_basis?.evidence?.length ? job.greeting_basis.evidence.join('；') : '未匹配到具体经历亮点'}\n\n## 推荐打招呼文案\n\n${job.greeting}\n`, 'utf-8');
+  writeFileSync(path, `# BOSS 岗位评估：${job.company || ''} - ${job.title || ''}\n\n**Date:** ${todayIso()}\n**URL:** ${job.url || ''}\n**Score:** ${job.score}/5\n**Recommendation:** ${job.recommendation}\n\n## 岗位摘要\n\n- 公司：${job.company || ''}\n- 岗位：${job.title || ''}\n- 薪资：${job.salary || ''}\n- 城市：${job.city || job.location || ''}\n- HR 活跃：${job.hr_active || ''}\n\n## 分项评分\n\n| 维度 | 分数 |\n|---|---:|\n${rows}\n\n## 机会可信度\n\n- 结论：${legitimacy.label || legitimacy.tier || '未评估'}\n- 等级：${legitimacy.tier || '未评估'}\n- 分数：${legitimacy.score || '-'} / 5\n\n| 信号 | 发现 | 权重 |\n|---|---|---:|\n${formatLegitimacySignals(legitimacy.signals)}\n\n## 风险点\n\n${job.risk_hits?.length ? job.risk_hits.map((r) => `- ${r}`).join('\n') : '- 暂未识别硬性风险'}\n\n## JD 完整性\n\n- ${jdStatus}\n\n## 打招呼生成依据\n\n- JD 关注点：${job.greeting_basis?.jd_focus?.length ? job.greeting_basis.jd_focus.join('、') : '未识别到明确关键词'}\n- 画像匹配技能：${job.greeting_basis?.skills?.length ? job.greeting_basis.skills.join('、') : '使用默认核心技能'}\n- 画像匹配经历：${job.greeting_basis?.evidence?.length ? job.greeting_basis.evidence.join('；') : '未匹配到具体经历亮点'}\n\n## 推荐打招呼文案\n\n${greetingSourceLine(job)}\n${job.greeting}\n`, 'utf-8');
   return path;
 }
+
+// 报告里如实标注文案来源：LLM 写的 / 模板兜底的（附失败原因），别让人以为两者一样。
+function greetingSourceLine(job) {
+  if (job.greeting_source === 'llm') {
+    return `_来源：LLM（${job.greeting_model || '已配置模型'}）_`;
+  }
+  const reason = job.greeting_llm_error ? `；LLM 未生效：${job.greeting_llm_error}` : '';
+  return `_来源：内置模板（未启用 LLM 或调用失败${reason}）_`;
+}
+
+// ===== LLM 评估：一个批次 = 一次请求（匹配结构 + 招呼语一起返回）=====
+// 用户 2026-10-30 定的口径：不再分「深解析」「招呼语」两趟，也不要三个上限。
+// 只有一个数量参数「每批岗位数」，批次数 = ⌈待处理岗位数 ÷ 每批岗位数⌉，脚本自己算。
+// 花钱闸只有三条，都不需要额外参数：
+//   1) 已发送 / 已联系过的岗位永久跳过（消息都发出去了，评估没有意义）；
+//   2) 已有 LLM 结果的岗位增量跳过（`--llm-force` 才重跑）；
+//   3) 整批失败 / 模型漏项 → 对半拆重试；仍失败的条目回落模板文案。
+// 权威边界：**不改 score 列**，LLM 匹配分只写 llm_score 作参考（规则分仍是发送资格的唯一依据）。
+
+// cv.md 是评估的唯一简历来源；读不到就不跑（绝不拿 profile.yml 的摘要冒充简历原文）
+function readCvForAnalysis() {
+  try {
+    if (!existsSync('cv.md')) return '';
+    const text = readFileSync('cv.md', 'utf-8').trim();
+    return text.length >= 200 ? text : '';
+  } catch {
+    return '';
+  }
+}
+
+// 一趟流：待处理岗位按「每批岗位数」切片，每片一次请求，返回每个岗位的匹配结构 + 招呼语。
+async function applyLlmPass(jobs, profile, { args = {}, env = process.env } = {}) {
+  const cfg = resolveLlmConfig(BOSS_CONTROL, env);
+  const summary = {
+    attempted: 0, ok: 0, failed: 0, template: 0, reused: 0,
+    skippedExisting: 0, skippedContacted: 0, capped: 0,
+    batches: 0, requests: 0, splits: 0, credits: 0, skipped: '',
+  };
+
+  // 已有 LLM 结果的岗位：文案直接沿用（不花钱、不调 API），计入 reused
+  for (const job of jobs) {
+    if (!job.llm?.match) continue;
+    summary.reused += 1;
+    const text = job.llm.greeting?.text;
+    if (!text) continue;
+    job.greeting = text;
+    // 统一流程里「匹配结构 + 文案」本来就是同一趟产物，所以来源就是 llm；
+    // llm_analysis 只是历史标签（老数据还在，仍被识别为「已完成」，但不再新写）
+    job.greeting_source = 'llm';
+    job.greeting_model = job.llm.model || cfg.model || '';
+    job.greeting_llm_error = '';
+  }
+
+  const off = args['no-llm'] === true || args['no-llm'] === 'true';
+  if (off) {
+    summary.skipped = '--no-llm';
+    console.error('[boss-llm] 已按 --no-llm 跳过：本次全部使用内置模板文案');
+    return summary;
+  }
+  if (!cfg.analyzeEnabled) {
+    summary.skipped = '控制台已关闭 LLM 评估';
+    return summary;
+  }
+  const ready = llmReadiness(cfg);
+  if (!ready.ok) {
+    summary.skipped = ready.reason;
+    if (cfg.enabled) console.error(`[boss-llm] LLM 未就绪，使用模板文案：${ready.reason}`);
+    return summary;
+  }
+
+  const force = args['llm-force'] === true || args['llm-force'] === 'true';
+  // cap 只给测试 / 补跑用（--limit N）；正常流程不设，待处理多少跑多少
+  const cap = Math.max(0, Math.trunc(Number(args.limit) || 0));
+  // 单城扫描时只评估本城（控制台点某个城市的「扫描」会带 --analyze-city）
+  const city = String(args['analyze-city'] || '').trim();
+  // 人工排除（manual_excluded=1）= 用户明确「任何情况都不需要」，评估阶段也一律跳过
+  const { targets: picked, skippedExisting, skippedContacted, skippedOtherCity, skippedExcluded, capped } = selectLlmTargets(jobs, { force, cap, city });
+
+  // 评估范围（2026-10-30 用户要求）：默认只评估**真正可发送**的岗位 —— 十道发送闸门全过那批。
+  // 理由：待处理里有 2/3 是「分数不达标 / 评分判定不可发 / 已关闭」，短期发不出去，
+  // 提前买文案等于白花钱（实测 720 条里只有 108 条可发）。`--llm-scope=all` 可恢复全量。
+  const llmScope = String(args['llm-scope'] || 'sendable').toLowerCase();
+  let skippedNotSendable = 0;
+  let targets = picked;
+  if (llmScope !== 'all') {
+    const cityLimits = BOSS_CONTROL.daily_limit_per_city || {};
+    // 城市配额按「城市前缀」统计（与控制台一致）：原始城市串是「上海·浦东新区·陆家嘴」
+    const urlCity = new Map(jobs.map((job) => [urlPathname(job.url), String(job.city || '').split('·')[0]]));
+    const history = await readSendHistory(urlCity);
+    const sendableKeys = new Set();
+    for (const cityName of Object.keys(cityLimits)) {
+      const cityRows = jobs.filter((job) => String(job.city || '').split('·')[0] === cityName);
+      if (!cityRows.length) continue;
+      const selected = selectSendableJobs(cityRows, {
+        threshold: Number(BOSS_CONTROL.send_threshold ?? 3),
+        cityLimits,
+        platformLimit: BOSS_CONTROL.platform_daily_limit || 0,
+        titleExclude: BOSS_CONTROL.title_exclude,
+        staleHrActiveExclude: BOSS_CONTROL.stale_hr_active_exclude !== false,
+        history,
+      });
+      for (const job of selected.jobs) sendableKeys.add(job.key_hash);
+    }
+    targets = picked.filter((job) => sendableKeys.has(job.key_hash));
+    skippedNotSendable = picked.length - targets.length;
+  }
+  summary.skippedNotSendable = skippedNotSendable;
+  summary.scope = llmScope;
+  summary.skippedExisting = skippedExisting;
+  summary.skippedContacted = skippedContacted;
+  summary.skippedExcluded = skippedExcluded;
+  summary.capped = capped;
+  summary.attempted = targets.length;
+
+  const batchSize = Math.max(1, Math.min(Number(cfg.batchSize) || 25, 100));
+  const batches = Math.ceil(targets.length / batchSize);
+  summary.batches = batches;
+
+  if (skippedContacted) {
+    console.error(`[boss-llm] 跳过 ${skippedContacted} 条已发送/已联系的岗位（文案已经发过了，不需要再评估）`);
+  }
+  if (skippedExcluded) {
+    console.error(`[boss-llm] 跳过 ${skippedExcluded} 条人工排除的岗位（你标了「不发送」，任何路径都不再处理：不评估、不进队列、不发）`);
+  }
+  if (skippedOtherCity) {
+    console.error(`[boss-llm] 跳过 ${skippedOtherCity} 条其他城市的岗位（本次只评估 ${city}）`);
+  }
+  if (skippedExisting) {
+    console.error(`[boss-llm] 跳过 ${skippedExisting} 条已有 LLM 结果的岗位（增量；要重跑加 --llm-force）`);
+  }
+  if (skippedNotSendable) {
+    console.error(`[boss-llm] 跳过 ${skippedNotSendable} 条当前不可发送的岗位（分数不达标/评分判不可发/已关闭/HR不活跃/去重/配额；要全量评估加 --llm-scope=all）`);
+  }
+  if (capped) {
+    console.error(`[boss-llm] 本次只处理前 ${targets.length} 条（--limit ${cap}，测试/补跑用），剩余 ${capped} 条留到下次`);
+  }
+
+  // dry-run 默认不花钱：只把「几批、几次请求」算给你看
+  const dryRunOnly = args['dry-run'] && args.llm !== true && args.llm !== 'true';
+  if (dryRunOnly) {
+    summary.skipped = 'dry-run';
+    console.error(`[boss-llm] dry-run 不调用模型：待处理 ${targets.length} 条 ÷ 每批 ${batchSize} = ${batches} 次请求（一次请求 = 一次模型调用）；要真跑加 --llm`);
+    return summary;
+  }
+  if (!targets.length) return summary;
+
+  const cv = readCvForAnalysis();
+  if (!cv) {
+    summary.skipped = '缺少 cv.md';
+    console.error('[boss-llm] 找不到 cv.md 或内容过短：LLM 评估必须基于简历原文，本次跳过（全部用模板文案）');
+    return summary;
+  }
+
+  console.error(`[boss-llm] LLM 评估：${cfg.protocol} · ${cfg.model} · 待处理 ${targets.length} 条 ÷ 每批 ${batchSize} = ${batches} 次请求`);
+  const byKey = new Map(targets.map((job) => [job.key_hash, job]));
+  const done = new Set();
+  cfg.onBatch = (passed, all) => {
+    console.error(`[boss-llm] 批 ${Math.ceil(passed / batchSize)}/${batches} 完成（${passed}/${all} 条 · 成功 ${done.size} · 失败 ${summary.failed}）`);
+  };
+
+  const result = await analyzeJobsChunked({
+    jobs: targets,
+    cv,
+    cfg,
+    onItem: async ({ key_hash, analysis }) => {
+      const job = byKey.get(key_hash);
+      if (!job) return;
+      const full = withJobIdentity(analysis, job);
+      job.llm = full;
+      job.llm_score = full.match.score;
+      job.greeting = full.greeting.text;
+      job.greeting_source = 'llm';
+      job.greeting_model = cfg.model;
+      job.greeting_llm_error = '';
+      done.add(key_hash);
+      let stored = true;
+      if (!args['dry-run']) {
+        stored = false;
+        try {
+          const affected = await saveJobAnalysis(key_hash, full, { model: cfg.model, protocol: cfg.protocol, latencyMs: null, usage: null });
+          // 0 行命中 = 库里没有这个 key_hash（池子被重写过 / 不是本次池子的岗位）：必须算失败，不能当成功
+          if (affected) stored = true;
+          else console.error(`[boss-llm] ✗ 落库未命中 key_hash（库里没有这一行）：${job.company} / ${job.title}`);
+        } catch (err) {
+          console.error(`[boss-llm] 落库失败 ${job.company}：${err.message}`);
+        }
+      }
+      // 只有真的写进库（或 dry-run）才算成功；otherwise 计入失败，避免「日志说成功、库里没数据」
+      if (stored) summary.ok += 1;
+      else summary.failed += 1;
+      console.error(`[boss-llm] ${stored ? '✓' : '✗'} ${job.company} / ${job.title} → LLM ${full.match.score} 分（${full.match.level}） 规则 ${job.score} 分`);
+    },
+  });
+
+  summary.credits = Number(result.usage.credit || 0);
+  summary.requests = result.requests;
+  summary.splits = result.fallbackSplits;
+  summary.repaired = result.repaired || 0;
+  summary.retries = result.retries || 0;
+  summary.failed += result.failed.length;
+  for (const item of result.failed) {
+    const job = byKey.get(item.job.key_hash);
+    summary.template += 1;
+    if (job) {
+      job.greeting = job.greeting_template || job.greeting;
+      job.greeting_source = 'template';
+      job.greeting_llm_error = item.error;
+    }
+    console.error(`[boss-llm] ✗ ${item.job.company} / ${item.job.title}：${item.error}（文案回落模板）`);
+  }
+  console.error(`[boss-llm] LLM 评估完成：成功 ${summary.ok} / 失败 ${summary.failed} · 回落模板 ${summary.template} · 请求 ${summary.requests} 次（拆批 ${summary.splits} · 截断修复 ${summary.repaired} · 补发 ${summary.retries}）· 花费 ≈${summary.credits.toFixed(2)} credit`);
+  return summary;
+}
+
 
 async function main() {
   const args = parseArgs();
   const input = args.input || CANDIDATES_PATH;
   const allowUnconfirmed = Boolean(args['allow-unconfirmed']);
   if (args.help) {
-    console.log('Usage: node boss-score.mjs --input data/boss-candidates.json --threshold 4.0 [--dry-run]');
+    console.log([
+      'Usage: node boss-score.mjs --input data/boss-candidates.json --threshold 4.0 [--dry-run]',
+      '',
+      'LLM 评估（一次请求 = 一批岗位，返回每个岗位的匹配结构 + 问候语）：',
+      '  配置在控制台「LLM」面板（PostgreSQL boss_config）；数量参数只有一个「每批岗位数」，',
+      '  批次数 = ⌈待处理岗位数 ÷ 每批岗位数⌉，输出预算与超时按每批条数自动推算。',
+      '  失败/未配置自动回落内置模板文案，绝不发空文案。',
+      '  --no-llm             本次不调用模型，全部用模板',
+      '  --llm                dry-run 时也真的调用模型（默认 dry-run 不花钱）',
+      '  --llm-force          重跑已有 LLM 结果的岗位（默认增量跳过）',
+      '  --limit N            本次最多处理 N 条（测试/补跑用，默认 0 = 全部待处理岗位）',
+      '  --llm-scope=sendable 只评估「发送预检全过」的岗位（默认，≈可发送数）',
+      '  --llm-scope=all      评估全部待处理岗位（含暂时发不出去的，更费钱）',
+    ].join('\n'));
     return;
   }
   if (args['self-test']) {
@@ -430,22 +667,25 @@ async function main() {
   }
   if (!isCandidatesPath(input) && !existsSync(input)) throw new Error(`input not found: ${input}`);
   const profile = loadProfile({ allowUnconfirmed });
-  // 2026-09-23 用户确认：日常评分阈值标准 3.0，统一由 config/profile.yml boss.send_threshold 控制（--threshold 参数可临时覆盖）
-  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
-  const sentJobs = loadSentKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
-  const recentSentCompanies = loadSentPlacementKeys({ lookbackDays: RECENT_COMPANY_DEDUPE_DAYS });
+  // 日常评分阈值统一来自 PostgreSQL（boss_config.boss_city_control.send_threshold，唯一配置基准）；--threshold 可临时覆盖
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 4.0);
+  const sentJobs = await loadSentKeys({ lookbackDays: RECENT_ROLE_DEDUPE_DAYS });
   const jobs = isCandidatesPath(input) ? await loadCandidates() : readJson(input, []);
   const scored = jobs.map((job) => {
     const result = evaluateJob(job, profile);
     // 评分规则的原始判定（发送日志 30 天去重覆盖前）——决定是否回写数据库
     result.db_eligible = Boolean(result.eligible);
-    if (sentJobs.has(uniqueJobKey(result)) || sentJobs.has(uniqueJobKeyLegacy(result))) result.eligible = false;
-    if (recentSentCompanies.has(uniqueCompanyPlacementKey(result))
-      || recentSentCompanies.has(uniqueCompanyKey(result))) result.eligible = false;
+    if (sentJobs.has(uniqueJobKey(result))) result.eligible = false;
     if (result.score < threshold) result.eligible = false;
-    if (!args['dry-run']) result.report = writeReport(result);
     return result;
   });
+  // ③.4 LLM 评估（cv.md + JD → 匹配结构 + 招呼语，一个批次一次请求）：
+  //      待处理岗位 ÷ 每批岗位数 = 请求次数，点一次「扫描」就全做完。
+  //      报告放在这一步之后写，报告里的文案与来源才和真正发出去的文案一致。
+  const llmSummary = await applyLlmPass(scored, profile, { args });
+  if (!args['dry-run']) {
+    for (const job of scored) job.report = writeReport(job);
+  }
   // 评分结果回写数据库：此前只写队列文件，boss_jobs.score 恒为 NULL，
   // 「发新扫/发送」按 score>=阈值 从库里筛就看不到新扫描岗位
   if (isCandidatesPath(input) && !args['dry-run']) {
@@ -457,6 +697,8 @@ async function main() {
     }
   }
   const seen = new Set();
+  // 队列（= 本批次）内一家公司只留最高分那一条；同公司其他岗位下一轮还能进队。
+  // 这是批次上限，不是 30 天公司去重（后者已于 2026-10-23 取消）。
   const queue = scored
     .filter((job) => job.eligible)
     .sort((a, b) => b.score - a.score)
@@ -466,17 +708,50 @@ async function main() {
       seen.add(key);
       return true;
     });
-  if (!args['dry-run']) writeJson(QUEUE_PATH, queue);
+  if (!args['dry-run']) await saveQueue('all', queue);
   console.log(JSON.stringify({
     input,
     total: scored.length,
     queued: queue.length,
     threshold,
     dryRun: Boolean(args['dry-run']),
-    output: args['dry-run'] ? null : QUEUE_PATH,
+    // LLM 评估（匹配结构 + 招呼语，一个批次一次请求）：来源 llm = 本次生成 / llm_analysis = 历史解析复用 / template = 模板兜底
+    llm: {
+      attempted: llmSummary.attempted,
+      ok: llmSummary.ok,
+      failed: llmSummary.failed,
+      template: llmSummary.template,
+      reused: llmSummary.reused,
+      skippedExisting: llmSummary.skippedExisting || 0,
+      skippedContacted: llmSummary.skippedContacted || 0,
+      skippedExcluded: llmSummary.skippedExcluded || 0,
+      capped: llmSummary.capped || 0,
+      batches: llmSummary.batches || 0,
+      requests: llmSummary.requests || 0,
+      splits: llmSummary.splits || 0,
+      repaired: llmSummary.repaired || 0,
+      retries: llmSummary.retries || 0,
+      credits: Number((llmSummary.credits || 0).toFixed(2)),
+      skipped: llmSummary.skipped || null,
+    },
+    output: args['dry-run'] ? null : 'PG boss_queue:all',
   }, null, 2));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => { console.error(err); process.exit(1); });
+  // 不要在这里 process.exit()：stdout/stderr 是管道时，退出会把还没 flush 的报错掐掉，
+  // 表现成「日志停在半截、什么也没说」（2026-10-30 两次静默 exit 1 就是这么来的）。
+  main()
+    .then(() => { process.exitCode = 0; })
+    .catch((err) => {
+      console.error(err);
+      process.exitCode = 1;
+    });
 }
+
+
+
+
+
+
+

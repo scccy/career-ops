@@ -3,8 +3,8 @@
 import { writeFileSync } from 'fs';
 import { pathToFileURL } from 'url';
 import {
-  QUEUE_PATH,
   ensureDirFor,
+  loadQueue,
   parseArgs,
   readJson,
   todayIso,
@@ -72,19 +72,23 @@ function renderMarkdown(jobs, { threshold, limit }) {
     `${job.score ?? ''}`,
     compactRequirement(job).replace(/\|/g, '/'),
   ]);
-  return `# BOSS 打招呼前确认清单\n\n生成日期：${todayIso()}\n\n规则：按评分从高到低取前 ${limit} 家；最近 30 天已沟通过公司已排除；阈值 ${threshold}/5。\n\n请先把下表展示给用户，用户明确确认后，才允许进入真实发送。\n\n| # | 公司 | 薪资 | 岗位 | 评分 | 简要职位要求 |\n|---:|---|---|---|---:|---|\n${rows.map((row) => `| ${row.join(' | ')} |`).join('\n')}\n\n## 发送前确认\n\n- 状态：待用户确认\n- 确认后执行：\`npm run boss:chrome:apply -- --threshold ${threshold} --daily-limit ${limit} --confirmed-review\`\n`;
+  // 文案来源要写在确认清单上：模板文案是通用句式，复核时更该逐条看（2026-10-30 LLM 招呼语上线后）
+  const llmCount = jobs.filter((job) => job.greeting_source === 'llm').length;
+  const templateCount = jobs.length - llmCount;
+  const sourceLine = `- 文案来源：LLM ${llmCount} 条 / 内置模板 ${templateCount} 条${templateCount ? '（模板文案建议逐条过一眼）' : ''}`;
+  return `# BOSS 打招呼前确认清单\n\n生成日期：${todayIso()}\n\n规则：按评分从高到低取前 ${limit} 家（同一批次一家公司只出现一条）；最近 30 天已沟通过的同一岗位已排除；阈值 ${threshold}/5。\n\n请先把下表展示给用户，用户明确确认后，才允许进入真实发送。\n\n| # | 公司 | 薪资 | 岗位 | 评分 | 简要职位要求 |\n|---:|---|---|---|---:|---|\n${rows.map((row) => `| ${row.join(' | ')} |`).join('\n')}\n\n## 发送前确认\n\n${sourceLine}\n- 状态：待用户确认\n- 确认后执行：\`npm run boss:chrome:apply -- --threshold ${threshold} --daily-limit ${limit} --confirmed-review\`\n`;
 }
 
-function main() {
+async function main() {
   const args = parseArgs();
   if (args.help) {
-    console.log('Usage: node boss-review.mjs --input data/boss-queue.json --limit 20 --threshold 4.0');
+    console.log('Usage: node boss-review.mjs [--queue all|<city>] [--input <file>] --limit 20 --threshold 4.0');
     return;
   }
-  const input = args.input || QUEUE_PATH;
   const limit = Number(args.limit || args['daily-limit'] || 20);
   const threshold = Number(args.threshold || 4.0);
-  const queue = readJson(input, []);
+  const queue = args.input ? readJson(args.input, []) : await loadQueue(args.queue || 'all');
+  const input = args.input || `PG boss_queue:${args.queue || 'all'}`;
   const jobs = topCompanies(queue, limit);
   const markdown = renderMarkdown(jobs, { threshold, limit });
   const output = args.output || REVIEW_PATH;
@@ -106,6 +110,7 @@ function main() {
       score: job.score,
       requirement: compactRequirement(job),
       greeting: job.greeting,
+      greetingSource: job.greeting_source || 'template',
     })),
   }, null, 2)}\n`, 'utf-8');
   console.log(JSON.stringify({
@@ -118,5 +123,5 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  main().catch((err) => { console.error(err); process.exit(1); });
 }

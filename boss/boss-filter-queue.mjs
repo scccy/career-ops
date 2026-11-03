@@ -8,7 +8,7 @@
 //   node boss-filter-queue.mjs [--lookback-days 30]
 //
 // 排除规则：
-//   1. 30 天内已沟通过的公司（sent log，failed 不计）
+//   1. 30 天内已沟通过的同一岗位（公司+岗位+base城市；公司级去重已于 2026-10-23 取消）
 //   2. 标题命中 title_exclude（默认 校招/应届/实习/秋招/春招/毕业生）
 //   3. 公司命中 company_exclude（默认 人力/代招/FESCO/外企德科等）
 //   2、3 自 2026-10-14 起统一到控制台（DB boss_config，见 skip-rules.mjs）；
@@ -17,12 +17,10 @@
 
 import { pathToFileURL } from 'url';
 import {
-  QUEUE_PATH,
-  loadSentPlacementKeys,
-  readJson,
-  uniqueCompanyKey,
-  uniqueCompanyPlacementKey,
-  writeJson,
+  loadSentKeys,
+  loadQueue,
+  saveQueue,
+  uniqueJobKey,
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import {
@@ -33,7 +31,7 @@ import {
 } from './skip-rules.mjs';
 
 // 排队阶段排除规则：DB 配置优先（控制台可编辑），缺省或 DB 不可用 → 内置默认
-const QUEUE_CONTROL = await loadBossControl().catch(() => ({}));
+const QUEUE_CONTROL = await loadBossControl();
 const TITLE_EXCLUDE = buildWordRegex(
   Array.isArray(QUEUE_CONTROL.title_exclude) ? QUEUE_CONTROL.title_exclude : DEFAULT_TITLE_EXCLUDE,
 ) || NEVER_MATCH;
@@ -46,14 +44,14 @@ const args = process.argv.slice(2);
 const lookbackIdx = args.indexOf('--lookback-days');
 const lookbackDays = lookbackIdx >= 0 ? Number(args[lookbackIdx + 1]) : 30;
 
-const sentCompanies = loadSentPlacementKeys({ lookbackDays });
-const queue = readJson(QUEUE_PATH, []);
+const sentJobs = await loadSentKeys({ lookbackDays });
+const queue = await loadQueue('all');
 
 const kept = [];
 const dropped = [];
 for (const job of queue) {
   const reasons = [];
-  if (sentCompanies.has(uniqueCompanyPlacementKey(job)) || sentCompanies.has(uniqueCompanyKey(job))) reasons.push('30天内已沟通该公司同一基地');
+  if (sentJobs.has(uniqueJobKey(job))) reasons.push('30天内已沟通该岗位');
   if (TITLE_EXCLUDE.test(job.title || '')) reasons.push('校招/应届/实习');
   if (COMPANY_EXCLUDE.test(job.company || '')) reasons.push('人力外包/代招');
   if (reasons.length) {
@@ -63,7 +61,7 @@ for (const job of queue) {
   }
 }
 
-writeJson(QUEUE_PATH, kept);
+await saveQueue('all', kept);
 
 const annotated = kept
   .filter((job) => ROLE_NOTE.test(job.title || ''))

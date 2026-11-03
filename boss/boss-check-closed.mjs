@@ -18,7 +18,7 @@ import {
 import { loadBossControl } from './boss-config-db.mjs';
 import { assertAvailable, cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
 
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+const BOSS_CONTROL = await loadBossControl();
 
 async function execJs(js) {
   return cdpExecJs(js);

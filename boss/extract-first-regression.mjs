@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// extract-first-regression.mjs — BOSS「抓取第一张卡片并持久化到 MySQL」回归脚本
+// extract-first-regression.mjs — BOSS「抓取第一张卡片并持久化到 PostgreSQL」回归脚本
 //
 // 与 debug-one-card.mjs（仅打印、不落库）不同，本脚本走完整持久化链路：
 //   CDP 连接 → 抽第 0 张卡片（peek→点击→读详情）→ 规范化 → 单条 upsert 入 career_ops.boss_jobs
@@ -7,7 +7,7 @@
 // 已落库的同 key_hash 岗位会被覆盖更新（ON DUPLICATE KEY UPDATE），不会清空整张表。
 //
 // 前置：Chrome 已带 --remote-debugging-port=9222 启动，且当前标签页停在 BOSS 搜索结果页（已登录）。
-// 环境变量：MYSQL_PASSWORD、BOSS_CDP_PORT（默认 9222）、
+// 环境变量：PG*（见 pg-db.mjs）、BOSS_CDP_PORT（默认 9222）、
 //           BOSS_INDEX（处理第 N 张卡片，默认 0）。
 //
 // 用法：
@@ -15,32 +15,21 @@
 //   node boss/extract-first-regression.mjs --probe         # 只列 CDP 标签页，不抽
 //   node boss/extract-first-regression.mjs --index 2       # 抓第 2 张
 //   node boss/extract-first-regression.mjs --dry-run       # 抽但不落库（打印）
-//   MYSQL_PASSWORD=你的密码 node boss/extract-first-regression.mjs
+//   node boss/extract-first-regression.mjs（PG* 见 boss/.env.local）
 
 import { pathToFileURL } from 'url';
-import { readFileSync } from 'fs';
-import * as yaml from 'js-yaml';
-import mysql from 'mysql2/promise';
+import { loadBossControl } from './boss-config-db.mjs';
+import { query as dbQuery } from './pg-db.mjs';
 import {
   candidateKeyHash,
   uniqueCandidateKey,
   uniqueCompanyKey,
   resolveBossCityCode,
+  upsertJobs,
 } from './boss-common.mjs';
 import { assertAvailable, cdpExecJs, cdpExecJson, resolveTarget, gotoUrl, probe, closeAllConnections } from './boss-cdp.mjs';
 
-// boss-common.mjs 的 BOSS_JOBS_TABLE/DB_NAME/DB_CONFIG 是未导出的文件内常量，这里按相同值重建，
-// 保证回归脚本独立连库（不耦合内部实现）。连接参数同样可用环境变量覆盖。
-const DB_NAME = process.env.MYSQL_DB || 'career_ops';
-const BOSS_JOBS_TABLE = `\`${DB_NAME}\`.\`boss_jobs\``;
-const DB_CONFIG = {
-  host: process.env.MYSQL_HOST || '127.0.0.1',
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  connectionLimit: 5,
-  waitForConnections: true,
-};
+// 数据库访问统一走 pg-db.mjs（PostgreSQL）；本回归脚本通过 boss-common 的 upsertJobs 落库。
 
 // —— 以下抽取/规范化逻辑与 boss-chrome-extract.mjs 保持一致（单卡片版）——
 const BASE_URL = 'https://www.zhipin.com';
@@ -168,6 +157,7 @@ function jobRow(job) {
     String(job.title || '').slice(0, 250),
     String(job.salary || '').slice(0, 120),
     cityPrefix,
+    String(job.hr_active || '').slice(0, 64),
     String(job.url || '').slice(0, 760),
     job.greeted ? 1 : 0,
     min, max,
@@ -180,25 +170,15 @@ function jobRow(job) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// 自动构造 BOSS 搜索页 URL：取 profile.yml 首个城市 + 首个查询词（与 boss-extract-3cities.sh 同源）
-function autoSearchUrl() {
-  const profile = yaml.load(readFileSync('config/profile.yml', 'utf-8')) || {};
-  const boss = profile.boss || {};
-  const city = (boss.daily_extract_cities && boss.daily_extract_cities[0]) || '杭州';
-  const query = (boss.daily_extract_queries && boss.daily_extract_queries[0]) || '数据开发';
+// 自动构造 BOSS 搜索页 URL：取 PostgreSQL 配置的首个城市（daily_limit_per_city 的第一个键）+ 首个统一查询词。
+// 2026-10-23：不再读 config/profile.yml —— 操作配置以 PostgreSQL 为唯一基准。
+async function autoSearchUrl() {
+  const control = await loadBossControl();
+  const city = Object.keys(control.daily_limit_per_city || {})[0] || '杭州';
+  const query = (control.daily_extract_queries || [])[0] || '数据开发';
   const code = resolveBossCityCode(city) || '101210100';
   const enc = encodeURIComponent(query);
   return `https://www.zhipin.com/web/geek/jobs?query=${enc}&city=${code}`;
-}
-
-async function upsertJob(pool, job) {
-  const cols = ['key_hash','company','title','salary','city','url','greeted','salary_min','salary_max','score','status','scanned_at','raw'];
-  const row = jobRow(job);
-  const place = cols.map((c) => '?').join(', ');
-  const updates = cols.filter((c) => c !== 'key_hash').map((c) => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
-  const sql = `INSERT INTO ${BOSS_JOBS_TABLE} (${cols.map((c) => '`' + c + '`').join(', ')}) VALUES (${place}) ON DUPLICATE KEY UPDATE ${updates}`;
-  const [ret] = await pool.query(sql, row);
-  return ret;
 }
 
 async function main() {
@@ -217,8 +197,8 @@ async function main() {
 
   let targetUrl = args.goto;
   if (!targetUrl) {
-    // 自动打开 BOSS 搜索页：读 profile.yml 的首个城市 + 首个查询词
-    targetUrl = autoSearchUrl();
+    // 自动打开 BOSS 搜索页：读 PostgreSQL 配置的首个城市 + 首个查询词
+    targetUrl = await autoSearchUrl();
     console.error(`[auto] 未指定 --goto，自动打开 BOSS 搜索页：${targetUrl}`);
   }
   const out = await gotoUrl(targetUrl);
@@ -266,25 +246,19 @@ async function main() {
     return;
   }
 
-  // 持久化：单条 upsert 入 MySQL
-  const pool = mysql.createPool({ ...DB_CONFIG });
-  try {
-    await pool.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`);
-    const ret = await upsertJob(pool, job);
-    const keyHash = candidateKeyHash(job);
-    const [rows] = await pool.query(`SELECT id, key_hash, company, title, salary, city, greeted, score, scanned_at FROM ${BOSS_JOBS_TABLE} WHERE key_hash = ?`, [keyHash]);
-    console.log(JSON.stringify({
-      mode: 'persisted',
-      index,
-      affectedRows: ret.affectedRows,
-      key_hash: keyHash,
-      company_key: uniqueCompanyKey(job),
-      stored: rows[0] || null,
-      note: '数据已落 career_ops.boss_jobs；JSON 备份镜像(data/boss-candidates.json)由正式 extract 脚本维护，本回归脚本只写库。',
-    }, null, 2));
-  } finally {
-    await pool.end();
-  }
+  // 持久化：单条 upsert 入 PostgreSQL
+  const affectedRows = await upsertJobs([job]);
+  const keyHash = candidateKeyHash(job);
+  const [rows] = await dbQuery('SELECT id, key_hash, company, title, salary, city, greeted, score, scanned_at FROM boss_jobs WHERE key_hash = ?', [keyHash]);
+  console.log(JSON.stringify({
+    mode: 'persisted',
+    index,
+    affectedRows,
+    key_hash: keyHash,
+    company_key: uniqueCompanyKey(job),
+    stored: rows[0] || null,
+    note: '数据已落 PostgreSQL career_ops.boss_jobs；JSON 备份镜像(data/boss-candidates.json)由正式 extract 脚本维护，本回归脚本只写库。',
+  }, null, 2));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

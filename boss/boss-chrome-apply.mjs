@@ -3,13 +3,14 @@
 import { pathToFileURL } from 'url';
 import {
   CANDIDATES_PATH,
-  QUEUE_PATH,
   appendApplication,
   appendSentLog,
   countSentCompaniesToday,
   countSentCompaniesTodayByCity,
+  hydrateQueueJob,
   loadProfile,
   loadCandidatesByKeyHashes,
+  loadQueue,
   markCandidatesGreeted,
   markJobsClosed,
   parseArgs,
@@ -20,10 +21,11 @@ import {
 } from './boss-common.mjs';
 import { loadBossControl } from './boss-config-db.mjs';
 import { cdpExecJs, closeAllConnections } from './boss-cdp.mjs';
-import { selectSendableJobs } from './boss-send-eligibility.mjs';
+import { selectSendableJobs, readSendHistory } from './boss-send-eligibility.mjs';
 
-// 城市操作流程配置（阈值 / 每城配额）统一来自数据库；DB 不可用时退化到 profile.yml 默认值。
-const BOSS_CONTROL = await loadBossControl().catch(() => ({}));
+// 城市操作流程配置（阈值 / 每城配额）统一来自 PostgreSQL（boss_config.boss_city_control，唯一配置基准）；
+// 连库失败直接抛错，不回落 profile.yml（发送端 fail-closed：宁可不跑，也不按过期配额发）。
+const BOSS_CONTROL = await loadBossControl();
 
 const CHAT_URL = 'https://www.zhipin.com/web/geek/chat';
 
@@ -415,10 +417,10 @@ async function main() {
   }
 
   const profile = loadProfile();
-  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? profile?.boss?.send_threshold ?? 4.0);
-  const cityLimits = BOSS_CONTROL.daily_limit_per_city || profile?.boss?.daily_limit_per_city || null;
+  const threshold = Number(args.threshold ?? BOSS_CONTROL.send_threshold ?? 4.0);
+  const cityLimits = BOSS_CONTROL.daily_limit_per_city || null;
   const limitIsExplicit = args['daily-limit'] != null;
-  const limit = Number(args['daily-limit'] ?? profile?.boss?.daily_limit ?? 20);
+  const limit = Number(args['daily-limit'] ?? 20);
 
   let jobs = [];
   let sentToday = 0;
@@ -427,7 +429,7 @@ async function main() {
   let urlCity = new Map(); // URL(pathname)→城市，供发送后打印各城配额；queue 模式下填充
 
   if (args['key-hash']) {
-    // 点名单发模式：--key-hash 直取 MySQL 岗位（支持逗号/空格分隔多个），绕过队列/城市配额/30天去重
+    // 点名单发模式：--key-hash 直取 PostgreSQL 岗位（支持逗号/空格分隔多个），绕过队列/城市配额/30天同岗位去重
     const hashes = String(args['key-hash'] === true ? '' : args['key-hash']).split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
     if (!hashes.length) throw new Error('--key-hash 需要至少一个 key_hash 值（多个用逗号分隔）');
     const found = await loadCandidatesByKeyHashes(hashes);
@@ -447,32 +449,21 @@ async function main() {
     }
     jobs = found;
   } else {
-    const queue = readJson(args.input || QUEUE_PATH, []);
+    const queue = args.input ? readJson(args.input, []) : await loadQueue(args.queue || 'all');
     // Queue JSON may contain only the raw job payload from boss_jobs; score in
     // the DB column is authoritative and must be restored by stable key_hash.
     const storedCandidates = await loadCandidates();
     const currentByHash = new Map(storedCandidates.filter((job) => job.key_hash).map((job) => [job.key_hash, job]));
-    const hydratedQueue = queue.map((job) => {
-      const current = currentByHash.get(job.key_hash);
-      if (!current) return job;
-      const currentScore = Number(current.score);
-      return {
-        ...job,
-        ...(Number.isFinite(currentScore) ? { score: currentScore } : {}),
-        greeted: Boolean(current.greeted),
-        contactState: current.contactState || job.contactState,
-        availability: current.availability || job.availability,
-        manualExcluded: Boolean(current.manualExcluded),
-        manualExclusionReason: current.manualExclusionReason || '',
-        status: current.status || job.status,
-      };
-    });
+    // 队列只是「发哪些、什么顺序」的快照；文案/分数/状态一律以库里的行为准
+    // （2026-10-30 修：这里原来漏刷 greeting —— LLM 在入队后写库，发送时却用了老模板文案）
+    const hydratedQueue = queue.map((job) => hydrateQueueJob(job, currentByHash.get(job.key_hash)));
     // URL→城市映射：城市配额需要反查发送日志里的岗位属于哪个城市。
     // 键用 pathname（job_detail/<id>.html）——securityId 每次扫描都变，
     // 完整 URL 匹配会让重扫后历史发送记录对不上城市、配额扣减失灵。
     urlCity = new Map(
       cityLimits ? storedCandidates.map((job) => [urlPathname(job.url), job.city || '']) : [],
     );
+    const history = await readSendHistory(urlCity);
     selection = selectSendableJobs(hydratedQueue, {
       threshold,
       limit,
@@ -482,6 +473,7 @@ async function main() {
       // 标题排除硬闸（2026-10-15）：校招/应届/实习…无论怎么进的池子，都不进发送候选
       titleExclude: BOSS_CONTROL.title_exclude,
       urlCity,
+      history,
     });
     jobs = selection.jobs;
     sentToday = selection.sentToday;
@@ -491,7 +483,7 @@ async function main() {
       `[过滤统计] 队列 ${st.total} 条：缺少分数 ${st.missingScore}，低于阈值 ${st.belowThreshold}，` +
       `标题排除 ${st.titleExcluded}，` +
       `30天内已发同岗位 ${st.alreadySent}，` +
-      `30天内已发同公司 ${st.recentCompany}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
+      `同批次已有该公司 ${st.duplicateCompanyInBatch}，城市配额满 ${st.cityQuota} → 待发 ${st.selected} 条`,
     );
   }
 
@@ -540,7 +532,7 @@ async function main() {
   for (const job of jobs) {
     try {
       await sendOne(job, { gapMs: Number(args['gap-ms'] || 1400) });
-      appendSentLog({ job, status: 'sent', message: job.greeting });
+      await appendSentLog({ job, status: 'sent', message: job.greeting });
       appendApplication({ job, score: trackerScore(job.score), status: 'Applied', report: job.report || '—', notes: 'BOSS Chrome 自动打招呼' });
       console.log(`sent: ${job.company} - ${job.title}`);
       results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: 'sent' });
@@ -550,7 +542,7 @@ async function main() {
       // closed = 岗位下线；auto_greeted = 默认语已自动发送但自定义话术未验证——不把它冒充成 sent
       if (autoGreeted) {
         const detail = err.message || '自定义话术未验证';
-        appendSentLog({
+        await appendSentLog({
           job,
           status: 'auto_sent',
           message: '希望和你聊聊这个职位，是否有时间呢？（BOSS自动默认打招呼语，非自定义文案）',
@@ -567,7 +559,7 @@ async function main() {
         results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: 'auto_sent', customVerified: false, error: detail });
         continue;
       }
-      appendSentLog({ job, status: closed ? 'closed' : 'failed', message: job.greeting, error: err.message });
+      await appendSentLog({ job, status: closed ? 'closed' : 'failed', message: job.greeting, error: err.message });
       console.error(`${closed ? 'closed' : 'failed'}: ${job.company} - ${job.title}: ${err.message}`);
       results.push({ keyHash: job.key_hash, company: job.company, title: job.title, city: job.city, status: closed ? 'closed' : 'failed', error: err.message });
       if (!closed) break;
@@ -606,14 +598,14 @@ async function main() {
   // 打印真实生效的城市配额（已发/上限），而不是误导性的全局兜底值
   let quotaLine = '';
   if (cityLimits) {
-    const sentByCity = countSentCompaniesTodayByCity({ urlCity });
+    const sentByCity = await countSentCompaniesTodayByCity({ urlCity });
     quotaLine = '今日各城配额（已发/上限）：' + Object.entries(cityLimits)
       .map(([city, cap]) => `${city} ${sentByCity[city] || 0}/${Number(cap)}`)
       .join('，');
     // 平台级上限仅在显式配置 >0 时展示与生效（默认不管理）
     const platformLimit = Number(BOSS_CONTROL.platform_daily_limit ?? 0);
     if (platformLimit > 0) {
-      quotaLine += `；平台剩余 ${Math.max(0, platformLimit - countSentCompaniesToday())}/${platformLimit}`;
+      quotaLine += `；平台剩余 ${Math.max(0, platformLimit - await countSentCompaniesToday())}/${platformLimit}`;
     }
   } else {
     quotaLine = `今日发送上限：${limit} 家。`;
