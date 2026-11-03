@@ -220,6 +220,19 @@ data/intake-state.json
 .chrome-cdp/
 .tools/
 boss/.env.local
+boss/boss-web/console.log*
+boss/boss-web/.stopped
+
+# --- 个人简历 / 面试稿（2026-11-03 从 git 历史清除后加固）---
+# 这几个文件曾经被初始提交带进公开仓库（output/ 与 interview-prep/ 的老规则
+# 只在它们首次提交之后才加，而 ignore 规则不会让已跟踪文件退出跟踪）。
+# 历史已用 filter-branch 重写清除，这里再显式挡一道，避免 `git add -f`
+# 或换机器 clone 后重蹈覆辙。保留 .gitkeep / README 之类的脚手架。
+output/cv-*
+interview-prep/story-bank.md
+interview-prep/wangying-*.md
+# 本地临时文件（含记忆库导出等），不进库
+tmp/
 
 # --- 个人求职数据（公开清洗 2026-10-11 追加）---
 data/applications.md

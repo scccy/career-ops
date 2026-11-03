@@ -1,24 +1,29 @@
-// boss-config-db.mjs — BOSS「每日城市操作流程控制」配置统一存储
+// boss-config-db.mjs — BOSS 操作配置的**唯一**存储（PostgreSQL）
 //
-// 设计（2026-09-29 完全迁库）：
-//   - 单一配置行 boss_config.name = 'boss_city_control'，value 为 JSON 文本（MySQL/MariaDB 兼容，不依赖 JSON 列类型）。
-//   - DB 为主存储；profile.yml 仅在「DB 空且 profile 含这些键」时作为一次性迁移源，之后不再依赖 profile。
-//   - 每次读取走单连接（mysql2 createConnection + end），脚本运行结束不残留连接，进程可正常退出。
+// 设计（2026-09-29 迁库；2026-10-23 收尾为单一基准；2026-10 由 MySQL 迁 PostgreSQL）：
+//   - 单一配置行 boss_config.name = 'boss_city_control'，value 为 JSON 文本。
+//   - **PostgreSQL 是唯一配置来源**：不再从 config/profile.yml 迁移、也不再回落 profile。连库失败直接抛错，
+//     绝不用过期的文件值继续跑（历史事故：无数据库凭据时静默回落 profile，把厦门配额 120 写成 20）。
+//   - 每次读取走共享连接池（pg-db.mjs），脚本运行结束自动关闭，进程可正常退出。
 //
 // 存储的键（即控制台「每日城市操作流程控制」管理的全部字段）：
 //   send_threshold, daily_limit_per_city, daily_extract_queries, daily_extract_keywords_by_city
 //   keyword_gap_seconds, city_gap_seconds, card_gap_min_ms, card_gap_max_ms, scan_budget_factor,
 //   max_dom_cards, known_streak_limit,
-//   require_full_jd
+//   require_full_jd, stale_hr_active_exclude, platform_daily_limit
 //   skip_words / risk_keywords / title_exclude / company_exclude（跳词与排除规则，见 skip-rules.mjs）
+//   llm_enabled, llm_protocol, llm_base_url, llm_model, llm_api_key, llm_temperature,
+//   llm_max_tokens, llm_timeout_ms, llm_concurrency, llm_prompt（LLM 招呼语，见 boss-llm.mjs）
 //
-// 注意：daily_extract_cities / jd_focus_terms / greeting_style 等 boss.* 键不属于本控件，仍留 profile.yml。
+// 「扫哪些城市」不再单独存一份清单：**daily_limit_per_city 的键就是城市清单**
+// （配额 0 = 只扫不发），避免清单与配额两份数据漂移。控制台「＋ 添加城市」写的就是这张表。
+//
+// 仍留 config/profile.yml 的只有**求职画像**（target_roles / location / compensation / narrative /
+// boss.skills_core / boss.jd_focus_terms / boss.greeting_style / preferences）：那是"你要什么"，
+// 由 boss-common.mjs 的 loadProfile() 读取，不属于操作配置。
 
-import mysql from 'mysql2/promise';
-import { readFileSync, existsSync } from 'node:fs';
-import * as yaml from 'js-yaml';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { query } from './pg-db.mjs';
+import { ensureSchema } from './pg-schema.mjs';
 import {
   DEFAULT_SKIP_WORDS,
   DEFAULT_RISK_KEYWORDS,
@@ -26,23 +31,15 @@ import {
   DEFAULT_COMPANY_EXCLUDE,
   resolveWordList,
 } from './skip-rules.mjs';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROFILE = join(__dirname, '..', 'config', 'profile.yml');
-
-const DB = {
-  host: process.env.MYSQL_HOST || '127.0.0.1',
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_DB || 'career_ops',
-};
+import { LLM_FALLBACK, normalizeLlmFields } from './boss-llm.mjs';
 
 const CONFIG_ROW = 'boss_city_control';
 
 const FALLBACK = {
   send_threshold: 3.0,
-  daily_limit_per_city: { 上海: 20, 杭州: 40, 南京: 20, 无锡: 20, 常州: 20 },
+  // 空表 = 还没有配置任何城市。城市清单 = 本映射的键，故不再内置任何默认城市
+  // （历史内置的 上海/杭州/南京/无锡/常州 只是迁库前副本，已随 2026-10-23 收尾删除）。
+  daily_limit_per_city: {},
   daily_extract_queries: [],
   daily_extract_keywords_by_city: {},
   // BOSS 平台级每日沟通上限：0 = 不启用（用户自行通过城市配额管理，
@@ -71,6 +68,9 @@ const FALLBACK = {
   // 评分端同样以 JD 完整为可发送前提；false = 关闭该门禁（岗位照常入库评分，jd_detail 仍如实记录原始判定）。
   // 默认 false（用户指令 2026-10-14：门禁默认关，避免误伤大量岗位；控制台勾选「JD完整性过滤」可开启）。
   require_full_jd: false,
+  // HR 活跃硬闸（2026-10-16 用户确认）：true = hr_active 以月/半年/年计的岗位被发送预检拦截
+  // （stale_hr_active），不入发送队列；false = 关闭（只靠评分压分）。默认 true。
+  stale_hr_active_exclude: true,
   // 跳词 / 排除规则（2026-10-14 用户要求统一到控制台，见 skip-rules.mjs 的默认表）：
   //   skip_words      提取阶段命中即丢弃（岗位不入库）
   //   risk_keywords   评分阶段命中只作风险信号，不影响入库
@@ -81,6 +81,10 @@ const FALLBACK = {
   risk_keywords: DEFAULT_RISK_KEYWORDS,
   title_exclude: DEFAULT_TITLE_EXCLUDE,
   company_exclude: DEFAULT_COMPANY_EXCLUDE,
+  // LLM 招呼语（2026-10-30 用户要求）：score 阶段用 LLM 写打招呼文案，
+  // base url / 模型 / 协议（chat·responses·messages）/ key 全部由控制台配置，
+  // 与其它操作配置同存这一行（唯一基准）。归一逻辑见 boss-llm.mjs 的 normalizeLlmFields()。
+  ...LLM_FALLBACK,
 };
 
 function numOr(v, fallback, min) {
@@ -115,83 +119,45 @@ export function normalize(v = {}) {
     known_streak_limit: numOr(v.known_streak_limit, FALLBACK.known_streak_limit, 0),
     // 仅显式 true 才开启（缺省/非法值一律视为 false，门禁默认关）
     require_full_jd: v.require_full_jd === true ? true : false,
+    // HR 活跃硬闸：与 require_full_jd 相反，默认开（缺省/非法值视为 true）；
+    // 仅显式 false 才关闭（发送端 fail-closed，配置读不到也不会漏发）
+    stale_hr_active_exclude: v.stale_hr_active_exclude === false ? false : true,
     // 跳词/排除规则：数组或「逗号/换行分隔的字符串」都接受；显式空数组 = 该规则不启用
     skip_words: resolveWordList(v.skip_words, FALLBACK.skip_words),
     risk_keywords: resolveWordList(v.risk_keywords, FALLBACK.risk_keywords),
     title_exclude: resolveWordList(v.title_exclude, FALLBACK.title_exclude),
     company_exclude: resolveWordList(v.company_exclude, FALLBACK.company_exclude),
+    // LLM 招呼语配置（协议白名单 / base url 必须是 http(s) / 数值区间都在 normalizeLlmFields 里兜底）
+    ...normalizeLlmFields(v),
   };
   if (out.card_gap_max_ms < out.card_gap_min_ms) out.card_gap_max_ms = out.card_gap_min_ms;
   return out;
 }
 
-// 从 profile.yml 读取这 4 个键（仅用于一次性迁移与 DB 不可用时的兜底）
-function readFromProfile() {
-  try {
-    if (!existsSync(PROFILE)) return null;
-    const cfg = yaml.load(readFileSync(PROFILE, 'utf-8')) || {};
-    const boss = cfg.boss || {};
-    if (
-      boss.send_threshold == null &&
-      !boss.daily_limit_per_city &&
-      !boss.daily_extract_queries &&
-      !boss.daily_extract_keywords_by_city
-    ) {
-      return null;
-    }
-    return normalize({
-      send_threshold: boss.send_threshold,
-      daily_limit_per_city: boss.daily_limit_per_city,
-      daily_extract_queries: boss.daily_extract_queries,
-      daily_extract_keywords_by_city: boss.daily_extract_keywords_by_city,
-    });
-  } catch {
-    return null;
-  }
-}
+// boss_config 表由 pg-schema.mjs 的 ensureSchema() 统一建好（幂等）。
 
-let _ensured = false;
-async function withConn(fn) {
-  const conn = await mysql.createConnection(DB);
-  try {
-    if (!_ensured) {
-      await conn.query(
-        `CREATE TABLE IF NOT EXISTS boss_config (
-          name       VARCHAR(128) NOT NULL PRIMARY KEY,
-          value      TEXT         NOT NULL,
-          updated_at DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-      );
-      _ensured = true;
-    }
-    return await fn(conn);
-  } finally {
-    await conn.end().catch(() => {});
-  }
-}
-
-// 读取配置。优先 DB；DB 空则从 profile 迁移并写回；DB 不可用则降级 profile / 默认值。
+// 读取配置。PostgreSQL 是唯一来源：没行就写入默认行（不再从 profile 迁移）；
+// 连库失败直接抛错 —— 绝不静默回落到过期的 profile.yml 副本。
 export async function loadBossControl() {
   try {
-    return await withConn(async (conn) => {
-      const [rows] = await conn.query('SELECT value FROM boss_config WHERE name = ?', [CONFIG_ROW]);
-      if (rows.length && rows[0].value) {
-        const v = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
-        return normalize(v);
-      }
-      const fromProfile = readFromProfile();
-      if (fromProfile) {
-        await conn.query(
-          'INSERT INTO boss_config (name, value, updated_at) VALUES (?, ?, NOW(3)) ' +
-            'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW(3)',
-          [CONFIG_ROW, JSON.stringify(fromProfile)],
-        );
-        return fromProfile;
-      }
-      return normalize({});
-    });
-  } catch {
-    return readFromProfile() || normalize({});
+    await ensureSchema();
+    const [rows] = await query('SELECT value FROM boss_config WHERE name = ?', [CONFIG_ROW]);
+    if (rows.length && rows[0].value) {
+      const v = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+      return normalize(v);
+    }
+    const defaults = normalize({});
+    await query(
+      `INSERT INTO boss_config (name, value, updated_at) VALUES (?, ?, now())
+       ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [CONFIG_ROW, JSON.stringify(defaults)],
+    );
+    return defaults;
+  } catch (e) {
+    throw new Error(
+      `[boss] 读取 PostgreSQL 配置失败（表 boss_config）：${e.message}。` +
+        '操作配置以 PostgreSQL 为唯一基准，不再回落 config/profile.yml；请检查 PGHOST / PGUSER / PGPASSWORD / PGDATABASE 以及库是否可用。',
+    );
   }
 }
 
@@ -200,12 +166,10 @@ export async function saveBossControl(partial = {}) {
   const cur = await loadBossControl();
   const merged = { ...cur, ...partial };
   const value = normalize(merged);
-  await withConn(async (conn) => {
-    await conn.query(
-      'INSERT INTO boss_config (name, value, updated_at) VALUES (?, ?, NOW(3)) ' +
-        'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW(3)',
-      [CONFIG_ROW, JSON.stringify(value)],
-    );
-  });
+  await query(
+    `INSERT INTO boss_config (name, value, updated_at) VALUES (?, ?, now())
+     ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [CONFIG_ROW, JSON.stringify(value)],
+  );
   return value;
 }

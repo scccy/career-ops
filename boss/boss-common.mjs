@@ -1,7 +1,8 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, normalize } from 'path';
 import { createHash } from 'crypto';
-import mysql from 'mysql2/promise';
+import { query, getConnection, cancelIdleClose, scheduleIdleClose } from './pg-db.mjs';
+import { ensureSchema } from './pg-schema.mjs';
 import * as yaml from 'js-yaml';
 
 export const ROOT_DATA_DIR = 'data';
@@ -28,6 +29,9 @@ export const BOSS_CITY_CODES = {
   重庆: '101040100',
   天津: '101030100',
   长春: '101060100',
+  // 2026-10-23 新增：厦门（福建）。编码取自 BOSS 官方城市表 city.json，与搜索页 URL
+  // web/geek/jobs?city=101230200 一致；其余同省城市 福州 101230100 / 泉州 101230500。
+  厦门: '101230200',
 };
 
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -200,10 +204,17 @@ export function uniqueJobKeyLegacy(job) {
   return `${normalizeText(job.company)}::${normalizeText(job.title)}`;
 }
 
+export function uniqueJobKeyUnknown(job) {
+  // 发送日志里没有 city 列的历史行（2026-10-01 之前）专用：城市位固定 unknown，
+  // 只会与「城市未知」的岗位相撞，不再跨城误杀。
+  return `${normalizeText(job.title)}::${normalizeText(job.company)}::unknown`;
+}
+
 export function uniqueJobKey(job) {
-  // 公司+岗位名+base 城市 = 岗位唯一身份。URL 不参与：BOSS 每次扫描同一岗位都会带新的
-  // securityId 查询参数，旧键含 URL 导致同一岗位每次扫描都算新哈希、重复入库。
-  return `${uniqueJobKeyLegacy(job)}::${normalizeBossCity(job.city || job.location)}`;
+  // 2026-10 用户要求：岗位身份 = 岗位名称 + 公司 + base 城市（不再含 URL 指纹）。
+  // 同公司 + 同标题 + 同 base 城市 = 同一岗位（不同 job id 也合并）；不同标题 / 不同 base 城市仍是不同岗位。
+  // base 城市只取第一段，避免「杭州·滨江区·长河」区域文本变化制造重复。
+  return `${normalizeText(job.title)}::${normalizeText(job.company)}::${normalizeBossCity(job.city || job.location)}`;
 }
 
 export function uniqueCandidateKey(job) {
@@ -217,7 +228,8 @@ export function uniqueCompanyKey(job) {
 }
 
 export function uniqueCompanyPlacementKey(job) {
-  // 发送阶段的一家公司只限制同一 base；同公司不同 base 可以分别进入发送候选。
+  // 公司+base 城市。只用于「同一批次内一家公司只取一条」的批次上限，
+  // 不再承担 30 天去重（2026-10-23 用户确认：同公司的不同部门/子项目应能分别投递）。
   return `${uniqueCompanyKey(job)}::${normalizeBossCity(job.city || job.location)}`;
 }
 
@@ -245,124 +257,112 @@ function listJobs(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
-export function loadSentKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent'] } = {}) {
+export async function loadSentKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent'] } = {}) {
   const keys = new Set();
-  if (!existsSync(SENT_LOG_PATH)) return keys;
-  const allowedStatuses = new Set(statuses);
+  const allowedStatuses = list(statuses);
   const minDate = sinceDate || (lookbackDays == null ? '' : daysAgoIso(lookbackDays));
-  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
-    if (!line.trim()) continue;
-    // city is appended as the ninth column; old 8-column logs remain readable.
-    const [sentDate, , company, title, , status, , , city] = line.split('\t');
-    if (date && sentDate !== date) continue;
-    if (minDate && sentDate < minDate) continue;
-    if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
-    if (company && title) {
-      keys.add(city ? uniqueJobKey({ company, title, city }) : uniqueJobKeyLegacy({ company, title }));
-    }
-  }
-  return keys;
-}
-
-export function loadSentPlacementKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent', 'auto_sent'] } = {}) {
-  const keys = new Set();
-  if (!existsSync(SENT_LOG_PATH)) return keys;
-  const allowedStatuses = new Set(statuses);
-  const minDate = sinceDate || (lookbackDays == null ? '' : daysAgoIso(lookbackDays));
-  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
-    if (!line.trim()) continue;
-    const [sentDate, , company, title, , status, , , city] = line.split('\t');
-    if (date && sentDate !== date) continue;
-    if (minDate && sentDate < minDate) continue;
-    if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
-    if (company) keys.add(city
-      ? uniqueCompanyPlacementKey({ company, city })
-      : uniqueCompanyKey({ company }));
+  const where = [];
+  const params = [];
+  if (date) { where.push('sent_date = ?'); params.push(date); }
+  if (minDate) { where.push('sent_date >= ?'); params.push(minDate); }
+  if (allowedStatuses.length) { where.push('status = ANY(?)'); params.push(allowedStatuses); }
+  const [rows] = await query(
+    `SELECT company, title, url, city FROM boss_sent_log${where.length ? ' WHERE ' + where.join(' AND ') : ''}`,
+    params,
+  );
+  for (const row of rows) {
+    if (!row.company || !row.title) continue;
+    keys.add(row.city
+      ? uniqueJobKey({ company: row.company, title: row.title, url: row.url, city: row.city })
+      : uniqueJobKeyUnknown({ company: row.company, title: row.title, url: row.url }));
   }
   return keys;
 }
 
 // auto_sent = 继续沟通场景下 BOSS 自动发送的默认打招呼语（真实联系已建立，计入配额与去重）
-export function loadSentCompanyKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent', 'auto_sent'] } = {}) {
+export async function loadSentCompanyKeys({ date = null, sinceDate = '', lookbackDays = null, statuses = ['sent', 'auto_sent'] } = {}) {
   const keys = new Set();
-  if (!existsSync(SENT_LOG_PATH)) return keys;
-  const allowedStatuses = new Set(statuses);
+  const allowedStatuses = list(statuses);
   const minDate = sinceDate || (lookbackDays == null ? '' : daysAgoIso(lookbackDays));
-  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
-    if (!line.trim()) continue;
-    const [sentDate, , company, , , status] = line.split('\t');
-    if (date && sentDate !== date) continue;
-    if (minDate && sentDate < minDate) continue;
-    if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
-    if (company) keys.add(normalizeText(company));
+  const where = [];
+  const params = [];
+  if (date) { where.push('sent_date = ?'); params.push(date); }
+  if (minDate) { where.push('sent_date >= ?'); params.push(minDate); }
+  if (allowedStatuses.length) { where.push('status = ANY(?)'); params.push(allowedStatuses); }
+  const [rows] = await query(
+    `SELECT company FROM boss_sent_log${where.length ? ' WHERE ' + where.join(' AND ') : ''}`,
+    params,
+  );
+  for (const row of rows) {
+    if (row.company) keys.add(normalizeText(row.company));
   }
   return keys;
 }
 
-export function countSentToday(date = todayIso()) {
-  if (!existsSync(SENT_LOG_PATH)) return 0;
-  let count = 0;
-  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
-    if (!line.trim()) continue;
-    const [sentDate, , , , , status] = line.split('\t');
-    if (sentDate === date && status === 'sent') count++;
-  }
-  return count;
+export async function countSentToday(date = todayIso()) {
+  const [rows] = await query('SELECT COUNT(*)::int AS n FROM boss_sent_log WHERE sent_date = ? AND status = ?', [date, 'sent']);
+  return Number(rows[0].n);
 }
 
-export function countSentCompaniesToday(date = todayIso()) {
-  return loadSentCompanyKeys({ date, statuses: ['sent', 'auto_sent'] }).size;
+export async function countSentCompaniesToday(date = todayIso()) {
+  return (await loadSentCompanyKeys({ date, statuses: ['sent', 'auto_sent'] })).size;
 }
 
-// 按城市统计今日已发送公司数（本地适配：城市配额见 config/profile.yml boss.daily_limit_per_city）。
+// 按城市统计今日已发送公司数（本地适配：城市配额见 PostgreSQL boss_config.boss_city_control.daily_limit_per_city）。
 // 新日志直接使用 city 列；旧日志没有 city 时再由 URL 反查候选池，无法匹配归入"未知"。
 // URL 指纹：只取 pathname（job_detail/<id>.html），剥掉 query。
 // BOSS 每次扫描同一岗位都换新 securityId，若用完整 URL 匹配，重扫后
 // 发送日志里的历史 URL 就对不上池子，按城配额扣减会失灵（#2026-09-29）。
 export function urlPathname(url) {
-  const s = String(url || '');
+  const s = String(url || '').trim();
   if (!s) return '';
-  try { return new URL(s).pathname; } catch { return s; }
+  // 相对 href（如卡片上的 `/job_detail/xxx.html?securityId=...`）用 new URL() 解析会抛错，
+  // 早期实现直接返回原始串，等于把每次都变的 securityId 算进了岗位身份（2026-10-23 修正）。
+  // 现在两种形式都只取 path：绝对 URL 取 pathname，相对串按 ? / # 截断。
+  try {
+    return new URL(s).pathname || '';
+  } catch {
+    return s.split(/[?#]/)[0];
+  }
 }
 
-export function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new Map() } = {}) {
+export async function countSentCompaniesTodayByCity({ date = todayIso(), urlCity = new Map() } = {}) {
   const byCity = new Map();
-  if (!existsSync(SENT_LOG_PATH)) return {};
   const seen = new Set();
-  const countedStatuses = new Set(['sent', 'auto_sent']);
-  for (const line of readFileSync(SENT_LOG_PATH, 'utf-8').split('\n').slice(1)) {
-    if (!line.trim()) continue;
-    const [sentDate, , company, , url, status, , , loggedCity] = line.split('\t');
-    if (sentDate !== date || !countedStatuses.has(status)) continue;
-    const path = urlPathname(url);
-    const dedupeKey = path || `${normalizeText(company)}::${normalizeBossCity(loggedCity)}`;
+  const [rows] = await query(
+    'SELECT company, url, city FROM boss_sent_log WHERE sent_date = ? AND status = ANY(?)',
+    [date, ['sent', 'auto_sent']],
+  );
+  for (const row of rows) {
+    const path = urlPathname(row.url);
+    const dedupeKey = path || `${normalizeText(row.company)}::${normalizeBossCity(row.city)}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    const city = String(loggedCity || urlCity.get(path) || '').split('·')[0] || '未知';
+    const city = String(row.city || urlCity.get(path) || '').split('·')[0] || '未知';
     if (!byCity.has(city)) byCity.set(city, new Set());
-    byCity.get(city).add(normalizeText(company));
+    byCity.get(city).add(normalizeText(row.company));
   }
   return Object.fromEntries([...byCity].map(([city, keys]) => [city, keys.size]));
 }
 
-export function appendSentLog({ job, status, message = '', error = '' }) {
-  mkdirSync(ROOT_DATA_DIR, { recursive: true });
-  if (!existsSync(SENT_LOG_PATH)) {
-    writeFileSync(SENT_LOG_PATH, 'date\ttime\tcompany\ttitle\turl\tstatus\tmessage\terror\tcity\n', 'utf-8');
-  }
+export async function appendSentLog({ job, status, message = '', error = '' }) {
   const now = new Date();
-  const row = [
-    now.toISOString().slice(0, 10),
-    now.toTimeString().slice(0, 8),
-    job.company || '',
-    job.title || '',
-    job.url || '',
-    status,
-    String(message).replace(/\s+/g, ' '),
-    String(error).replace(/\s+/g, ' '),
-    String(job.city || job.location || '').replace(/\s+/g, ' '),
-  ].join('\t');
-  appendFileSync(SENT_LOG_PATH, `${row}\n`, 'utf-8');
+  await query(
+    `INSERT INTO boss_sent_log (sent_date, sent_time, company, title, url, key_hash, status, message, error, city)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      now.toISOString().slice(0, 10),
+      now.toTimeString().slice(0, 8),
+      job.company || '',
+      job.title || '',
+      job.url || '',
+      job.key_hash || null,
+      status,
+      String(message).replace(/\s+/g, ' '),
+      String(error).replace(/\s+/g, ' '),
+      String(job.city || job.location || '').replace(/\s+/g, ' '),
+    ],
+  );
 }
 
 export function ensureApplicationsTracker() {
@@ -401,27 +401,10 @@ export function appendApplication({ job, score = '—', status = 'Applied', repo
   return file;
 }
 
-// ===== MySQL 候选池（career_ops.boss_jobs）=====
-// 2026-09-23 用户确认：职位池一步到位迁 MySQL，data/boss-candidates.json 降级为每次写入时的备份镜像。
-// 消费方：loadCandidates / saveCandidates / mergeIntoCandidates / isCandidatesPath。
-// 连接参数可用环境变量覆盖：MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DB。
-
-const DB_NAME = process.env.MYSQL_DB || 'career_ops';
-const DB_CONFIG = {
-  host: process.env.MYSQL_HOST || '127.0.0.1',
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  connectionLimit: 5,
-  waitForConnections: true,
-};
-const BOSS_JOBS_TABLE = '`' + DB_NAME + '`.`boss_jobs`';
-
-let _dbPool = null;
-function dbPool() {
-  if (!_dbPool) _dbPool = mysql.createPool(DB_CONFIG);
-  return _dbPool;
-}
+// ===== PostgreSQL 候选池（boss_jobs）=====
+// 2026-10 迁移：BOSS 流程全部以 PostgreSQL 为准（库名默认 career_ops）。
+// data/boss-candidates.json 降级为每次写入时的 JSON 备份镜像，权威数据在 PG。
+// 连接参数：PGHOST / PGPORT / PGUSER / PGPASSWORD / PGDATABASE（见 pg-db.mjs）。
 
 export function isCandidatesPath(p) {
   return normalize(String(p || '')) === normalize(CANDIDATES_PATH);
@@ -429,218 +412,6 @@ export function isCandidatesPath(p) {
 
 export function candidateKeyHash(job) {
   return createHash('sha256').update(uniqueCandidateKey(job)).digest('hex');
-}
-
-const BOSS_JOBS_DDL = `
-CREATE TABLE IF NOT EXISTS ${'`' + DB_NAME + '`.`boss_jobs`'} (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  key_hash CHAR(64) NOT NULL UNIQUE,
-  company VARCHAR(191) DEFAULT '',
-  title VARCHAR(255) DEFAULT '',
-  salary VARCHAR(128) DEFAULT '',
-  city VARCHAR(128) DEFAULT '',
-  url VARCHAR(768) DEFAULT '',
-  greeted TINYINT(1) DEFAULT 0,
-  contact_state VARCHAR(32) NOT NULL DEFAULT 'never_contacted',
-  salary_min DECIMAL(6,2) NULL,
-  salary_max DECIMAL(6,2) NULL,
-  score DECIMAL(4,2) NULL,
-  status VARCHAR(32) DEFAULT '',
-  availability VARCHAR(16) NOT NULL DEFAULT 'unknown',
-  manual_excluded TINYINT(1) NOT NULL DEFAULT 0,
-  manual_exclusion_reason VARCHAR(255) DEFAULT '',
-  scanned_at DATETIME(3) NULL,
-  raw JSON NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_city_score (city, score),
-  INDEX idx_company (company),
-  INDEX idx_greeted (greeted),
-  INDEX idx_salary (salary_min, salary_max),
-  INDEX idx_scanned (scanned_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-`;
-
-let _schemaReady = null;
-let _idleTimer = null;
-
-// 薪资解析：K 月薪 → {min,max}（单位 K/月）；日结/时薪/面议等非 K 格式 → {min:null,max:null}
-// 覆盖："15-22K"、"15-30K·14薪"、"20-40K.16薪"、大小写 K
-// 薪资列解析：仅接受 K/千 月薪格式 → {min,max}（单位 K/月）；日结/时薪/月结数字/面议 → {min:null,max:null}
-// （复用 parseSalaryRange 的解析能力，但加单位守卫：防止 "180-200元/天" 被误读成 180-200K）
-export function parseSalaryMinMax(salary) {
-  const text = String(salary || '');
-  if (/元\/(天|时|月)/.test(text) || /面议/.test(text)) return { min: null, max: null };
-  const parsed = parseSalaryRange(text);
-  if (!parsed) return { min: null, max: null };
-  return { min: Math.min(parsed.min, parsed.max), max: Math.max(parsed.min, parsed.max) };
-}
-// CLI 脚本跑完 main 后需自然退出：连接池空闲 5s 后自动关闭，否则挂起的 socket 会让进程永不退出
-function cancelIdleClose() {
-  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
-}
-function scheduleIdleClose() {
-  cancelIdleClose();
-  _idleTimer = setTimeout(async () => {
-    _idleTimer = null;
-    const pool = _dbPool;
-    _dbPool = null;
-    _schemaReady = null;
-    if (pool) { try { await pool.end(); } catch { /* 退出阶段忽略 */ } }
-  }, 5000);
-}
-function schemaReady() {
-  if (!_schemaReady) {
-    _schemaReady = (async () => {
-      const pool = dbPool();
-      // 连接串不带 database，先建库再建表（首次冷启动也能跑）
-      await pool.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE=utf8mb4_0900_ai_ci`);
-      await pool.query(BOSS_JOBS_DDL);
-      // 存量表列迁移：缺 url / greeted 列时补列 + 从 raw 回填（历史表升级路径）
-      const [cols] = await pool.query(
-        `SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'boss_jobs'`,
-        [DB_NAME],
-      );
-      const colNames = new Set(cols.map((c) => c.name));
-      const added = [];
-      const stateAdded = [];
-      if (!colNames.has('url')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN url VARCHAR(768) DEFAULT '' AFTER city`);
-        added.push('url');
-      }
-      if (!colNames.has('greeted')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN greeted TINYINT(1) DEFAULT 0 AFTER url`);
-        added.push('greeted');
-      }
-      if (!colNames.has('contact_state')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN contact_state VARCHAR(32) NOT NULL DEFAULT 'never_contacted' AFTER greeted`);
-        stateAdded.push('contact_state');
-      }
-      if (!colNames.has('salary_min') || !colNames.has('salary_max')) {
-        if (!colNames.has('salary_min')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_min DECIMAL(6,2) NULL AFTER greeted`);
-        if (!colNames.has('salary_max')) await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN salary_max DECIMAL(6,2) NULL AFTER salary_min`);
-        added.push('salary_min/salary_max');
-      }
-      if (!colNames.has('availability')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN availability VARCHAR(16) NOT NULL DEFAULT 'unknown' AFTER status`);
-        stateAdded.push('availability');
-      }
-      if (!colNames.has('manual_excluded')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN manual_excluded TINYINT(1) NOT NULL DEFAULT 0 AFTER availability`);
-        stateAdded.push('manual_excluded');
-      }
-      if (!colNames.has('manual_exclusion_reason')) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD COLUMN manual_exclusion_reason VARCHAR(255) DEFAULT '' AFTER manual_excluded`);
-        stateAdded.push('manual_exclusion_reason');
-      }
-      if (added.length) {
-        await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_greeted (greeted)`).catch(() => {});
-        if (added.includes('salary_min/salary_max')) {
-          await pool.query(`ALTER TABLE ${BOSS_JOBS_TABLE} ADD INDEX idx_salary (salary_min, salary_max)`).catch(() => {});
-          // 薪资解析依赖 JS 正则，逐行回填（仅 K 月薪格式；日结/时薪/面议存 NULL）
-          const [salaryRows] = await pool.query(`SELECT id, salary FROM ${BOSS_JOBS_TABLE}`);
-          for (const row of salaryRows) {
-            const { min, max } = parseSalaryMinMax(row.salary);
-            if (min === null) continue;
-            await pool.query(`UPDATE ${BOSS_JOBS_TABLE} SET salary_min = ?, salary_max = ? WHERE id = ?`, [min, max, row.id]);
-          }
-        }
-        await pool.query(
-          `UPDATE ${BOSS_JOBS_TABLE}
-             SET url = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw, '$.url')), ''),
-                 greeted = IF(IFNULL(JSON_EXTRACT(raw, '$.greeted'), 0) OR IFNULL(JSON_EXTRACT(raw, '$.already_contacted'), 0), 1, 0)
-           WHERE url = '' OR url IS NULL`,
-        );
-        console.error(`[boss-db] boss_jobs 补列: ${added.join(', ')}（已从 raw 回填）`);
-      }
-      if (stateAdded.includes('contact_state')) {
-        await pool.query(
-          `UPDATE ${BOSS_JOBS_TABLE}
-              SET contact_state = CASE
-                WHEN JSON_EXTRACT(raw, '$.contactState') IS NOT NULL
-                  THEN JSON_UNQUOTE(JSON_EXTRACT(raw, '$.contactState'))
-                WHEN greeted = 1 THEN 'legacy_contact_unknown'
-                ELSE 'never_contacted'
-              END`,
-        );
-      }
-      if (stateAdded.includes('availability')) {
-        await pool.query(
-          `UPDATE ${BOSS_JOBS_TABLE}
-              SET availability = CASE
-                WHEN status = 'closed' THEN 'closed'
-                WHEN JSON_EXTRACT(raw, '$.availability') IS NOT NULL
-                  THEN JSON_UNQUOTE(JSON_EXTRACT(raw, '$.availability'))
-                ELSE 'unknown'
-              END`,
-        );
-      }
-      if (stateAdded.includes('manual_excluded')) {
-        await pool.query(
-          `UPDATE ${BOSS_JOBS_TABLE}
-              SET manual_excluded = IFNULL(JSON_EXTRACT(raw, '$.manualExcluded'), 0)`,
-        );
-      }
-      if (stateAdded.includes('manual_exclusion_reason')) {
-        await pool.query(
-          `UPDATE ${BOSS_JOBS_TABLE}
-              SET manual_exclusion_reason = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(raw, '$.manualExclusionReason')), '')`,
-        );
-      }
-      if (stateAdded.length) console.error(`[boss-db] 状态字段迁移: ${stateAdded.join(', ')}`);
-
-       // 2026-10-14：候选主键从 company::title 升级为 company::title::baseCity。
-       // 不迁移会导致旧行与新扫描各自生成两条记录，或旧键无法被点击前比对命中。
-       const [keyRows] = await pool.query(
-         `SELECT id, key_hash, company, title, city FROM ${BOSS_JOBS_TABLE} ORDER BY id`,
-       );
-       const keyChanges = keyRows
-         .map((row) => ({
-           id: row.id,
-           oldHash: String(row.key_hash || ''),
-           newHash: candidateKeyHash({ company: row.company, title: row.title, city: row.city }),
-         }))
-         .filter((row) => row.oldHash !== row.newHash);
-       const desiredOwners = new Map();
-       for (const change of keyChanges) {
-         const prior = desiredOwners.get(change.newHash);
-         if (prior) {
-           throw new Error(`候选城市键迁移冲突：id=${prior.id} 与 id=${change.id} 生成相同 key_hash=${change.newHash}`);
-         }
-         desiredOwners.set(change.newHash, change);
-       }
-       if (keyChanges.length) {
-         const conn = await pool.getConnection();
-         try {
-           await conn.beginTransaction();
-           // 先换成临时哈希，避免极端情况下新旧哈希互相占用 UNIQUE 索引。
-           for (const change of keyChanges) {
-             const temporary = createHash('sha256').update(`city-key-migration:${change.id}:${change.oldHash}`).digest('hex');
-             await conn.query(`UPDATE ${BOSS_JOBS_TABLE} SET key_hash = ? WHERE id = ?`, [temporary, change.id]);
-           }
-           for (const change of keyChanges) {
-             await conn.query(`UPDATE ${BOSS_JOBS_TABLE} SET key_hash = ? WHERE id = ?`, [change.newHash, change.id]);
-           }
-           await conn.commit();
-         } catch (err) {
-           await conn.rollback();
-           throw err;
-         } finally {
-           conn.release();
-         }
-         console.error(`[boss-db] 候选键迁移：${keyChanges.length} 条已加入城市维度`);
-       }
-    })().catch((err) => { _schemaReady = null; throw err; });
-  }
-  return _schemaReady;
-}
-
-// Console API uses a separate connection pool but shares this idempotent
-// schema/data migration so scripts and UI agree on contact/availability state.
-export async function ensureCandidatesSchemaReady() {
-  cancelIdleClose();
-  try { await schemaReady(); }
-  finally { scheduleIdleClose(); }
 }
 
 function parseRawRow(raw) {
@@ -651,39 +422,75 @@ function parseRawRow(raw) {
 function mapJobRow(r) {
   const job = parseRawRow(r.raw);
   if (r.url) job.url = r.url;
+  if (r.hr_active != null) job.hr_active = String(r.hr_active);
   job.greeted = Boolean(r.greeted);
   job.contactState = String(r.contact_state || (r.greeted ? 'legacy_contact_unknown' : 'never_contacted'));
   job.availability = String(r.availability || (r.status === 'closed' ? 'closed' : 'unknown'));
   job.manualExcluded = Boolean(r.manual_excluded);
   job.manualExclusionReason = String(r.manual_exclusion_reason || '');
+  // 数据库主键：LLM 批次用它当「岗位编号」（比 1..N 的序号可回溯：出问题能直接按 id 查库）
+  if (r.id != null) job.dbId = Number(r.id);
   if (r.key_hash) job.key_hash = r.key_hash;
-  // score/status 列是权威字段：必须回读，否则扫描整池重写时
-  // 评分与「职位已关闭」标记会被抹掉（2026-09-29）
-  if (r.score != null) job.score = Number(r.score);
+  // score/status 列是权威字段：必须回读，否则扫描整池重写时评分与「职位已关闭」标记会被抹掉
+  // score 列是权威字段：为 NULL 时必须显式置空，否则 raw 里的旧 score 会在整池重写时被复活，
+  // 让「不可发送」的岗位重新变成有分数（2026-10 迁移时实测到 1 条）。
+  job.score = r.score == null ? null : Number(r.score);
   if (r.status) job.status = r.status;
   return job;
+}
+
+// Console API 与 CLI 脚本共用同一个幂等建表入口。
+export async function ensureCandidatesSchemaReady() {
+  cancelIdleClose();
+  try { await ensureSchema(); }
+  finally { scheduleIdleClose(); }
 }
 
 export async function loadCandidates() {
   cancelIdleClose();
   try {
-    await schemaReady();
-    const pool = dbPool();
-    const [rows] = await pool.query(`SELECT key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, raw FROM ${BOSS_JOBS_TABLE} ORDER BY id`);
+    await ensureSchema();
+    const [rows] = await query(`SELECT id, key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, hr_active, raw FROM boss_jobs ORDER BY id`);
     if (rows.length === 0 && existsSync(CANDIDATES_PATH)) {
       // 一次性迁移：库空且存在旧 JSON 池 → 导入后返回
       const legacy = readJson(CANDIDATES_PATH, []);
       if (legacy.length) {
         await saveCandidates(legacy);
-        console.error(`[boss-db] 已从 ${CANDIDATES_PATH} 迁移 ${legacy.length} 条到 MySQL ${DB_NAME}.boss_jobs`);
+        console.error(`[boss-db] 已从 ${CANDIDATES_PATH} 迁移 ${legacy.length} 条到 PostgreSQL boss_jobs`);
         return legacy;
       }
     }
-    // url / greeted 独立列是权威字段：读取时覆盖回 raw 对象
     return rows.map(mapJobRow);
   } finally {
     scheduleIdleClose();
   }
+}
+
+const JOB_COLUMNS = [
+  'key_hash', 'company', 'title', 'salary', 'city', 'hr_active', 'url', 'greeted',
+  'contact_state', 'salary_min', 'salary_max', 'score', 'llm_score', 'status', 'availability',
+  'manual_excluded', 'manual_exclusion_reason', 'scanned_at', 'raw',
+];
+
+// 薪资列解析：仅接受 K/千 月薪格式 → {min,max}（单位 K/月）；日结/时薪/月结数字/面议 → {min:null,max:null}
+export function parseSalaryMinMax(salary) {
+  const text = String(salary || '');
+  if (/元\/(天|时|月)/.test(text) || /面议/.test(text)) return { min: null, max: null };
+  const parsed = parseSalaryRange(text);
+  if (!parsed) return { min: null, max: null };
+  return { min: Math.min(parsed.min, parsed.max), max: Math.max(parsed.min, parsed.max) };
+}
+
+// LLM 深解析分（列 llm_score）：优先用显式字段，其次从 raw.llm.match.score 反推。
+// 目的只有一个：任何「整表重写」路径都不能把这一列写丢（llm_score 是派生值，raw.llm 才是来源）。
+export function llmScoreOrNull(job) {
+  if (!job || typeof job !== 'object') return null;
+  for (const candidate of [job.llm_score, job.llm?.match?.score]) {
+    if (candidate === undefined || candidate === null || candidate === '') continue;
+    const n = Number(candidate);
+    if (Number.isFinite(n) && n >= 1 && n <= 5) return Number(n.toFixed(2));
+  }
+  return null;
 }
 
 function jobRow(job) {
@@ -691,6 +498,7 @@ function jobRow(job) {
   const scoreNum = Number(job.score);
   // city 列存城市前缀（"杭州·滨江区·长河" → "杭州"）方便精确搜索；raw 里保留完整串
   const cityPrefix = String(job.city || job.location || '').split('·')[0].slice(0, 120);
+  const hrActive = String(job.hr_active || '').slice(0, 64);
   const { min: salaryMin, max: salaryMax } = parseSalaryMinMax(job.salary);
   return [
     candidateKeyHash(job),
@@ -698,12 +506,16 @@ function jobRow(job) {
     String(job.title || '').slice(0, 250),
     String(job.salary || '').slice(0, 120),
     cityPrefix,
+    hrActive,
     String(job.url || '').slice(0, 760),
     job.greeted ? 1 : 0,
     String(job.contactState || (job.greeted ? 'legacy_contact_unknown' : 'never_contacted')).slice(0, 32),
     salaryMin,
     salaryMax,
     job.score !== undefined && job.score !== null && job.score !== '' && Number.isFinite(scoreNum) ? scoreNum : null,
+    // LLM 深解析分：列存在 llm_score；整池重写（saveCandidates = TRUNCATE + INSERT）时若不带上这一列会把它清空，
+    // 所以从 job.llm_score 或 raw.llm.match.score 反推，保证「重写全表」也不会丢（2026-10-30 实际踩过）
+    llmScoreOrNull(job),
     String(job.status || '').slice(0, 30),
     String(job.availability || (job.status === 'closed' ? 'closed' : 'unknown')).slice(0, 16),
     job.manualExcluded ? 1 : 0,
@@ -713,31 +525,96 @@ function jobRow(job) {
   ];
 }
 
-// 评分结果回写：boss-score 此前只写队列文件，boss_jobs.score 永远为 NULL，
-// 「发新扫/发送」按 score>=阈值 从库里筛就永远看不到新扫描岗位（2026-09-29）。
-// 仅回写评分规则判定可发送的岗位（完整JD/无硬风险/非可疑/薪资明确）；
-// 不合格的保持 score NULL（与历史语义一致：NULL=不可发）。
-// greeting/recommendation 一并写入 raw，供发送队列直接使用。
+function buildValuesSql(rows) {
+  const n = JOB_COLUMNS.length;
+  return rows.map((_, ri) => '(' + JOB_COLUMNS.map((_, ci) => `$${ri * n + ci + 1}`).join(', ') + ')').join(', ');
+}
+
+// ===== LLM 深度解析结果落库（2026-10-30）=====
+// 一次调用（cv.md + JD）产出的标准 JSON 全部存下来：整份放 raw.llm，
+// 匹配分另存 llm_score 列（可排序/筛选/建索引）；招呼语顺手写进 raw.greeting，
+// greetingSource 记为 llm_analysis —— 发送端读的还是同一处，不需要改。
+// 注意：这里**不动** score 列。规则评分仍是发送资格的权威，LLM 分只作参考。
+export async function saveJobAnalysis(keyHash, analysis, meta = {}) {
+  if (!keyHash) throw new Error('saveJobAnalysis: 缺少 key_hash');
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    const payload = {
+      ...analysis,
+      model: String(meta.model || ''),
+      protocol: String(meta.protocol || ''),
+      analyzed_at: new Date().toISOString(),
+      latency_ms: meta.latencyMs == null ? null : Number(meta.latencyMs),
+      usage: meta.usage || null,
+    };
+    const greeting = String(analysis?.greeting?.text || '');
+    const [ret] = await query(
+      `UPDATE boss_jobs SET
+         llm_score = ?,
+         raw = COALESCE(raw, '{}'::jsonb) || jsonb_build_object(
+                 'llm', ?::jsonb,
+                 'greeting', ?::text,
+                 'greetingSource', ?::text,
+                 'greetingModel', ?::text,
+                 'greetingError', ''),
+         updated_at = now()
+       WHERE key_hash = ?`,
+      [
+        Number.isFinite(Number(analysis?.match?.score)) ? Number(analysis.match.score) : null,
+        JSON.stringify(payload),
+        greeting,
+        'llm_analysis',
+        String(meta.model || ''),
+        keyHash,
+      ],
+    );
+    return ret.affectedRows;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+// 评分回写：只回写评分规则判定可发送的岗位；不合格的保持 score NULL（NULL=不可发）。
 export async function persistJobScores(scoredJobs) {
   cancelIdleClose();
-  const pool = dbPool();
-  const conn = await pool.getConnection();
+  const conn = await getConnection();
   let updated = 0;
   try {
     for (const job of scoredJobs) {
       if (!job || !job.key_hash) continue;
       const eligible = job.db_eligible ? 1 : 0;
+      const source = String(job.greeting_source || 'template');
+      const greetingText = String(job.greeting || '');
       const [ret] = await conn.query(
-        `UPDATE ${BOSS_JOBS_TABLE} SET
+        `UPDATE boss_jobs SET
            score = ?,
-           raw = JSON_SET(COALESCE(raw, JSON_OBJECT()),
-             '$.greeting', ?,
-             '$.recommendation', ?,
-             '$.score_eligible', ?)
+           raw = COALESCE(raw, '{}'::jsonb) || jsonb_build_object(
+                   -- 文案不能倒退：本轮只有模板文案（没被 LLM 选中 / 本轮没跑）时，
+                   -- 绝不覆盖库里已有的 LLM 文案（2026-10-30 审计：整池覆盖把 50 条 LLM 文案打回了模板）
+                   'greeting', CASE
+                     WHEN ?::text = 'template' AND COALESCE(raw->>'greetingSource', '') IN ('llm', 'llm_analysis')
+                       THEN COALESCE(raw->>'greeting', ?::text)
+                     ELSE ?::text END,
+                   'greetingSource', CASE
+                     WHEN ?::text = 'template' AND COALESCE(raw->>'greetingSource', '') IN ('llm', 'llm_analysis')
+                       THEN raw->>'greetingSource'
+                     ELSE ?::text END,
+                   'greetingModel', ?::text,
+                   'greetingError', ?::text,
+                   'recommendation', ?::text,
+                   'score_eligible', ?::int),
+           updated_at = now()
          WHERE key_hash = ?`,
         [
           job.db_eligible && Number.isFinite(Number(job.score)) ? Number(job.score) : null,
-          String(job.greeting || ''),
+          source,
+          greetingText,
+          greetingText,
+          source,
+          source,
+          String(job.greeting_model || ''),
+          String(job.greeting_llm_error || ''),
           String(job.recommendation || ''),
           eligible,
           job.key_hash,
@@ -753,21 +630,50 @@ export async function persistJobScores(scoredJobs) {
 }
 
 // 语义对齐原 writeJson(CANDIDATES_PATH, jobs)：整池重写；同时落 JSON 备份镜像
+// 整池写入（2026-10-30 改）：**不再 TRUNCATE**，改成按 key_hash 幂等 upsert。
+// 为什么改：TRUNCATE + INSERT 会让 identity 序列一直涨，同一岗位每重写一次就换一个新 id
+// （实测 2629 行的表 id 已到 8 万多），`boss_jobs.id` 因此没法当稳定标识 —— 而 LLM 批次就是用它当编号的。
+// 现在同一 key_hash 永远命中同一行、同一个 id；重复扫到不会多出一行。
+// 冲突时各列的处置（重要，别改错）：
+//   - company/title/salary/city/hr_active/url/salary_* /scanned_at：用新值（扫描结果为准）
+//   - raw：**合并**（旧的 || 新的）——扫描对象里没有 llm/greeting 键，合并才不会把 LLM 结果抹掉
+//   - score / llm_score：COALESCE 新值，避免「扫描对象不带分数 → 把分数写成 NULL」
+//   - greeted / contact_state / status / availability / manual_*：**保持旧值**
+//     （这些由发送、复核、关闭检测这些专门流程维护，扫描不该重置人工排除或已联系状态）
 export async function saveCandidates(jobs) {
   cancelIdleClose();
   try {
-    await schemaReady();
-    const pool = dbPool();
+    await ensureSchema();
     const list = listJobs(jobs);
-    const conn = await pool.getConnection();
+    const conn = await getConnection();
+    // 同一 key_hash 在一次批次里出现两次会让 ON CONFLICT 报错（"cannot affect row a second time"），
+    // 先按 key_hash 去重，后者覆盖前者（新扫到的数据优先）。
+    const byKey = new Map();
+    for (const job of list) byKey.set(candidateKeyHash(job), job);
+    const unique = [...byKey.values()];
+    const preserved = new Set([
+      'greeted', 'contact_state', 'status', 'availability',
+      'manual_excluded', 'manual_exclusion_reason',
+    ]);
+    const conflictUpdate = JOB_COLUMNS
+      .filter((c) => c !== 'key_hash')
+      .map((c) => {
+        if (c === 'raw') return 'raw = COALESCE(boss_jobs.raw, \'{}\'::jsonb) || EXCLUDED.raw';
+        if (c === 'score' || c === 'llm_score') return `${c} = COALESCE(EXCLUDED.${c}, boss_jobs.${c})`;
+        if (preserved.has(c)) return null;
+        return `${c} = EXCLUDED.${c}`;
+      })
+      .filter(Boolean)
+      .join(',\n             ');
     try {
       await conn.beginTransaction();
-      await conn.query(`TRUNCATE TABLE ${BOSS_JOBS_TABLE}`);
-      if (list.length) {
-        const values = list.map(jobRow);
+      if (unique.length) {
         await conn.query(
-          `INSERT INTO ${BOSS_JOBS_TABLE} (key_hash, company, title, salary, city, url, greeted, contact_state, salary_min, salary_max, score, status, availability, manual_excluded, manual_exclusion_reason, scanned_at, raw) VALUES ?`,
-          [values],
+          `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(unique)}
+           ON CONFLICT (key_hash) DO UPDATE SET
+             ${conflictUpdate},
+             updated_at = now()`,
+          unique.flatMap(jobRow),
         );
       }
       await conn.commit();
@@ -779,6 +685,28 @@ export async function saveCandidates(jobs) {
     }
     writeJson(CANDIDATES_PATH, list);
     return list;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+// 单条/批量 upsert（extract-first-regression 用），不清空整表。
+export async function upsertJobs(jobs) {
+  const list = listJobs(jobs);
+  if (!list.length) return 0;
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    const updates = JOB_COLUMNS
+      .filter((c) => c !== 'key_hash')
+      .map((c) => `${c} = EXCLUDED.${c}`)
+      .join(', ');
+    const [res] = await query(
+      `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(list)}
+       ON CONFLICT (key_hash) DO UPDATE SET ${updates}, updated_at = now()`,
+      list.flatMap(jobRow),
+    );
+    return res.affectedRows;
   } finally {
     scheduleIdleClose();
   }
@@ -798,16 +726,20 @@ export async function markCandidatesGreeted(urls, contactState = 'custom_sent') 
   if (!list.length) return 0;
   cancelIdleClose();
   try {
-    await schemaReady();
-    const pool = dbPool();
-    const [res] = await pool.query(
-      `UPDATE ${BOSS_JOBS_TABLE}
+    await ensureSchema();
+    const [res] = await query(
+      `UPDATE boss_jobs
           SET greeted = 1,
               contact_state = ?,
               manual_excluded = 0,
               manual_exclusion_reason = '',
-              raw = JSON_SET(raw, '$.greeted', CAST('true' AS JSON), '$.contactState', ?, '$.manualExcluded', CAST('false' AS JSON), '$.manualExclusionReason', '')
-        WHERE url IN (?)`,
+              raw = jsonb_set(jsonb_set(jsonb_set(jsonb_set(raw,
+                      '{greeted}', to_jsonb(true)),
+                      '{contactState}', to_jsonb(?::text)),
+                      '{manualExcluded}', to_jsonb(false)),
+                      '{manualExclusionReason}', to_jsonb(''::text)),
+              updated_at = now()
+        WHERE url = ANY(?)`,
       [contactState, contactState, list],
     );
     return res.affectedRows;
@@ -816,17 +748,15 @@ export async function markCandidatesGreeted(urls, contactState = 'custom_sent') 
   }
 }
 
-// 职位已关闭（JOB_CLOSED）的岗位标记出局：status='closed'，
-// 发送队列 SQL 排除之，避免每次运行都白占一个配额名额反复重试（2026-09-29）。
+// 职位已关闭（JOB_CLOSED）的岗位标记出局：status='closed'，发送队列 SQL 排除之。
 export async function markJobsClosed(keyHashes) {
   const list = (Array.isArray(keyHashes) ? keyHashes : [keyHashes]).filter(Boolean);
   if (!list.length) return 0;
   cancelIdleClose();
   try {
-    await schemaReady();
-    const pool = dbPool();
-    const [res] = await pool.query(
-      `UPDATE ${BOSS_JOBS_TABLE} SET status = 'closed', availability = 'closed' WHERE key_hash IN (?)`,
+    await ensureSchema();
+    const [res] = await query(
+      `UPDATE boss_jobs SET status = 'closed', availability = 'closed', updated_at = now() WHERE key_hash = ANY(?)`,
       [list],
     );
     return res.affectedRows;
@@ -843,10 +773,9 @@ export async function loadCandidatesByKeyHashes(keyHashes) {
   if (!list.length) return [];
   cancelIdleClose();
   try {
-    await schemaReady();
-    const pool = dbPool();
-    const [rows] = await pool.query(
-      `SELECT key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, raw FROM ${BOSS_JOBS_TABLE} WHERE key_hash IN (?)`,
+    await ensureSchema();
+    const [rows] = await query(
+      `SELECT key_hash, url, greeted, contact_state, score, status, availability, manual_excluded, manual_exclusion_reason, hr_active, raw FROM boss_jobs WHERE key_hash = ANY(?)`,
       [list],
     );
     return rows.map(mapJobRow);
@@ -859,4 +788,98 @@ export async function loadCandidatesByKeyHashes(keyHashes) {
 export async function loadCandidateByKeyHash(keyHash) {
   const jobs = await loadCandidatesByKeyHashes([keyHash]);
   return jobs[0] || null;
+}
+
+// ===== 待发队列（PostgreSQL boss_queue）=====
+// 原先 data/boss-queue.json / data/boss-queue-<city>.json；现以 queue_name 区分（'all' 或城市名）。
+// 队列快照 + 库里最新状态 = 本次真正要发的岗位。
+// 队列只决定「发哪些、什么顺序」；**文案和状态一律以库里的行（key_hash 对应）为准**。
+// 2026-10-30 修：原来这段只刷新 score/greeted/status，漏了 greeting ——
+// 队列是在 LLM 写库之前建的，于是发送时用的还是老模板文案（实测 5/5 条与库里不一致）。
+export function hydrateQueueJob(queued = {}, current = null) {
+  if (!current) return queued;
+  const score = Number(current.score);
+  return {
+    ...queued,
+    ...(Number.isFinite(score) ? { score } : {}),
+    greeted: Boolean(current.greeted),
+    contactState: current.contactState || queued.contactState,
+    availability: current.availability || queued.availability,
+    manualExcluded: Boolean(current.manualExcluded),
+    manualExclusionReason: current.manualExclusionReason || '',
+    status: current.status || queued.status,
+    // 文案：库里最新（LLM 可能在入队之后才写）；库里没有才回退到队列快照
+    greeting: String(current.greeting || queued.greeting || ''),
+    greetingSource: String(current.greetingSource || queued.greetingSource || ''),
+    greetingModel: String(current.greetingModel || queued.greetingModel || ''),
+    greetingLlmError: String(current.greetingLlmError || ''),
+  };
+}
+export async function saveQueue(name, jobs) {
+  const queueName = String(name || 'all');
+  // 人工排除 = 用户明确「不发送」，这类岗位一律不进队列（2026-10-30 实测队列里混了 385 条）。
+  // 放在这里做统一收口：score / fill / 控制台三条写入路径都经过它。
+  const list = listJobs(jobs).filter((job) => !(job?.manualExcluded || job?.manual_excluded));
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    const conn = await getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM boss_queue WHERE queue_name = ?', [queueName]);
+      for (const job of list) {
+        await conn.query(
+          'INSERT INTO boss_queue (queue_name, key_hash, payload) VALUES (?, ?, ?)',
+          [queueName, job.key_hash || null, JSON.stringify(job)],
+        );
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+    return list;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+export async function loadQueue(name = 'all') {
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    const [rows] = await query('SELECT payload FROM boss_queue WHERE queue_name = ? ORDER BY id', [String(name || 'all')]);
+    return rows.map((r) => parseRawRow(r.payload));
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+// ===== 运行时状态（PostgreSQL boss_runtime_state）=====
+// 原先 data/last-scan.txt；现以 state_key 存键值（如 'last_scan_at'）。
+export async function getRuntimeState(key) {
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    const [rows] = await query('SELECT value FROM boss_runtime_state WHERE state_key = ?', [String(key)]);
+    return rows.length ? rows[0].value : null;
+  } finally {
+    scheduleIdleClose();
+  }
+}
+
+export async function setRuntimeState(key, value) {
+  cancelIdleClose();
+  try {
+    await ensureSchema();
+    await query(
+      `INSERT INTO boss_runtime_state (state_key, value, updated_at) VALUES (?, ?, now())
+       ON CONFLICT (state_key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+      [String(key), String(value)],
+    );
+  } finally {
+    scheduleIdleClose();
+  }
 }
