@@ -10,6 +10,12 @@ name: No user data in PRs
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # A direct push to main used to have NO check at all, which is exactly how a
+  # personal résumé reached this repo: `output/施辞-数据开发.pdf` was tracked by
+  # the root commit, so `.gitignore` no longer applied to it, and the PR-only
+  # guard below never ran. The tree job covers that path.
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,6 +23,7 @@ permissions:
 
 jobs:
   guard:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
@@ -43,6 +50,7 @@ jobs:
               /^reports\//,
               /^output\//,
               /^jds\//,
+              /^documents\//,
               /^writing-samples\//,
             ];
             // Tracked scaffolding that legitimately lives under those dirs.
@@ -62,3 +70,13 @@ jobs:
             } else {
               core.info('OK — no user-layer (private data) files touched.');
             }
+
+  # Audits the whole tracked tree of what just landed on main, so a file that
+  # was tracked BEFORE its ignore rule existed cannot slip through again.
+  guard-tree:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit tracked tree for user-layer files
+        run: node check-user-data.mjs --summary

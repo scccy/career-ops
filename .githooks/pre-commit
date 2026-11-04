@@ -1,0 +1,31 @@
+#!/bin/sh
+# Blocks a commit that would ADD or MODIFY user-layer (private) files.
+#
+# Install once per clone:
+#   git config core.hooksPath .githooks
+#
+# Why a hook and not just .gitignore: an ignore rule does nothing for a file
+# that is already tracked, and `git add -f` bypasses the rules outright. That
+# is how a personal résumé (output/施辞-数据开发.pdf — phone, email, full work
+# history) reached a public repository from the root commit. See the header of
+# check-user-data.mjs for the full post-mortem.
+#
+# Override (only when you are certain): git commit --no-verify
+
+node check-user-data.mjs --staged --quiet
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "──────────────────────────────────────────────────────────────"
+  echo " BLOCKED: staged changes include user-layer (private) files."
+  echo ""
+  node check-user-data.mjs --staged --summary
+  echo ""
+  echo " These live only on your machine per DATA_CONTRACT.md."
+  echo " Unstage with:  git restore --staged <file>"
+  echo "──────────────────────────────────────────────────────────────"
+  exit 1
+fi
+
+exit 0

@@ -397,6 +397,10 @@ const scripts = [
   { name: 'calibrate.mjs --self-test', expectExit: 0 },
   { name: 'check-table-freshness.mjs --self-test', expectExit: 0 },
   { name: 'check-jd-archive.mjs --self-test', expectExit: 0 },
+  // A personal résumé reached a public repo through a tracked-then-ignored path;
+  // this guard audits the tracked tree (not just diffs) so it cannot recur.
+  { name: 'check-user-data.mjs --self-test', expectExit: 0 },
+  { name: 'check-user-data.mjs', expectExit: 0 },
   { name: 'upskill.mjs --self-test', expectExit: 0 },
   { name: 'detect-reposts.mjs --self-test', expectExit: 0 },
   { name: 'rank-pipeline.mjs --self-test', expectExit: 0 },

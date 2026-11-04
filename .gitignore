@@ -231,6 +231,14 @@ boss/boss-web/.stopped
 output/cv-*
 interview-prep/story-bank.md
 interview-prep/wangying-*.md
+
+# --- 为什么 ignore 挡不住这类事故（2026-11-04 补记）---
+# 上面这些目录早已是白名单式规则（output/* 只留 .gitkeep 等），依然漏了一份个人
+# 简历 output/施辞-数据开发.pdf：它在根提交时就被跟踪，而 ignore 规则只对「未跟踪」
+# 文件生效，对已跟踪文件完全无效；同时 no-user-data.yml 只查 PR，直推 main 没有任何
+# 检查。真正的闸门是这两道，新增个人目录时记得同步 USER_PATHS：
+#   node check-user-data.mjs             —— 审计已跟踪文件树（CI push job 也跑它）
+#   git config core.hooksPath .githooks  —— 提交前拦截 .githooks/pre-commit
 # 本地临时文件（含记忆库导出等），不进库
 tmp/
 
