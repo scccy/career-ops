@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.11.0](https://github.com/scccy/career-ops/compare/career-ops-v1.10.0...career-ops-v1.11.0) (2026-11-04)
+
+
+### Features
+
+* **boss-web:** 控制台 LLM 面板 + 表头排序 + 文档更新 ([3496016](https://github.com/scccy/career-ops/commit/3496016a3dde8b5b760ac52bd970047748632425))
+* **boss:** 底层存储迁移到 PostgreSQL + 新增 LLM 客户端模块 ([a69ce53](https://github.com/scccy/career-ops/commit/a69ce5383508ae2213ac4ce71456330312b4e4cf))
+* **boss:** 评分流程接入一套 LLM 评估（匹配结构 + 招呼语同一次返回） ([8b14211](https://github.com/scccy/career-ops/commit/8b14211b97ab40c3968ccde945aa176b80684339))
+
+
+### Bug Fixes
+
+* boss-extract-3cities.sh 兼容 --all/--main 写法(此前 npm 入口传 --all 被参数校验拒绝) ([950a2e6](https://github.com/scccy/career-ops/commit/950a2e6777bbfb0a6fbdebadb8518774102dae4e))
+* boss-web 60s 自动刷新初始化漏调 setAuto，导致池中待发不自动更新 ([63fce7d](https://github.com/scccy/career-ops/commit/63fce7d41eb57c00f52134b2378611ff5101eb75))
+
 ## [1.33.0](https://github.com/career-ops-hq/career-ops/compare/career-ops-v1.32.0...career-ops-v1.33.0) (2026-09-16)
 
 
