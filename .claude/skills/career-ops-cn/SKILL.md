@@ -28,7 +28,7 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 确认 cv.md 与画像已对齐
 → BOSS 搜索页 extract（或 import:url 读取单条岗位完整 JD）
 → boss:score 评分（输出 opportunity_legitimacy）
-→ boss:fill --prepare 排队（每日 20 家企业配额 + 30 天公司去重）
+→ boss:fill --prepare 排队（每日城市配额 + 30 天同岗位去重）
 → boss:review 展示前 20 家，等待用户明确确认
 → boss:chrome:apply --dry-run 逐岗位预览打招呼文案
 → 用户确认后 boss:chrome:apply -- --confirmed-review 真实发送
@@ -88,7 +88,8 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 - 评分必须输出机会可信度 `opportunity_legitimacy`：`Suspicious / 可疑机会` 不进入发送队列；薪资不明确或"面议"只记录不发送。
 - 每个岗位的打招呼文案基于该岗位 JD 和确认版画像单独生成，不复用模板。
 - 发送成功判定：填入输入框不算；必须点击底部文字按钮"发送"并验证自定义文案进入聊天记录。
-- 失败/未验证不计入当日额度与 30 天公司去重；同批次停止后续发送。
+- 失败分级（2026-11-18 起，见 `boss/boss-apply-failure.mjs`）：`skip` = 这条岗位点不了**且还没发出任何消息**（未找到"立即沟通"按钮/页面超时/无输入框/文案没填进去/发送按钮不可点/无文案），记 `skipped`、不计当日额度、不计 30 天去重，**继续下一家**；`fatal` = 环境级故障或**状态未知**（发送后未验证到文案、点了 3 次立即沟通无反应、消息页超时、风控/登录验证、CDP 断连、未分类错误），**停批次**。分界线是「这个时点还可能已经发出消息吗」，是就停——否则下一轮会给同一个 HR 重复打招呼。连续 3 条 skip（`--max-consecutive-failures 3`）按 fatal 停批次；`--stop-on-first-failure` 恢复旧行为。
+- 任何失败/未验证都不计入当日额度与 30 天同岗位去重。
 - 不破解验证码、不绕过风控、不加隐身/反检测逻辑。
 - 简历定制只润色真实经历（重排/强调/融入 JD 关注点），不新增不存在的经历、技能、证书、薪资、学历、时间；不写"匹配重点"式报告章节。
 - 打招呼文案默认不含手机号、微信。
@@ -102,6 +103,8 @@ BOSS 直聘无公开 API。扫描/发送一律走**用户真实 Chrome + CDP**�
 | `boss:import:url` 失败或 `jd_detail.ok=false` | 用户登录后重试 | 用户复制详情页全文 → `boss:import:detail -- --clipboard --append` |
 | `--dry-run` 未生成可复核清单 | 停止真实发送，重新评分或补候选池 | 禁用 `--confirmed-review` |
 | 发送后未验证到自定义文案 | 记 `failed`/`unverified`，停同批次 | 不计额度、不计 30 天去重 |
+| 单条岗位报「未找到立即沟通按钮」/页面超时/无输入框 | 记 `skipped` 继续下一家（脚本默认行为），别手动中途放弃整批 | 连续 3 条同样失败 → 视为风控或页面结构变化，停批次让用户看 Chrome |
+| 报「点击立即沟通 3 次均无反应」/消息页超时 | 状态未知（点击可能已触发 BOSS 自动默认招呼）→ 记 `failed` 停批次，别跳过重试 | 让用户看 BOSS 聊天记录确认是否已发出，再决定是否重跑 |
 | `tyc-mcp` 鉴权失败/连续失败 | 立即降级 `tyc-cli` | 用户拒绝授权 → 只用官网/新闻/JD |
 | 主项目 update-system 报 system-files-changed | 与 boss-* 模块无关（本地迁移文件，不受 update-system 管理） | 按主项目 AGENTS.md 的更新流程处理，boss 文件保持不动 |
 
