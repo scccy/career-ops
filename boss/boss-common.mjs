@@ -106,12 +106,18 @@ function normalizeProfile(profile) {
   const roles = [...list(profile?.target_roles?.primary), ...list(profile?.target_roles?.secondary)];
   const cities = list(profile?.location?.preferred_cities);
   const skills = list(profile?.boss?.skills_core);
+  // 全国不限制（2026-11-07 用户确认「现在的城市应该全国都不限制」）：
+  // `location.nationwide: true` → target.cities 置空，评分器城市维度对任何城市都给满分
+  // （boss-score 的判定是 `targetCities.length === 0 → 5`，否则非目标城市 2.5）。
+  // ⚠ 只置空这里不够：城市硬闸在 preferences.reject（来自 location.block_default），
+  //   全国模式下 block_default 必须为空，否则那个城市的所有岗位仍然 eligible=false、score 留空。
+  const nationwide = profile?.location?.nationwide === true;
   return {
     ...profile,
     target: {
       ...(profile?.target || {}),
       roles: roles.length ? roles : list(profile?.target?.roles),
-      cities: cities.length ? cities : list(profile?.target?.cities),
+      cities: nationwide ? [] : (cities.length ? cities : list(profile?.target?.cities)),
       expected_salary: profile?.target?.expected_salary || annualToMonthlyK(profile?.compensation?.target_range),
       minimum_salary: profile?.target?.minimum_salary || annualToMonthlyK(profile?.compensation?.minimum),
     },
@@ -530,6 +536,21 @@ function buildValuesSql(rows) {
   return rows.map((_, ri) => '(' + JOB_COLUMNS.map((_, ci) => `$${ri * n + ci + 1}`).join(', ') + ')').join(', ');
 }
 
+// 一条 INSERT 的占位符个数受 PostgreSQL Bind 消息的 16 位计数限制（65535）。
+// 整池一条 INSERT 时行数上限 = floor(65535 / 19 列) = 3449 行；池子一旦越过这条线，
+// 扫描的「入库」这一步就整批失败，报的是 `bind message has N parameter formats but 0 parameters`
+// （2026-11-07 实测：3425 行 + 29 条新岗位 = 65626 个参数 → 长沙第 4 个关键词的 29 条全部丢失，
+//  连带控制台命令链 `extract && score && fill` 因退出码 1 中断，长沙永远评分不了）。
+// 因此按行分片写入——分片仍在**同一个事务**里提交，整批的原子性不变。
+const MAX_PARAMS_PER_STATEMENT = 30000;
+
+function chunkJobRows(rows) {
+  const perStatement = Math.max(1, Math.floor(MAX_PARAMS_PER_STATEMENT / JOB_COLUMNS.length));
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += perStatement) chunks.push(rows.slice(i, i + perStatement));
+  return chunks;
+}
+
 // ===== LLM 深度解析结果落库（2026-10-30）=====
 // 一次调用（cv.md + JD）产出的标准 JSON 全部存下来：整份放 raw.llm，
 // 匹配分另存 llm_score 列（可排序/筛选/建索引）；招呼语顺手写进 raw.greeting，
@@ -668,13 +689,15 @@ export async function saveCandidates(jobs) {
     try {
       await conn.beginTransaction();
       if (unique.length) {
-        await conn.query(
-          `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(unique)}
-           ON CONFLICT (key_hash) DO UPDATE SET
-             ${conflictUpdate},
-             updated_at = now()`,
-          unique.flatMap(jobRow),
-        );
+        for (const chunk of chunkJobRows(unique)) {
+          await conn.query(
+            `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(chunk)}
+             ON CONFLICT (key_hash) DO UPDATE SET
+               ${conflictUpdate},
+               updated_at = now()`,
+            chunk.flatMap(jobRow),
+          );
+        }
       }
       await conn.commit();
     } catch (err) {
@@ -701,12 +724,16 @@ export async function upsertJobs(jobs) {
       .filter((c) => c !== 'key_hash')
       .map((c) => `${c} = EXCLUDED.${c}`)
       .join(', ');
-    const [res] = await query(
-      `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(list)}
-       ON CONFLICT (key_hash) DO UPDATE SET ${updates}, updated_at = now()`,
-      list.flatMap(jobRow),
-    );
-    return res.affectedRows;
+    let affected = 0;
+    for (const chunk of chunkJobRows(list)) {
+      const [res] = await query(
+        `INSERT INTO boss_jobs (${JOB_COLUMNS.join(', ')}) VALUES ${buildValuesSql(chunk)}
+         ON CONFLICT (key_hash) DO UPDATE SET ${updates}, updated_at = now()`,
+        chunk.flatMap(jobRow),
+      );
+      affected += Number(res.affectedRows || 0);
+    }
+    return affected;
   } finally {
     scheduleIdleClose();
   }

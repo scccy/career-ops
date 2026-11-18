@@ -429,7 +429,9 @@ test("整池写入：不再 TRUNCATE，按 key_hash 幂等 upsert（id 才稳定
   assert.match(fn, /ON CONFLICT \(key_hash\) DO UPDATE SET/, "同一岗位必须命中同一行");
   assert.match(fn, /COALESCE\(boss_jobs\.raw/, "raw 必须与旧值合并，否则扫描会抹掉 llm/greeting");
   assert.match(fn, /\|\| EXCLUDED\.raw/, "合并方向：旧值在前，新扫描的键覆盖同名键");
-  assert.match(fn, /unique\.flatMap\(jobRow\)/, "参数必须与去重后的行对齐（否则参数错位）");
+  // 2026-11-07 起按行分片写入（PG Bind 消息 65535 参数上限），参数对齐的对象从
+  // unique 变成当前分片 chunk —— 两者都必须 flatMap(jobRow)，否则参数与列错位。
+  assert.match(fn, /(unique|chunk)\.flatMap\(jobRow\)/, "参数必须与去重后的行对齐（否则参数错位）");
   assert.match(fn, /c === 'score' \|\| c === 'llm_score'\) return `\$\{c\} = COALESCE\(EXCLUDED\.\$\{c\}, boss_jobs\.\$\{c\}\)`/,
     "score / llm_score 都要 COALESCE：扫描对象不带分数时不能把旧值写成 NULL");
   assert.match(fn, /const preserved = new Set\(\[/, "人工维护的列要显式列出保持旧值");
